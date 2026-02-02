@@ -1,0 +1,481 @@
+---
+id: code-formatting
+title: Code Formatting and Style
+order: 7
+---
+
+# Code Formatting and Style
+
+Clean, consistent code formatting makes your programs easier to read, maintain, and debug. Using tools like clang-format automates this process and ensures your code follows professional standards.
+
+## Why Code Formatting Matters
+
+Consider these two versions of the same code:
+
+### Poorly Formatted
+
+```c
+#include <stdio.h>
+int main(void){int x=5;int y=10;
+if(x<y){printf("x is less\n");}
+else{printf("y is less\n");}
+return 0;}
+```
+
+### Well Formatted
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int x = 5;
+    int y = 10;
+
+    if (x < y) {
+        printf("x is less\n");
+    } else {
+        printf("y is less\n");
+    }
+
+    return 0;
+}
+```
+
+The second version is much easier to understand, even though both compile identically.
+
+## Basic Formatting Rules
+
+### 1. Indentation
+
+Use consistent indentation (4 spaces or 1 tab):
+
+```c
+int main(void) {
+    if (condition) {
+        while (loop) {
+            do_something();
+        }
+    }
+    return 0;
+}
+```
+
+**Never mix tabs and spaces** - pick one and stick with it.
+
+### 2. Spacing Around Operators
+
+Add spaces around binary operators for readability:
+
+```c
+// Good
+int sum = a + b;
+int result = (x * y) + (z / 2);
+if (x == y && a != b) {
+    // ...
+}
+
+// Bad
+int sum=a+b;
+int result=(x*y)+(z/2);
+if(x==y&&a!=b){
+    // ...
+}
+```
+
+### 3. Braces Placement
+
+Two common styles (K&R and Allman):
+
+```c
+// K&R style (opening brace on same line)
+int main(void) {
+    if (condition) {
+        do_something();
+    }
+}
+
+// Allman style (opening brace on new line)
+int main(void)
+{
+    if (condition)
+    {
+        do_something();
+    }
+}
+```
+
+Both are acceptable - **be consistent** within a project.
+
+### 4. Line Length
+
+Keep lines under 80-100 characters:
+
+```c
+// Too long
+printf("This is a very long line that extends far beyond the recommended line length and becomes hard to read\n");
+
+// Better
+printf("This is a very long line that extends far beyond\n"
+       "the recommended line length and becomes hard to read\n");
+```
+
+### 5. Blank Lines
+
+Use blank lines to separate logical sections:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAX_SIZE 100
+
+int main(void) {
+    // Variable declarations
+    int count = 0;
+    int *array = malloc(MAX_SIZE * sizeof(int));
+
+    // Check allocation
+    if (array == NULL) {
+        return 1;
+    }
+
+    // Process data
+    for (int i = 0; i < MAX_SIZE; i++) {
+        array[i] = i * 2;
+    }
+
+    // Cleanup
+    free(array);
+    return 0;
+}
+```
+
+## Using clang-format
+
+clang-format automatically formats your C code according to a style guide.
+
+### Basic Usage
+
+```bash
+# Format a file (prints to stdout)
+clang-format myfile.c
+
+# Format and save changes
+clang-format -i myfile.c
+
+# Format multiple files
+clang-format -i *.c
+```
+
+### Common Styles
+
+clang-format comes with predefined styles:
+
+```bash
+# Google style
+clang-format -style=Google -i file.c
+
+# LLVM style
+clang-format -style=LLVM -i file.c
+
+# Mozilla style
+clang-format -style=Mozilla -i file.c
+
+# WebKit style
+clang-format -style=WebKit -i file.c
+```
+
+### Creating a .clang-format File
+
+Create a `.clang-format` file in your project root to define your style:
+
+```yaml
+---
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: None
+IndentCaseLabels: true
+PointerAlignment: Right
+SpaceAfterCStyleCast: true
+```
+
+Save this as `.clang-format` in your project directory, then:
+
+```bash
+# Format using project style
+clang-format -i file.c
+```
+
+### Example: Before and After
+
+Before formatting:
+
+```c
+#include <stdio.h>
+int factorial(int n){
+if(n<=1)return 1;
+return n*factorial(n-1);}
+int main(void){
+int num=5;
+printf("Factorial: %d\n",factorial(num));return 0;}
+```
+
+After `clang-format -style=LLVM -i`:
+
+```c
+#include <stdio.h>
+
+int factorial(int n) {
+  if (n <= 1)
+    return 1;
+  return n * factorial(n - 1);
+}
+
+int main(void) {
+  int num = 5;
+  printf("Factorial: %d\n", factorial(num));
+  return 0;
+}
+```
+
+## Naming Conventions
+
+### Variables and Functions
+
+Use descriptive, lowercase names with underscores:
+
+```c
+// Good
+int student_count;
+int calculate_average(int scores[], int size);
+char *user_name;
+
+// Bad
+int sc;
+int calcAvg(int s[], int n);
+char *usrNm;
+```
+
+### Constants and Macros
+
+Use UPPERCASE with underscores:
+
+```c
+#define MAX_BUFFER_SIZE 1024
+#define PI 3.14159
+const int MAX_STUDENTS = 100;
+```
+
+### Struct and Typedef Names
+
+Capitalize or use PascalCase:
+
+```c
+struct Student {
+    char name[50];
+    int age;
+};
+
+typedef struct {
+    int x;
+    int y;
+} Point;
+```
+
+## Comments
+
+### Good Comments Explain Why, Not What
+
+```c
+// Bad: comments the obvious
+int x = 10;  // Set x to 10
+
+// Good: explains the reasoning
+int max_retries = 10;  // Retry up to 10 times before failing permanently
+```
+
+### Comment Style
+
+```c
+// Single-line comments for brief notes
+int count = 0;  // Initialize counter
+
+/*
+ * Multi-line comments for longer explanations.
+ * Use these for function documentation or
+ * complex algorithm descriptions.
+ */
+int complex_function(int param) {
+    // Implementation
+}
+```
+
+### Function Documentation
+
+```c
+/**
+ * Calculates the factorial of a number.
+ *
+ * @param n The number to calculate factorial for (must be >= 0)
+ * @return The factorial of n, or -1 on error
+ */
+int factorial(int n) {
+    if (n < 0) {
+        return -1;
+    }
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+```
+
+## Consistent Style Guide
+
+Here's a recommended style for this course:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAX_SIZE 100
+
+/**
+ * Brief function description.
+ */
+int my_function(int param1, int param2) {
+    // Local variables
+    int result = 0;
+    int *array = NULL;
+
+    // Validation
+    if (param1 < 0 || param2 < 0) {
+        return -1;
+    }
+
+    // Allocation
+    array = malloc(MAX_SIZE * sizeof(int));
+    if (array == NULL) {
+        return -1;
+    }
+
+    // Processing
+    for (int i = 0; i < MAX_SIZE; i++) {
+        array[i] = param1 + param2 + i;
+        result += array[i];
+    }
+
+    // Cleanup
+    free(array);
+    return result;
+}
+
+int main(void) {
+    int value = my_function(5, 10);
+    printf("Result: %d\n", value);
+    return 0;
+}
+```
+
+## Formatting Checklist
+
+Before submitting or sharing code:
+
+- ✅ Consistent indentation (4 spaces throughout)
+- ✅ Spaces around operators (`a + b`, not `a+b`)
+- ✅ Space after keywords (`if (`, not `if(`)
+- ✅ Braces on correct lines (consistent style)
+- ✅ Lines under 100 characters
+- ✅ Blank lines between logical sections
+- ✅ Descriptive variable names
+- ✅ Comments explain why, not what
+- ✅ No trailing whitespace
+- ✅ File ends with newline
+
+## Integrating with Your Workflow
+
+### Pre-commit Hook
+
+Format code automatically before committing:
+
+```bash
+# .git/hooks/pre-commit
+#!/bin/sh
+clang-format -i $(git diff --cached --name-only --diff-filter=ACM | grep '\.c$')
+```
+
+### Editor Integration
+
+Most editors support clang-format:
+
+- **VS Code**: Install "Clang-Format" extension
+- **Vim**: Use `:pyf /path/to/clang-format.py`
+- **Emacs**: Use `clang-format.el`
+
+### Format on Save
+
+Configure your editor to run clang-format whenever you save a file.
+
+## Common Formatting Mistakes
+
+### Inconsistent Indentation
+
+```c
+// Bad
+int main(void) {
+  int x = 5;
+    int y = 10;  // Different indentation
+      if (x < y) {  // Different again
+        printf("x is less\n");
+    }
+}
+```
+
+### Missing Spaces
+
+```c
+// Bad
+if(x==y&&a!=b){
+    result=x*y+z;
+}
+
+// Good
+if (x == y && a != b) {
+    result = x * y + z;
+}
+```
+
+### Overly Long Lines
+
+```c
+// Bad
+printf("Name: %s, Age: %d, Address: %s, Phone: %s, Email: %s\n", name, age, address, phone, email);
+
+// Good
+printf("Name: %s, Age: %d\n", name, age);
+printf("Address: %s\n", address);
+printf("Phone: %s, Email: %s\n", phone, email);
+```
+
+## Key Takeaways
+
+- Consistent formatting makes code easier to read and maintain
+- Use 4 spaces for indentation (or tabs, but be consistent)
+- Add spaces around operators and after keywords
+- Keep lines under 100 characters
+- Use clang-format to automate formatting
+- Create a `.clang-format` file for project-wide style consistency
+- Good variable names are descriptive: `student_count` not `sc`
+- Comments should explain why, not what
+- Run clang-format before committing code
+
+## Practice Exercises
+
+1. Take an existing poorly-formatted C file and run `clang-format -i` on it
+2. Create a `.clang-format` file with your preferred style settings
+3. Write a small program and format it using three different styles (Google, LLVM, Mozilla)
+4. Install a clang-format plugin for your editor and configure format-on-save
+5. Review code you wrote a month ago - does it follow consistent formatting?
+6. Format a multi-file project with a single command: `clang-format -i *.c *.h`

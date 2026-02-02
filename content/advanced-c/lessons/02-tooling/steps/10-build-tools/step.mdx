@@ -1,0 +1,442 @@
+---
+id: 10-build-tools
+title: Build Tools and Automation
+order: 10
+---
+
+# Build Tools and Automation
+
+Professional C projects use build tools for automation, dependency management, and reproducible builds.
+
+## Why Build Tools Matter
+
+- **Automation**: One command builds everything
+- **Incremental builds**: Rebuild only changed files
+- **Dependency tracking**: Know what needs rebuilding
+- **Cross-platform**: Work on different systems
+- **Reproducibility**: Same results every time
+
+## Make
+
+### Basic Makefile
+
+```makefile
+# Variables
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11 -g
+TARGET = program
+SOURCES = main.c utils.c data.c
+OBJECTS = $(SOURCES:.c=.o)
+
+# Default target
+all: $(TARGET)
+
+# Link
+$(TARGET): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $(TARGET)
+
+# Compile source files
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Clean build artifacts
+clean:
+	rm -f $(OBJECTS) $(TARGET)
+
+# Run with Valgrind
+valgrind: $(TARGET)
+	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
+
+# Install
+install: $(TARGET)
+	install -m 0755 $(TARGET) /usr/local/bin
+
+.PHONY: all clean valgrind install
+```
+
+### Automatic Dependencies
+
+```makefile
+# Generate dependencies
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11 -g -MMD -MP
+
+DEPS = $(OBJECTS:.o=.d)
+
+# Include dependencies
+-include $(DEPS)
+
+clean:
+	rm -f $(OBJECTS) $(TARGET) $(DEPS)
+```
+
+`-MMD -MP` generates `.d` files with dependencies.
+
+### Debug and Release Builds
+
+```makefile
+# Debug build
+debug: CFLAGS += -O0 -DDEBUG
+debug: clean $(TARGET)
+
+# Release build
+release: CFLAGS += -O3 -DNDEBUG
+release: clean $(TARGET)
+```
+
+### Pattern Rules
+
+```makefile
+# Build object files from source
+%.o: %.c %.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Build test executables
+test_%: test_%.c %.o
+	$(CC) $(CFLAGS) $^ -o $@
+```
+
+### Phony Targets
+
+```makefile
+.PHONY: all clean test install
+
+test: $(TARGET)
+	./test_runner
+
+install: $(TARGET)
+	install $(TARGET) /usr/local/bin
+```
+
+## CMake
+
+### Basic CMakeLists.txt
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(MyProject C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+
+# Add executable
+add_executable(program main.c utils.c data.c)
+
+# Enable testing
+enable_testing()
+add_subdirectory(tests)
+```
+
+### Building with CMake
+
+```bash
+# Configure
+mkdir build && cd build
+cmake ..
+
+# Build
+make
+
+# Install
+make install
+```
+
+### Out-of-Source Build
+
+```bash
+mkdir build
+cd build
+cmake ..
+make
+```
+
+Keeps build files separate from source.
+
+### Finding Libraries
+
+```cmake
+find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
+
+add_executable(program main.c)
+target_link_libraries(program Threads::Threads OpenSSL::SSL)
+```
+
+### Compiler Flags
+
+```cmake
+# Debug build
+set(CMAKE_BUILD_TYPE Debug)
+
+# Release build
+set(CMAKE_BUILD_TYPE Release)
+
+# Custom flags
+set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DDEBUG")
+set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+```
+
+### Installation
+
+```cmake
+install(TARGETS program DESTINATION bin)
+install(FILES config.h DESTINATION include)
+```
+
+## pkg-config
+
+### Library with pkg-config
+
+Create `mylib.pc.in`:
+
+```
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: MyLib
+Description: My awesome library
+Version: 1.0.0
+Libs: -L${libdir} -lmylib
+Cflags: -I${includedir}
+```
+
+Install with CMake:
+
+```cmake
+configure_file(${CMAKE_SOURCE_DIR}/mylib.pc.in
+               ${CMAKE_BINARY_DIR}/mylib.pc @ONLY)
+install(FILES ${CMAKE_BINARY_DIR}/mylib.pc
+        DESTINATION lib/pkgconfig)
+```
+
+### Using pkg-config
+
+```bash
+# Compile
+gcc $(pkg-config --cflags mylib) main.c -o main
+
+# Link
+gcc main.o -o main $(pkg-config --libs mylib)
+```
+
+In Makefile:
+
+```makefile
+CFLAGS += $(shell pkg-config --cflags mylib)
+LDFLAGS += $(shell pkg-config --libs mylib)
+```
+
+## Compiler Cache (ccache)
+
+Speed up rebuilds:
+
+```bash
+# Install
+sudo apt install ccache  # Linux
+brew install ccache      # macOS
+
+# Use with make
+export CC="ccache gcc"
+make
+
+# Or symlink
+ln -s /usr/bin/ccache /usr/local/bin/gcc
+ln -s /usr/bin/ccache /usr/local/bin/cc
+```
+
+## Precompiled Headers
+
+Speed up large projects:
+
+```makefile
+# Generate precompiled header
+stdafx.h.gch: stdafx.h
+	$(CC) $(CFLAGS) -x c-header stdafx.h
+
+# Use precompiled header
+main.o: main.c stdafx.h.gch
+	$(CC) $(CFLAGS) -include stdafx.h -c main.c -o main.o
+```
+
+## Continuous Integration
+
+### GitHub Actions
+
+```yaml
+name: Build and Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: sudo apt-get install -y valgrind cppcheck
+
+      - name: Build
+        run: make
+
+      - name: Run tests
+        run: make test
+
+      - name: Run Valgrind
+        run: make valgrind
+
+      - name: Static analysis
+        run: cppcheck --enable=all --error-exitcode=1 src/
+```
+
+### GitLab CI
+
+```yaml
+build:
+  stage: build
+  script:
+    - mkdir build && cd build
+    - cmake ..
+    - make
+    - make test
+
+test:
+  stage: test
+  script:
+    - make valgrind
+    - cppcheck --enable=all src/
+```
+
+## Cross-Compilation
+
+### Using CMake
+
+```bash
+# Cross-compile for ARM
+mkdir build && cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=arm-toolchain.cmake
+make
+```
+
+`arm-toolchain.cmake`:
+
+```cmake
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR arm)
+
+set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
+set(CMAKE_FIND_ROOT_PATH /usr/arm-linux-gnueabihf)
+```
+
+## Best Practices
+
+### 1. Use Build Systems
+
+- Small projects: Make
+- Medium/large projects: CMake
+- Avoid hand-written shell scripts
+
+### 2. Separate Build and Source
+
+```bash
+mkdir build
+cd build
+cmake ..
+```
+
+### 3. Use Debug and Release Configurations
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
+```
+
+### 4. Automate Testing
+
+```makefile
+test: $(TARGET)
+	./test_runner
+
+.PHONY: test
+```
+
+### 5. Document Build Process
+
+```makefile
+# Build the project
+# Usage:
+#   make          # Build debug version
+#   make release  # Build release version
+#   make test     # Run tests
+#   make clean    # Clean build artifacts
+```
+
+### 6. Use Compiler Flags Consistently
+
+```cmake
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror")
+```
+
+## Practice Exercise
+
+Create a Makefile for this project:
+
+```
+src/
+  main.c
+  utils.c
+  utils.h
+  data.c
+  data.h
+```
+
+Targets:
+
+- `make` - Build everything
+- `make clean` - Clean build artifacts
+- `make debug` - Debug build
+- `make release` - Release build
+- `make test` - Run tests
+- `make valgrind` - Run Valgrind
+
+**Answer**:
+
+```makefile
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11 -g
+LDFLAGS =
+TARGET = program
+SOURCES = src/main.c src/utils.c src/data.c
+OBJECTS = $(SOURCES:.c=.o)
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $(TARGET)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+debug: CFLAGS += -O0 -DDEBUG
+debug: clean $(TARGET)
+
+release: CFLAGS += -O3 -DNDEBUG
+release: clean $(TARGET)
+
+test: $(TARGET)
+	./$(TARGET) --test
+
+valgrind: $(TARGET)
+	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
+
+clean:
+	rm -f $(OBJECTS) $(TARGET)
+
+.PHONY: all debug release test valgrind clean
+```
+
+---
+
+**Phase 9 Complete**: You now have a complete tooling toolkit. Next: The C Standard Library.

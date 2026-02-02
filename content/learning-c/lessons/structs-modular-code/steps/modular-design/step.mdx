@@ -1,0 +1,688 @@
+---
+title: "Modular Design"
+description: "Learn design principles and patterns for creating maintainable, scalable C programs with Makefiles."
+order: 7
+---
+
+# Modular Design
+
+Building software is like building a house. You wouldn't construct it as one giant piece—you'd create separate rooms, each with a specific purpose. **Modular design** applies this principle to programming: divide your program into independent, reusable modules with clear responsibilities.
+
+## Principles of Modular Design
+
+### 1. High Cohesion
+Each module should have a single, well-defined purpose. All functions in a module should be closely related.
+
+**Good:** A `string_utils` module containing only string manipulation functions
+**Bad:** A `utils` module with string functions, file I/O, and math operations
+
+### 2. Low Coupling
+Modules should depend on each other as little as possible. Changes in one module shouldn't require changes in others.
+
+### 3. Information Hiding
+Hide implementation details. Only expose what users of the module need to know.
+
+### 4. Clear Interfaces
+Define clear, documented APIs. The header file is your contract with users.
+
+## Example 1: Well-Designed Module Structure
+
+**Project structure:**
+```
+student_manager/
+  ├── src/
+  │   ├── main.c
+  │   ├── student.c
+  │   ├── database.c
+  │   └── ui.c
+  ├── include/
+  │   ├── student.h
+  │   ├── database.h
+  │   └── ui.h
+  ├── build/
+  └── Makefile
+```
+
+**include/student.h** (Data Model):
+```c
+#ifndef STUDENT_H
+#define STUDENT_H
+
+typedef struct {
+    int id;
+    char name[50];
+    char email[100];
+    float gpa;
+} Student;
+
+// Constructor
+Student student_create(int id, const char *name, const char *email, float gpa);
+
+// Comparison functions
+int student_compare_by_id(const void *a, const void *b);
+int student_compare_by_name(const void *a, const void *b);
+int student_compare_by_gpa(const void *a, const void *b);
+
+// Validation
+int student_is_valid_email(const char *email);
+int student_is_valid_gpa(float gpa);
+
+// Display
+void student_print(const Student *student);
+
+#endif
+```
+
+**src/student.c**:
+```c
+#include "student.h"
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+Student student_create(int id, const char *name, const char *email, float gpa) {
+    Student s = {0};
+    s.id = id;
+    strncpy(s.name, name, sizeof(s.name) - 1);
+    strncpy(s.email, email, sizeof(s.email) - 1);
+    s.gpa = gpa;
+    return s;
+}
+
+int student_compare_by_id(const void *a, const void *b) {
+    const Student *sa = (const Student *)a;
+    const Student *sb = (const Student *)b;
+    return sa->id - sb->id;
+}
+
+int student_compare_by_name(const void *a, const void *b) {
+    const Student *sa = (const Student *)a;
+    const Student *sb = (const Student *)b;
+    return strcmp(sa->name, sb->name);
+}
+
+int student_compare_by_gpa(const void *a, const void *b) {
+    const Student *sa = (const Student *)a;
+    const Student *sb = (const Student *)b;
+    if (sa->gpa < sb->gpa) return 1;
+    if (sa->gpa > sb->gpa) return -1;
+    return 0;
+}
+
+int student_is_valid_email(const char *email) {
+    // Simple validation: contains @ and .
+    const char *at = strchr(email, '@');
+    const char *dot = strrchr(email, '.');
+    return at != NULL && dot != NULL && dot > at;
+}
+
+int student_is_valid_gpa(float gpa) {
+    return gpa >= 0.0 && gpa <= 4.0;
+}
+
+void student_print(const Student *student) {
+    printf("ID: %4d | %-30s | %-35s | GPA: %.2f\n",
+           student->id, student->name, student->email, student->gpa);
+}
+```
+
+**include/database.h** (Data Management):
+```c
+#ifndef DATABASE_H
+#define DATABASE_H
+
+#include "student.h"
+
+#define MAX_STUDENTS 1000
+
+typedef struct {
+    Student students[MAX_STUDENTS];
+    int count;
+} Database;
+
+// Initialize database
+Database* database_create(void);
+void database_destroy(Database *db);
+
+// CRUD operations
+int database_add_student(Database *db, Student student);
+Student* database_find_by_id(Database *db, int id);
+int database_remove_by_id(Database *db, int id);
+int database_update(Database *db, int id, Student updated);
+
+// Query operations
+void database_sort_by_name(Database *db);
+void database_sort_by_gpa(Database *db);
+Student* database_get_top_student(Database *db);
+float database_average_gpa(const Database *db);
+
+// Display
+void database_print_all(const Database *db);
+
+#endif
+```
+
+**src/database.c**:
+```c
+#include "database.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+Database* database_create(void) {
+    Database *db = malloc(sizeof(Database));
+    if (db) {
+        db->count = 0;
+    }
+    return db;
+}
+
+void database_destroy(Database *db) {
+    free(db);
+}
+
+int database_add_student(Database *db, Student student) {
+    if (db->count >= MAX_STUDENTS) {
+        return 0;
+    }
+    db->students[db->count++] = student;
+    return 1;
+}
+
+Student* database_find_by_id(Database *db, int id) {
+    for (int i = 0; i < db->count; i++) {
+        if (db->students[i].id == id) {
+            return &db->students[i];
+        }
+    }
+    return NULL;
+}
+
+int database_remove_by_id(Database *db, int id) {
+    for (int i = 0; i < db->count; i++) {
+        if (db->students[i].id == id) {
+            // Shift remaining students
+            for (int j = i; j < db->count - 1; j++) {
+                db->students[j] = db->students[j + 1];
+            }
+            db->count--;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int database_update(Database *db, int id, Student updated) {
+    Student *s = database_find_by_id(db, id);
+    if (s) {
+        *s = updated;
+        return 1;
+    }
+    return 0;
+}
+
+void database_sort_by_name(Database *db) {
+    qsort(db->students, db->count, sizeof(Student), student_compare_by_name);
+}
+
+void database_sort_by_gpa(Database *db) {
+    qsort(db->students, db->count, sizeof(Student), student_compare_by_gpa);
+}
+
+Student* database_get_top_student(Database *db) {
+    if (db->count == 0) return NULL;
+
+    Student *top = &db->students[0];
+    for (int i = 1; i < db->count; i++) {
+        if (db->students[i].gpa > top->gpa) {
+            top = &db->students[i];
+        }
+    }
+    return top;
+}
+
+float database_average_gpa(const Database *db) {
+    if (db->count == 0) return 0.0;
+
+    float sum = 0.0;
+    for (int i = 0; i < db->count; i++) {
+        sum += db->students[i].gpa;
+    }
+    return sum / db->count;
+}
+
+void database_print_all(const Database *db) {
+    printf("\n=========================================="
+           "============================================\n");
+    printf("Student Database (%d students)\n", db->count);
+    printf("=========================================="
+           "============================================\n");
+
+    for (int i = 0; i < db->count; i++) {
+        student_print(&db->students[i]);
+    }
+
+    printf("=========================================="
+           "============================================\n");
+}
+```
+
+**include/ui.h** (User Interface):
+```c
+#ifndef UI_H
+#define UI_H
+
+#include "database.h"
+
+void ui_run(Database *db);
+
+#endif
+```
+
+**src/ui.c**:
+```c
+#include "ui.h"
+#include <stdio.h>
+
+static void show_menu(void) {
+    printf("\n=== Student Management System ===\n");
+    printf("1. Add student\n");
+    printf("2. View all students\n");
+    printf("3. Find student by ID\n");
+    printf("4. Sort by name\n");
+    printf("5. Show statistics\n");
+    printf("0. Exit\n");
+    printf("Choice: ");
+}
+
+static void clear_input_buffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+void ui_run(Database *db) {
+    int choice;
+    int running = 1;
+
+    while (running) {
+        show_menu();
+
+        if (scanf("%d", &choice) != 1) {
+            clear_input_buffer();
+            printf("Invalid input.\n");
+            continue;
+        }
+        clear_input_buffer();
+
+        switch (choice) {
+            case 1: {
+                int id;
+                char name[50], email[100];
+                float gpa;
+
+                printf("Enter ID: ");
+                scanf("%d", &id);
+                clear_input_buffer();
+
+                printf("Enter name: ");
+                fgets(name, sizeof(name), stdin);
+                name[strcspn(name, "\n")] = 0;
+
+                printf("Enter email: ");
+                fgets(email, sizeof(email), stdin);
+                email[strcspn(email, "\n")] = 0;
+
+                printf("Enter GPA: ");
+                scanf("%f", &gpa);
+                clear_input_buffer();
+
+                if (!student_is_valid_email(email)) {
+                    printf("Invalid email format.\n");
+                    break;
+                }
+
+                if (!student_is_valid_gpa(gpa)) {
+                    printf("Invalid GPA (must be 0.0-4.0).\n");
+                    break;
+                }
+
+                Student s = student_create(id, name, email, gpa);
+                if (database_add_student(db, s)) {
+                    printf("Student added successfully.\n");
+                } else {
+                    printf("Failed to add student (database full).\n");
+                }
+                break;
+            }
+
+            case 2:
+                database_print_all(db);
+                break;
+
+            case 3: {
+                int id;
+                printf("Enter student ID: ");
+                scanf("%d", &id);
+                clear_input_buffer();
+
+                Student *s = database_find_by_id(db, id);
+                if (s) {
+                    printf("\n");
+                    student_print(s);
+                } else {
+                    printf("Student not found.\n");
+                }
+                break;
+            }
+
+            case 4:
+                database_sort_by_name(db);
+                printf("Students sorted by name.\n");
+                database_print_all(db);
+                break;
+
+            case 5: {
+                printf("\n=== Statistics ===\n");
+                printf("Total students: %d\n", db->count);
+                printf("Average GPA: %.2f\n", database_average_gpa(db));
+
+                Student *top = database_get_top_student(db);
+                if (top) {
+                    printf("Top student: %s (%.2f GPA)\n", top->name, top->gpa);
+                }
+                break;
+            }
+
+            case 0:
+                running = 0;
+                printf("Goodbye!\n");
+                break;
+
+            default:
+                printf("Invalid choice.\n");
+        }
+    }
+}
+```
+
+**src/main.c**:
+```c
+#include <stdio.h>
+#include "database.h"
+#include "ui.h"
+
+int main(void) {
+    Database *db = database_create();
+    if (!db) {
+        fprintf(stderr, "Failed to create database.\n");
+        return 1;
+    }
+
+    // Add some sample data
+    database_add_student(db, student_create(1001, "Alice Johnson",
+                                            "alice@email.com", 3.8));
+    database_add_student(db, student_create(1002, "Bob Smith",
+                                            "bob@email.com", 3.5));
+    database_add_student(db, student_create(1003, "Carol White",
+                                            "carol@email.com", 3.9));
+
+    ui_run(db);
+
+    database_destroy(db);
+    return 0;
+}
+```
+
+## Example 2: Makefile for Automated Builds
+
+A **Makefile** automates compilation and dependency management:
+
+**Makefile**:
+```makefile
+# Compiler and flags
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11 -Iinclude
+LDFLAGS =
+
+# Directories
+SRC_DIR = src
+BUILD_DIR = build
+INCLUDE_DIR = include
+
+# Source files
+SOURCES = $(wildcard $(SRC_DIR)/*.c)
+OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SOURCES))
+
+# Output binary
+TARGET = student_manager
+
+# Default target
+all: $(BUILD_DIR) $(TARGET)
+
+# Create build directory
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Link the program
+$(TARGET): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
+	@echo "Build complete: $(TARGET)"
+
+# Compile source files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Clean build artifacts
+clean:
+	rm -rf $(BUILD_DIR) $(TARGET)
+	@echo "Cleaned build artifacts"
+
+# Rebuild from scratch
+rebuild: clean all
+
+# Run the program
+run: $(TARGET)
+	./$(TARGET)
+
+# Show help
+help:
+	@echo "Available targets:"
+	@echo "  all      - Build the program (default)"
+	@echo "  clean    - Remove build artifacts"
+	@echo "  rebuild  - Clean and build"
+	@echo "  run      - Build and run the program"
+	@echo "  help     - Show this help message"
+
+.PHONY: all clean rebuild run help
+```
+
+**Usage:**
+```bash
+make           # Build the project
+make clean     # Remove built files
+make rebuild   # Clean and rebuild
+make run       # Build and run
+make help      # Show available commands
+```
+
+**Makefile key concepts:**
+- **Variables**: `CC`, `CFLAGS` define compiler and flags
+- **Automatic variables**: `$<` (first dependency), `$@` (target)
+- **Pattern rules**: `%.o: %.c` matches all .c files
+- **Wildcards**: `$(wildcard *.c)` finds all .c files
+- **Phony targets**: `.PHONY` marks targets that aren't files
+
+## Example 3: Makefile with Dependencies
+
+**Advanced Makefile with automatic dependency tracking:**
+
+```makefile
+# Compiler settings
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11 -O2 -g -Iinclude
+LDFLAGS = -lm
+
+# Directories
+SRC_DIR = src
+BUILD_DIR = build
+INCLUDE_DIR = include
+
+# Files
+SOURCES = $(wildcard $(SRC_DIR)/*.c)
+OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SOURCES))
+DEPENDS = $(OBJECTS:.o=.d)
+
+TARGET = student_manager
+
+# Colors for output
+GREEN = \033[0;32m
+YELLOW = \033[0;33m
+NC = \033[0m # No Color
+
+# Default target
+all: $(TARGET)
+	@echo "$(GREEN)Build successful!$(NC)"
+
+# Create build directory
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
+	@echo "$(YELLOW)Created build directory$(NC)"
+
+# Link the program
+$(TARGET): $(BUILD_DIR) $(OBJECTS)
+	@echo "$(YELLOW)Linking $(TARGET)...$(NC)"
+	@$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
+
+# Compile with automatic dependency generation
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@echo "$(YELLOW)Compiling $<...$(NC)"
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+# Include dependencies
+-include $(DEPENDS)
+
+# Clean
+clean:
+	@rm -rf $(BUILD_DIR) $(TARGET)
+	@echo "$(GREEN)Cleaned$(NC)"
+
+# Install (copy to /usr/local/bin)
+install: $(TARGET)
+	@cp $(TARGET) /usr/local/bin/
+	@echo "$(GREEN)Installed to /usr/local/bin/$(NC)"
+
+# Run with valgrind for memory checking
+valgrind: $(TARGET)
+	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
+
+.PHONY: all clean install valgrind
+```
+
+**Key features:**
+- **Automatic dependencies**: `-MMD -MP` generates .d files
+- **Colored output**: ANSI escape codes for readability
+- **Silent mode**: `@` suppresses command echo
+- **Memory checking**: `valgrind` target for debugging
+
+## Design Patterns for C
+
+### 1. Opaque Pointers (Information Hiding)
+
+Hide structure implementation from users:
+
+**public_api.h**:
+```c
+typedef struct Database Database;  // Forward declaration
+
+Database* database_create(void);
+void database_destroy(Database *db);
+// Users can't access internals directly
+```
+
+**database.c**:
+```c
+struct Database {
+    // Implementation hidden from users
+    Student *students;
+    int count;
+    int capacity;
+};
+```
+
+### 2. Factory Functions
+
+Functions that create and initialize complex objects:
+
+```c
+Student student_create(int id, const char *name, const char *email, float gpa);
+```
+
+### 3. Namespace Prefixes
+
+Prevent naming collisions by prefixing functions:
+
+```c
+// Instead of: create(), destroy(), add()
+// Use: database_create(), database_destroy(), database_add()
+```
+
+## Best Practices
+
+1. **One Module, One Purpose**: Each module handles one aspect of the system
+
+2. **Consistent Naming**: Use prefixes to group related functions
+   ```c
+   student_create(), student_print(), student_validate()
+   ```
+
+3. **Error Handling**: Return error codes or use errno
+   ```c
+   int database_add(Database *db, Student s) {
+       if (!db || db->count >= MAX) return -1;
+       // ...
+       return 0;  // Success
+   }
+   ```
+
+4. **Document Your API**: Add comments to header files
+   ```c
+   /**
+    * Add a student to the database.
+    * @param db Database pointer
+    * @param s Student to add
+    * @return 0 on success, -1 on error
+    */
+   int database_add(Database *db, Student s);
+   ```
+
+5. **Use const**: Protect data that shouldn't change
+   ```c
+   void print_student(const Student *s);
+   ```
+
+6. **Separate Data and Logic**: Data structures in one module, operations in another
+
+## Exercises
+
+1. **Extend the Student Manager**: Add file I/O to save/load the database from disk. Create a separate `file_io.h/c` module.
+
+2. **Build a Game Engine**: Design a modular game with separate modules for graphics, input, physics, and game logic. Write a Makefile.
+
+3. **Create a Library**: Design a reusable dynamic array library with generic void* storage. Package it as a static library.
+
+4. **Refactor Existing Code**: Take a large single-file program and split it into logical modules with proper interfaces.
+
+## Key Takeaways
+
+- **Modular design** divides programs into independent, reusable components
+- **High cohesion** means each module has one clear purpose
+- **Low coupling** minimizes dependencies between modules
+- **Information hiding** exposes only necessary interfaces
+- **Makefiles** automate builds and manage dependencies
+- Use **namespace prefixes** to group related functions
+- **Opaque pointers** hide implementation details
+- **Factory functions** simplify object creation
+- **Document your API** in header files
+- **Separate data structures** from operations
+
+Congratulations! You've completed the Structures and Modular Programming lesson. You now have the tools to build large, maintainable C applications with proper organization and design.

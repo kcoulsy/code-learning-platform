@@ -1,0 +1,453 @@
+---
+title: "The Static Keyword"
+description: "Master the static keyword for file-scoped variables and functions, persistent local variables, and information hiding."
+order: 2
+---
+
+# The Static Keyword
+
+The `static` keyword in C is one of the most misunderstood features of the language. It has different meanings depending on where it's used, but all meanings relate to controlling scope and lifetime. Understanding `static` is essential for writing modular, maintainable code and for implementing proper information hiding.
+
+The three uses of `static` are:
+1. **Static local variables**: Persist between function calls
+2. **Static global variables**: Limit scope to the current file
+3. **Static functions**: Limit visibility to the current file
+
+## Static Local Variables
+
+A static local variable retains its value between function calls, unlike automatic variables that are created and destroyed each time the function is called.
+
+## Example 1: Static Local Variables
+
+```c
+#include <stdio.h>
+
+// Without static - resets every time
+int counter_normal(void) {
+    int count = 0;  // Reinitialized to 0 each call
+    count++;
+    return count;
+}
+
+// With static - persists between calls
+int counter_static(void) {
+    static int count = 0;  // Initialized only once
+    count++;
+    return count;
+}
+
+// Practical use: Generate unique IDs
+int generate_id(void) {
+    static int next_id = 1;
+    return next_id++;
+}
+
+// Practical use: Track function call count
+void function_with_tracking(const char *message) {
+    static int call_count = 0;
+    call_count++;
+
+    printf("[Call #%d] %s\n", call_count, message);
+}
+
+int main(void) {
+    printf("Normal counter:\n");
+    for (int i = 0; i < 3; i++) {
+        printf("  Call %d: %d\n", i + 1, counter_normal());
+    }
+
+    printf("\nStatic counter:\n");
+    for (int i = 0; i < 3; i++) {
+        printf("  Call %d: %d\n", i + 1, counter_static());
+    }
+
+    printf("\nGenerating IDs:\n");
+    for (int i = 0; i < 5; i++) {
+        printf("  ID: %d\n", generate_id());
+    }
+
+    printf("\nFunction tracking:\n");
+    function_with_tracking("First call");
+    function_with_tracking("Second call");
+    function_with_tracking("Third call");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Normal counter:
+  Call 1: 1
+  Call 2: 1
+  Call 3: 1
+
+Static counter:
+  Call 1: 1
+  Call 2: 2
+  Call 3: 3
+
+Generating IDs:
+  ID: 1
+  ID: 2
+  ID: 3
+  ID: 4
+  ID: 5
+
+Function tracking:
+[Call #1] First call
+[Call #2] Second call
+[Call #3] Third call
+```
+
+**Key Points:**
+- Static variables are initialized only once, before the program starts
+- They retain their value between function calls
+- Default initialization is 0 for static variables
+- Memory is allocated for the entire program lifetime
+- Useful for counters, caches, and state tracking
+
+## Example 2: Static Functions (File Scope)
+
+Static functions are only visible within the file they're defined in. This is crucial for information hiding and creating clean APIs.
+
+```c
+// math_utils.c
+#include <stdio.h>
+
+// Private helper function - only visible in this file
+static int is_valid_input(int value) {
+    return value >= 0 && value <= 1000;
+}
+
+// Private helper - only visible in this file
+static int gcd_helper(int a, int b) {
+    if (b == 0) return a;
+    return gcd_helper(b, a % b);
+}
+
+// Public API function - visible to other files
+int calculate_gcd(int a, int b) {
+    if (!is_valid_input(a) || !is_valid_input(b)) {
+        fprintf(stderr, "Error: Invalid input (must be 0-1000)\n");
+        return -1;
+    }
+
+    // Ensure positive values
+    a = (a < 0) ? -a : a;
+    b = (b < 0) ? -b : b;
+
+    return gcd_helper(a, b);
+}
+
+// Public API function - visible to other files
+int calculate_lcm(int a, int b) {
+    if (!is_valid_input(a) || !is_valid_input(b)) {
+        fprintf(stderr, "Error: Invalid input (must be 0-1000)\n");
+        return -1;
+    }
+
+    if (a == 0 || b == 0) return 0;
+
+    int gcd = calculate_gcd(a, b);
+    return (a / gcd) * b;
+}
+
+int main(void) {
+    printf("GCD of 48 and 18: %d\n", calculate_gcd(48, 18));
+    printf("LCM of 12 and 15: %d\n", calculate_lcm(12, 15));
+
+    // These would cause compilation errors if used outside this file:
+    // is_valid_input(10);  // Only available in this file
+    // gcd_helper(10, 5);   // Only available in this file
+
+    return 0;
+}
+```
+
+**Output:**
+```
+GCD of 48 and 18: 6
+LCM of 12 and 15: 60
+```
+
+**Key Points:**
+- Static functions are only visible within their file
+- Use static for helper functions that shouldn't be part of the public API
+- Prevents name conflicts between different files
+- Enables better encapsulation and information hiding
+- Can enable compiler optimizations (inlining, dead code elimination)
+
+## Example 3: Static Global Variables
+
+Static global variables are only visible within the file, unlike normal global variables which can be accessed from other files using `extern`.
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Static global - only accessible in this file
+static int connection_count = 0;
+static char server_name[50] = "Default Server";
+
+// Static global configuration
+static struct {
+    int max_connections;
+    int timeout_seconds;
+    int debug_mode;
+} config = {100, 30, 0};
+
+// Private helper to check connection limit
+static int can_accept_connection(void) {
+    return connection_count < config.max_connections;
+}
+
+// Public API to establish connection
+int server_connect(const char *client_name) {
+    if (!can_accept_connection()) {
+        fprintf(stderr, "Connection refused: server full\n");
+        return -1;
+    }
+
+    connection_count++;
+    printf("Client '%s' connected to '%s' (Total: %d)\n",
+           client_name, server_name, connection_count);
+    return connection_count;
+}
+
+// Public API to disconnect
+void server_disconnect(void) {
+    if (connection_count > 0) {
+        connection_count--;
+        printf("Client disconnected (Remaining: %d)\n", connection_count);
+    }
+}
+
+// Public API to get server stats
+void server_status(void) {
+    printf("Server: %s\n", server_name);
+    printf("Active connections: %d / %d\n",
+           connection_count, config.max_connections);
+    printf("Timeout: %d seconds\n", config.timeout_seconds);
+}
+
+// Public API to configure server
+void server_set_config(int max_conn, int timeout) {
+    config.max_connections = max_conn;
+    config.timeout_seconds = timeout;
+    printf("Server configured: max=%d, timeout=%d\n", max_conn, timeout);
+}
+
+int main(void) {
+    printf("Initializing server...\n\n");
+
+    server_set_config(3, 60);
+    printf("\n");
+
+    server_status();
+    printf("\n");
+
+    // Connect some clients
+    server_connect("Alice");
+    server_connect("Bob");
+    server_connect("Charlie");
+
+    printf("\n");
+    server_status();
+    printf("\n");
+
+    // Try to connect when full
+    server_connect("Dave");
+
+    printf("\n");
+
+    // Disconnect some clients
+    server_disconnect();
+    server_disconnect();
+
+    printf("\n");
+    server_status();
+
+    // Cannot access these from outside this file:
+    // connection_count = 0;  // Would cause error in another file
+    // config.max_connections = 1000;  // Would cause error in another file
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Initializing server...
+
+Server configured: max=3, timeout=60
+
+Server: Default Server
+Active connections: 0 / 3
+Timeout: 60 seconds
+
+Client 'Alice' connected to 'Default Server' (Total: 1)
+Client 'Bob' connected to 'Default Server' (Total: 2)
+Client 'Charlie' connected to 'Default Server' (Total: 3)
+
+Server: Default Server
+Active connections: 3 / 3
+Timeout: 60 seconds
+
+Connection refused: server full
+
+Client disconnected (Remaining: 2)
+Client disconnected (Remaining: 1)
+
+Server: Default Server
+Active connections: 1 / 3
+Timeout: 60 seconds
+```
+
+**Key Points:**
+- Static globals are only visible within their file
+- Provides data hiding - internal state cannot be accessed directly from outside
+- Better than normal globals for encapsulation
+- Each file can have its own static variables with the same names
+
+## Example 4: Caching with Static Variables
+
+A practical example showing how static variables can implement memoization:
+
+```c
+#include <stdio.h>
+
+// Expensive function - we'll cache results
+static long long fibonacci_slow(int n) {
+    static long long call_count = 0;
+    call_count++;
+
+    if (n <= 1) return n;
+    return fibonacci_slow(n - 1) + fibonacci_slow(n - 2);
+}
+
+// Fibonacci with caching
+long long fibonacci_cached(int n) {
+    static long long cache[100] = {0};
+    static int initialized = 0;
+
+    // Initialize cache first time
+    if (!initialized) {
+        cache[0] = 0;
+        cache[1] = 1;
+        for (int i = 2; i < 100; i++) {
+            cache[i] = -1;  // Mark as not computed
+        }
+        initialized = 1;
+    }
+
+    if (n < 0 || n >= 100) return -1;
+
+    // Return cached value if available
+    if (cache[n] != -1) {
+        return cache[n];
+    }
+
+    // Compute and cache
+    cache[n] = fibonacci_cached(n - 1) + fibonacci_cached(n - 2);
+    return cache[n];
+}
+
+// Get statistics about cache usage
+void fibonacci_stats(void) {
+    static int total_calls = 0;
+    static int cache_hits = 0;
+
+    total_calls++;
+
+    printf("Total calls: %d, Cache hits: %d, Hit rate: %.1f%%\n",
+           total_calls, cache_hits,
+           total_calls > 0 ? (100.0 * cache_hits / total_calls) : 0.0);
+}
+
+int main(void) {
+    printf("Computing Fibonacci numbers:\n");
+
+    for (int i = 0; i <= 10; i++) {
+        printf("fib(%d) = %lld\n", i, fibonacci_cached(i));
+    }
+
+    printf("\nCached computation is much faster:\n");
+    printf("fib(40) = %lld\n", fibonacci_cached(40));
+    printf("fib(45) = %lld\n", fibonacci_cached(45));
+
+    // Without caching, this would take a very long time:
+    // printf("fib(45) slow = %lld\n", fibonacci_slow(45));
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Computing Fibonacci numbers:
+fib(0) = 0
+fib(1) = 1
+fib(2) = 1
+fib(3) = 2
+fib(4) = 3
+fib(5) = 5
+fib(6) = 8
+fib(7) = 13
+fib(8) = 21
+fib(9) = 34
+fib(10) = 55
+
+Cached computation is much faster:
+fib(40) = 102334155
+fib(45) = 1134903170
+```
+
+## Best Practices
+
+1. **Use static for helper functions**: Keep implementation details private
+2. **Use static for file-scoped data**: Prevent accidental external access
+3. **Static for persistent state**: When you need to remember values between calls
+4. **Prefer static over globals**: More encapsulated, reduces coupling
+5. **Document static usage**: Comment why a variable or function is static
+6. **Thread safety**: Note that static variables are shared across threads (not thread-safe without synchronization)
+
+## Common Use Cases
+
+1. **Unique ID generation**: Using static counters
+2. **Singleton patterns**: Single instance with static variable
+3. **Caching/Memoization**: Store previously computed results
+4. **Module initialization**: Track whether module has been initialized
+5. **Call counting**: Track how many times a function is called
+6. **Internal state**: Private state variables for modules
+7. **Helper functions**: Internal utilities not part of public API
+
+## Common Pitfalls
+
+1. **Thread safety**: Static variables are shared across threads - use with caution in multithreaded programs
+2. **Testing difficulties**: Static variables persist between test cases
+3. **Hidden state**: Too many static variables can make code harder to understand
+4. **Initialization order**: Static variables in different files may have undefined initialization order
+5. **Reentrancy**: Functions with static variables are not reentrant
+
+## Exercises
+
+1. **Random Number Generator**: Implement a simple linear congruential generator using a static variable to maintain state. Provide `rand_seed()` and `rand_next()` functions.
+
+2. **String Pool**: Create a string interning system using static variables. Implement functions to store unique strings and return pointers to the same string for duplicates.
+
+3. **Module Pattern**: Create a "stack" module in a single file with static variables for the stack array and top index. Provide public functions `stack_push()`, `stack_pop()`, `stack_peek()`, and `stack_is_empty()`.
+
+4. **Performance Profiler**: Write a profiling system using static variables to track function call counts and total execution time for different functions.
+
+## Key Takeaways
+
+- **Static local variables** persist between function calls and are initialized only once
+- **Static functions** are only visible within their file, enabling information hiding
+- **Static global variables** limit scope to the current file, better than regular globals
+- **Use static for encapsulation** to hide implementation details
+- **Static enables state management** without using global variables
+- **Thread safety concerns**: Static variables are shared across threads
+- **Perfect for module-private data** and helper functions
+
+In the next step, you'll learn about bitwise operators and how to manipulate individual bits for efficient low-level programming.

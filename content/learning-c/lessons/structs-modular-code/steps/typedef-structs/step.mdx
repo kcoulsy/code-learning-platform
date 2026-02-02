@@ -1,0 +1,397 @@
+---
+title: "typedef with Structs"
+description: "Simplify structure declarations using typedef and learn common patterns for cleaner, more readable code."
+order: 2
+---
+
+# typedef with Structs
+
+Writing `struct` before every variable declaration can become verbose and repetitive. The `typedef` keyword allows you to create type aliases, making your code cleaner and easier to read. This is especially useful with structures.
+
+## What is typedef?
+
+`typedef` creates a new name for an existing type. The syntax is:
+
+```c
+typedef existing_type new_name;
+```
+
+For example: `typedef int integer;` creates `integer` as an alias for `int`.
+
+When used with structures, `typedef` eliminates the need to write `struct` repeatedly.
+
+## Example 1: Basic typedef with Structs
+
+Here are three common ways to use `typedef` with structures:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Method 1: typedef after struct definition
+struct Person {
+    char name[50];
+    int age;
+};
+typedef struct Person Person;
+
+// Method 2: typedef and struct in one declaration (most common)
+typedef struct {
+    double x;
+    double y;
+} Point;
+
+// Method 3: Give both a struct tag and typedef name
+typedef struct Employee {
+    char name[50];
+    int id;
+    double salary;
+} Employee;
+
+int main(void) {
+    // Without typedef, you'd write: struct Person p1;
+    Person p1;  // Much cleaner!
+    strcpy(p1.name, "Alice");
+    p1.age = 30;
+
+    Point p2 = {3.5, 7.2};
+
+    Employee emp = {"Bob", 1001, 75000.00};
+
+    printf("Person: %s, Age: %d\n", p1.name, p1.age);
+    printf("Point: (%.1f, %.1f)\n", p2.x, p2.y);
+    printf("Employee: %s, ID: %d, Salary: $%.2f\n",
+           emp.name, emp.id, emp.salary);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Person: Alice, Age: 30
+Point: (3.5, 7.2)
+Employee: Bob, ID: 1001, Salary: $75000.00
+```
+
+**Key Points:**
+- Method 2 (typedef and struct together) is most common for simple types
+- Method 3 is useful when you need self-referential structures (linked lists, trees)
+- Without a struct tag, you can't create the type until after the typedef
+
+## Example 2: Self-Referential Structures
+
+When structures need to reference themselves (like in linked lists), you must provide a struct tag:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// This WON'T work - no struct tag to reference
+// typedef struct {
+//     char data[50];
+//     ??? *next;  // What type is this?
+// } Node;
+
+// Correct: use struct tag for self-reference
+typedef struct Node {
+    char data[50];
+    struct Node *next;  // Can reference struct Node
+} Node;
+
+// Create a simple linked list
+Node* createNode(const char *data) {
+    Node *newNode = malloc(sizeof(Node));
+    if (newNode != NULL) {
+        strcpy(newNode->data, data);
+        newNode->next = NULL;
+    }
+    return newNode;
+}
+
+void printList(Node *head) {
+    Node *current = head;
+    while (current != NULL) {
+        printf("%s -> ", current->data);
+        current = current->next;
+    }
+    printf("NULL\n");
+}
+
+void freeList(Node *head) {
+    Node *current = head;
+    while (current != NULL) {
+        Node *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+int main(void) {
+    // Create a linked list: A -> B -> C
+    Node *head = createNode("A");
+    head->next = createNode("B");
+    head->next->next = createNode("C");
+
+    printf("Linked list: ");
+    printList(head);
+
+    freeList(head);
+    return 0;
+}
+```
+
+**Output:**
+```
+Linked list: A -> B -> C -> NULL
+```
+
+**Key Points:**
+- Self-referential structures need a struct tag
+- Inside the struct definition, use `struct TagName *` for pointers to the same type
+- Outside the struct, you can use the typedef name (`Node *`)
+
+## Example 3: Function Pointers in Structures
+
+Structures can contain function pointers, enabling object-oriented-like behavior:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char brand[30];
+    char model[30];
+    int year;
+    // Function pointer for displaying information
+    void (*display)(void *self);
+} Car;
+
+// Implementation of the display function
+void displayCar(void *self) {
+    Car *car = (Car *)self;
+    printf("%d %s %s\n", car->year, car->brand, car->model);
+}
+
+// Constructor-like function
+Car createCar(const char *brand, const char *model, int year) {
+    Car car;
+    strcpy(car.brand, brand);
+    strcpy(car.model, model);
+    car.year = year;
+    car.display = displayCar;
+    return car;
+}
+
+int main(void) {
+    Car myCar = createCar("Toyota", "Camry", 2023);
+    Car yourCar = createCar("Honda", "Accord", 2022);
+
+    printf("My car: ");
+    myCar.display(&myCar);
+
+    printf("Your car: ");
+    yourCar.display(&yourCar);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+My car: 2023 Toyota Camry
+Your car: 2022 Honda Accord
+```
+
+**Key Points:**
+- Function pointers in structures enable polymorphic behavior
+- The pattern `void (*funcName)(parameters)` declares a function pointer
+- This technique is used in many C libraries and frameworks
+
+## Example 4: Complex Data Structures
+
+Let's combine typedef with structures to build a practical contact management system:
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+
+typedef enum {
+    CONTACT_MOBILE,
+    CONTACT_HOME,
+    CONTACT_WORK
+} ContactType;
+
+typedef struct {
+    ContactType type;
+    char number[15];
+} PhoneNumber;
+
+typedef struct {
+    char firstName[30];
+    char lastName[30];
+    char email[50];
+    PhoneNumber phones[3];
+    int phoneCount;
+} Contact;
+
+// Initialize a contact
+Contact createContact(const char *first, const char *last, const char *email) {
+    Contact c = {0};  // Zero-initialize
+    strcpy(c.firstName, first);
+    strcpy(c.lastName, last);
+    strcpy(c.email, email);
+    c.phoneCount = 0;
+    return c;
+}
+
+// Add a phone number
+bool addPhone(Contact *c, ContactType type, const char *number) {
+    if (c->phoneCount >= 3) {
+        return false;
+    }
+    c->phones[c->phoneCount].type = type;
+    strcpy(c->phones[c->phoneCount].number, number);
+    c->phoneCount++;
+    return true;
+}
+
+// Get phone type name
+const char* getPhoneTypeName(ContactType type) {
+    switch (type) {
+        case CONTACT_MOBILE: return "Mobile";
+        case CONTACT_HOME:   return "Home";
+        case CONTACT_WORK:   return "Work";
+        default:             return "Unknown";
+    }
+}
+
+// Display contact
+void displayContact(const Contact *c) {
+    printf("\nContact: %s %s\n", c->firstName, c->lastName);
+    printf("Email: %s\n", c->email);
+    printf("Phone numbers:\n");
+    for (int i = 0; i < c->phoneCount; i++) {
+        printf("  %s: %s\n",
+               getPhoneTypeName(c->phones[i].type),
+               c->phones[i].number);
+    }
+}
+
+int main(void) {
+    Contact john = createContact("John", "Doe", "john.doe@email.com");
+
+    addPhone(&john, CONTACT_MOBILE, "555-0123");
+    addPhone(&john, CONTACT_WORK, "555-0199");
+    addPhone(&john, CONTACT_HOME, "555-0145");
+
+    displayContact(&john);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Contact: John Doe
+Email: john.doe@email.com
+Phone numbers:
+  Mobile: 555-0123
+  Work: 555-0199
+  Home: 555-0145
+```
+
+## Best Practices
+
+1. **Use typedef for Clarity**: Makes code more readable, especially with complex types
+   ```c
+   // Before
+   struct Point *createPoints(int count);
+
+   // After
+   Point *createPoints(int count);
+   ```
+
+2. **Naming Conventions**:
+   - Use PascalCase for typedef names: `Point`, `StudentRecord`, `LinkedList`
+   - Keep names descriptive but concise
+   - Consider adding a suffix like `_t` for type names: `point_t`, `student_t`
+
+3. **When to Use typedef**:
+   - ✅ For structures you'll use frequently
+   - ✅ For public API types in libraries
+   - ✅ For complex types that improve readability
+   - ❌ Don't overuse - sometimes `struct` is clearer
+   - ❌ Avoid typedef for pointers (hides indirection)
+
+4. **Self-Referential Structures**: Always provide a struct tag
+   ```c
+   typedef struct Node {
+       int data;
+       struct Node *next;  // Need the tag here
+   } Node;
+   ```
+
+5. **Header File Organization**:
+   ```c
+   // Good: typedef in header makes it available everywhere
+   // shapes.h
+   typedef struct {
+       double x, y;
+   } Point;
+   ```
+
+## Common Pitfalls
+
+1. **Hiding Pointers**: Don't typedef pointer types
+   ```c
+   // BAD - hides pointer semantics
+   typedef struct Node *NodePtr;
+   NodePtr p;  // Is this a pointer? Not obvious!
+
+   // GOOD - pointer is explicit
+   typedef struct Node Node;
+   Node *p;    // Clearly a pointer
+   ```
+
+2. **Forgetting Struct Tag for Self-Reference**: Will cause compilation errors
+   ```c
+   // Wrong
+   typedef struct {
+       struct ??? *next;  // Can't reference unnamed struct
+   } Node;
+   ```
+
+3. **Overusing typedef**: Sometimes `struct` is clearer for local-only types
+   ```c
+   // For a one-time use in one function, struct is fine
+   struct LocalData {
+       int temp;
+       char buffer[100];
+   };
+   ```
+
+## Exercises
+
+1. **Vector Library**: Create a typedef for a 3D vector structure with x, y, z components. Write functions to add, subtract, and calculate the dot product of vectors.
+
+2. **Student Records**: Define a typedef for a student structure with ID, name, and an array of grades. Write functions to calculate average grade and find the top student from an array.
+
+3. **Configuration System**: Create a typedef for a configuration structure that holds application settings. Include nested structures for different setting categories (display, audio, network).
+
+4. **Stack Implementation**: Use typedef to implement a character stack with push, pop, and peek operations. Store the data in a fixed-size array within the structure.
+
+## Key Takeaways
+
+- **typedef creates type aliases**, eliminating repetitive `struct` keywords
+- **Method 2** (`typedef struct { ... } Name;`) is most common for simple structures
+- **Self-referential structures** require a struct tag for internal pointers
+- typedef improves **code readability** and makes APIs cleaner
+- **Don't typedef pointers** - it hides important semantic information
+- Use **descriptive names** following consistent naming conventions
+- typedef is particularly valuable in **header files** for public APIs
+
+In the next step, you'll learn how to create more complex data structures using nested structures and arrays of structures.

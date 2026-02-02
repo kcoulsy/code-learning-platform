@@ -1,0 +1,241 @@
+---
+id: if-statements
+title: If Statements
+order: 1
+---
+
+# If Statements
+
+Conditional statements allow your program to make decisions and execute different code based on whether conditions are true or false.
+
+## Basic If Statement
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age = 18;
+
+    if (age >= 18) {
+        printf("You are an adult.\n");
+    }
+
+    return 0;
+}
+```
+
+## If-Else Statement
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int temperature = 25;
+
+    if (temperature > 30) {
+        printf("It's hot outside!\n");
+    } else {
+        printf("The weather is pleasant.\n");
+    }
+
+    return 0;
+}
+```
+
+## If-Else If-Else Chain
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int score = 85;
+
+    if (score >= 90) {
+        printf("Grade: A\n");
+    } else if (score >= 80) {
+        printf("Grade: B\n");
+    } else if (score >= 70) {
+        printf("Grade: C\n");
+    } else if (score >= 60) {
+        printf("Grade: D\n");
+    } else {
+        printf("Grade: F\n");
+    }
+
+    return 0;
+}
+```
+
+## Nested If Statements
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age = 25;
+    int has_license = 1; // 1 for true, 0 for false
+
+    if (age >= 18) {
+        if (has_license) {
+            printf("You can drive!\n");
+        } else {
+            printf("You need a driver's license.\n");
+        }
+    } else {
+        printf("You are too young to drive.\n");
+    }
+
+    return 0;
+}
+```
+
+## Ternary Operator
+
+The ternary operator is a shorthand for simple if-else statements.
+
+**Syntax:** `condition ? value_if_true : value_if_false`
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int a = 10, b = 20;
+
+    // Using if-else
+    int max1;
+    if (a > b) {
+        max1 = a;
+    } else {
+        max1 = b;
+    }
+
+    // Using ternary operator (more concise)
+    int max2 = (a > b) ? a : b;
+
+    printf("Maximum: %d\n", max2);
+
+    // Can also use directly in printf
+    printf("%d is %s\n", a, (a % 2 == 0) ? "even" : "odd");
+
+    return 0;
+}
+```
+
+## Logical Operators in Conditions
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age = 25;
+    int income = 50000;
+    int credit_score = 720;
+
+    // AND operator (&&) - both conditions must be true
+    if (age >= 18 && income >= 30000) {
+        printf("Eligible for loan (basic)\n");
+    }
+
+    // OR operator (||) - at least one condition must be true
+    if (credit_score >= 700 || income >= 100000) {
+        printf("Eligible for premium card\n");
+    }
+
+    // NOT operator (!) - reverses the condition
+    int is_weekend = 0;
+    if (!is_weekend) {
+        printf("It's a weekday\n");
+    }
+
+    // Complex conditions
+    if ((age >= 18 && age <= 25) || credit_score >= 750) {
+        printf("Special discount available\n");
+    }
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+### Assignment vs Comparison
+
+```c
+int x = 5;
+
+// WRONG: Assignment instead of comparison
+if (x = 10) {  // This assigns 10 to x, always true!
+    printf("This always executes\n");
+}
+
+// CORRECT: Use == for comparison
+if (x == 10) {
+    printf("x equals 10\n");
+}
+```
+
+### Missing Braces
+
+```c
+// Misleading indentation without braces
+if (temperature > 30)
+    printf("It's hot!\n");
+    printf("Stay hydrated!\n");  // Always executes!
+
+// CORRECT: Use braces for clarity
+if (temperature > 30) {
+    printf("It's hot!\n");
+    printf("Stay hydrated!\n");  // Only executes if condition is true
+}
+```
+
+### Comparing Floating-Point Numbers
+
+```c
+#include <stdio.h>
+#include <math.h>
+
+int main(void) {
+    float a = 0.1f + 0.2f;
+    float b = 0.3f;
+
+    // WRONG: Direct comparison may fail due to precision
+    if (a == b) {
+        printf("Equal\n");  // May not print!
+    }
+
+    // CORRECT: Compare with epsilon tolerance
+    float epsilon = 0.00001f;
+    if (fabs(a - b) < epsilon) {
+        printf("Approximately equal\n");
+    }
+
+    return 0;
+}
+```
+
+## Exercises
+
+1. **Temperature Converter**: Write a program that asks for a temperature and a unit (C or F), then converts and displays the result. Use if-else to determine the conversion.
+
+2. **Leap Year Checker**: Write a program that determines if a year is a leap year. A year is a leap year if:
+   - It's divisible by 4 AND not divisible by 100, OR
+   - It's divisible by 400
+
+3. **BMI Calculator**: Calculate BMI (weight / height²) and classify it:
+   - Under 18.5: Underweight
+   - 18.5-24.9: Normal
+   - 25-29.9: Overweight
+   - 30+: Obese
+
+4. **Password Validator**: Check if a password meets criteria (length >= 8, has uppercase, has number). Use multiple conditions with logical operators.
+
+## Key Takeaways
+
+- Use `if` for single conditions, `if-else` for two branches, `if-else if-else` for multiple branches
+- Always use `==` for comparison, not `=` (assignment)
+- Logical operators: `&&` (AND), `||` (OR), `!` (NOT)
+- Use braces `{}` even for single statements to avoid errors
+- Ternary operator `? :` is useful for simple conditional assignments
+- Be careful comparing floating-point numbers - use epsilon tolerance
+- Nested if statements work but can become hard to read - consider alternatives

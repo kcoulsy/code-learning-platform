@@ -1,0 +1,468 @@
+---
+title: "Binary vs Text Files"
+description: "Understand the critical differences between binary and text modes, struct I/O, and endianness considerations"
+order: 5
+---
+
+# Binary vs Text Files
+
+Choosing between binary and text mode is one of the most important decisions when working with files. The wrong choice can lead to data corruption, portability issues, or inefficient storage. Understanding the differences is essential for robust file I/O.
+
+## Text Mode vs Binary Mode
+
+When opening files, the mode string determines how data is handled:
+
+- **Text mode** (`"r"`, `"w"`, `"a"`): Platform-specific line ending translation
+- **Binary mode** (`"rb"`, `"wb"`, `"ab"`): Exact byte-for-byte representation
+
+## Line Ending Differences
+
+Different operating systems use different line ending conventions:
+
+- **Unix/Linux/macOS**: `\n` (LF - Line Feed, 0x0A)
+- **Windows**: `\r\n` (CRLF - Carriage Return + Line Feed, 0x0D 0x0A)
+- **Classic Mac**: `\r` (CR - Carriage Return, 0x0D)
+
+In text mode, C translates between the system's native format and `\n`. In binary mode, no translation occurs.
+
+## Example 1: Text Mode Line Ending Translation
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void demonstrate_text_mode(void) {
+    const char *filename = "text_test.txt";
+
+    // Write in text mode
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    fprintf(file, "Line 1\n");
+    fprintf(file, "Line 2\n");
+    fprintf(file, "Line 3\n");
+
+    long text_size = ftell(file);
+    fclose(file);
+
+    // Read in binary mode to see actual bytes
+    file = fopen(filename, "rb");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    printf("File contents (hex):\n");
+    int ch;
+    while ((ch = fgetc(file)) != EOF) {
+        if (ch == '\n') {
+            printf("[LF]\n");
+        } else if (ch == '\r') {
+            printf("[CR]");
+        } else if (ch >= 32 && ch < 127) {
+            printf("%c", ch);
+        } else {
+            printf("[0x%02X]", ch);
+        }
+    }
+    printf("\n");
+
+    long binary_size = ftell(file);
+    fclose(file);
+
+    printf("\nText mode size: %ld bytes\n", text_size);
+    printf("Binary mode size: %ld bytes\n", binary_size);
+
+#ifdef _WIN32
+    printf("On Windows, \\n expands to \\r\\n in text mode\n");
+#else
+    printf("On Unix, \\n stays as \\n in text mode\n");
+#endif
+}
+
+int main(void) {
+    demonstrate_text_mode();
+    return EXIT_SUCCESS;
+}
+```
+
+## Example 2: Binary Mode for Structures
+
+Binary mode is essential when reading/writing structures:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    int id;
+    char name[32];
+    double salary;
+    int age;
+} Person;
+
+void write_binary_file(const char *filename) {
+    FILE *file = fopen(filename, "wb");  // Binary mode required!
+    if (file == NULL) {
+        perror("Error creating file");
+        return;
+    }
+
+    Person people[] = {
+        {1, "Alice", 75000.50, 30},
+        {2, "Bob", 68000.25, 28},
+        {3, "Charlie", 82000.75, 35}
+    };
+
+    size_t count = sizeof(people) / sizeof(people[0]);
+    size_t written = fwrite(people, sizeof(Person), count, file);
+
+    printf("Wrote %zu people (%zu bytes)\n",
+           written, written * sizeof(Person));
+
+    fclose(file);
+}
+
+void read_binary_file(const char *filename) {
+    FILE *file = fopen(filename, "rb");  // Binary mode required!
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    Person person;
+
+    printf("\nReading from binary file:\n");
+    printf("%-5s %-15s %-10s %s\n", "ID", "Name", "Salary", "Age");
+    printf("---------------------------------------------\n");
+
+    while (fread(&person, sizeof(Person), 1, file) == 1) {
+        printf("%-5d %-15s $%-9.2f %d\n",
+               person.id, person.name, person.salary, person.age);
+    }
+
+    fclose(file);
+}
+
+void demonstrate_text_vs_binary_size(void) {
+    const char *bin_file = "data.bin";
+    const char *txt_file = "data.txt";
+
+    Person p = {1, "Alice", 75000.50, 30};
+
+    // Write as binary
+    FILE *file = fopen(bin_file, "wb");
+    if (file) {
+        fwrite(&p, sizeof(Person), 1, file);
+        fclose(file);
+    }
+
+    // Write as text
+    file = fopen(txt_file, "w");
+    if (file) {
+        fprintf(file, "%d,%s,%.2f,%d\n",
+                p.id, p.name, p.salary, p.age);
+        fclose(file);
+    }
+
+    // Compare sizes
+    printf("\nSize comparison:\n");
+    printf("Binary file: %zu bytes (sizeof(Person))\n", sizeof(Person));
+
+    file = fopen(txt_file, "r");
+    if (file) {
+        fseek(file, 0, SEEK_END);
+        printf("Text file: %ld bytes\n", ftell(file));
+        fclose(file);
+    }
+}
+
+int main(void) {
+    write_binary_file("people.dat");
+    read_binary_file("people.dat");
+    demonstrate_text_vs_binary_size();
+
+    return EXIT_SUCCESS;
+}
+```
+
+## Example 3: Endianness Considerations
+
+When writing binary data that might be read on different architectures, endianness matters:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+// Check system endianness
+int is_big_endian(void) {
+    uint16_t test = 0x0102;
+    uint8_t *byte = (uint8_t *)&test;
+    return byte[0] == 0x01;
+}
+
+// Swap bytes for endianness conversion
+uint32_t swap_uint32(uint32_t val) {
+    return ((val >> 24) & 0xFF) |
+           ((val >> 8) & 0xFF00) |
+           ((val << 8) & 0xFF0000) |
+           ((val << 24) & 0xFF000000);
+}
+
+uint16_t swap_uint16(uint16_t val) {
+    return ((val >> 8) & 0xFF) |
+           ((val << 8) & 0xFF00);
+}
+
+void write_portable_binary(const char *filename) {
+    FILE *file = fopen(filename, "wb");
+    if (file == NULL) {
+        perror("Error creating file");
+        return;
+    }
+
+    // Always write in big-endian (network byte order)
+    uint32_t value = 0x12345678;
+
+    if (!is_big_endian()) {
+        value = swap_uint32(value);
+    }
+
+    fwrite(&value, sizeof(value), 1, file);
+    fclose(file);
+
+    printf("Wrote 0x12345678 in big-endian format\n");
+}
+
+void read_portable_binary(const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    uint32_t value;
+    fread(&value, sizeof(value), 1, file);
+    fclose(file);
+
+    // Convert from big-endian if needed
+    if (!is_big_endian()) {
+        value = swap_uint32(value);
+    }
+
+    printf("Read value: 0x%08X\n", value);
+}
+
+void demonstrate_endianness(void) {
+    printf("System is %s-endian\n",
+           is_big_endian() ? "big" : "little");
+
+    // Show byte representation
+    uint32_t value = 0x12345678;
+    uint8_t *bytes = (uint8_t *)&value;
+
+    printf("Value 0x%08X stored as bytes: ", value);
+    for (int i = 0; i < 4; i++) {
+        printf("%02X ", bytes[i]);
+    }
+    printf("\n");
+}
+
+int main(void) {
+    demonstrate_endianness();
+    write_portable_binary("endian_test.bin");
+    read_portable_binary("endian_test.bin");
+
+    return EXIT_SUCCESS;
+}
+```
+
+## Example 4: Safe Structure I/O
+
+Writing structures directly has portability issues. Here's a safer approach:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    int id;
+    char name[50];
+    double balance;
+} Account;
+
+// Write fields individually for portability
+int write_account_portable(FILE *file, const Account *acc) {
+    if (fprintf(file, "%d\n", acc->id) < 0) return -1;
+    if (fprintf(file, "%s\n", acc->name) < 0) return -1;
+    if (fprintf(file, "%.2f\n", acc->balance) < 0) return -1;
+    return 0;
+}
+
+int read_account_portable(FILE *file, Account *acc) {
+    if (fscanf(file, "%d\n", &acc->id) != 1) return -1;
+    if (fgets(acc->name, sizeof(acc->name), file) == NULL) return -1;
+
+    // Remove newline
+    size_t len = strlen(acc->name);
+    if (len > 0 && acc->name[len - 1] == '\n') {
+        acc->name[len - 1] = '\0';
+    }
+
+    if (fscanf(file, "%lf\n", &acc->balance) != 1) return -1;
+    return 0;
+}
+
+void demonstrate_portable_io(void) {
+    const char *filename = "accounts_portable.txt";
+
+    Account accounts[] = {
+        {1001, "Alice", 5432.50},
+        {1002, "Bob", 12750.00}
+    };
+
+    // Write
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error creating file");
+        return;
+    }
+
+    for (size_t i = 0; i < 2; i++) {
+        write_account_portable(file, &accounts[i]);
+    }
+    fclose(file);
+
+    // Read
+    file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    Account acc;
+    printf("%-6s %-20s %s\n", "ID", "Name", "Balance");
+    printf("----------------------------------------\n");
+
+    while (read_account_portable(file, &acc) == 0) {
+        printf("%-6d %-20s $%.2f\n", acc.id, acc.name, acc.balance);
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    demonstrate_portable_io();
+    return EXIT_SUCCESS;
+}
+```
+
+## When to Use Binary vs Text
+
+**Use Binary Mode When:**
+- Writing/reading structures or arrays
+- Performance is critical (no conversion overhead)
+- Exact byte representation is needed
+- Working with non-text data (images, audio, etc.)
+- File size is important (binary is more compact)
+
+**Use Text Mode When:**
+- Human readability is important
+- Cross-platform text files are needed
+- Interoperating with text-based tools
+- Debugging (easier to inspect)
+- Data longevity matters (text is more portable)
+
+## Common Pitfalls
+
+1. **Wrong mode corrupts data**:
+   ```c
+   // WRONG: Binary data in text mode
+   fwrite(&struct_data, sizeof(data), 1, text_file);
+   ```
+
+2. **Platform assumptions**:
+   ```c
+   // WRONG: Assumes Windows line endings
+   fwrite("Line1\r\n", 7, 1, file);  // Use "wb" if exact bytes needed
+   ```
+
+3. **Structure padding**:
+   ```c
+   // Padding may differ between compilers/platforms
+   struct Data {
+       char c;    // 1 byte + 3 bytes padding (usually)
+       int i;     // 4 bytes
+   };  // sizeof might be 8, not 5!
+   ```
+
+4. **Endianness ignored**:
+   ```c
+   // WRONG: No endianness handling
+   fwrite(&big_int, sizeof(big_int), 1, file);
+   // File won't be portable between architectures
+   ```
+
+## Exercises
+
+### Exercise 1: File Type Detector
+Write a program that determines if a file is text or binary by analyzing its contents.
+
+```c
+// TODO: Implement is_binary_file(const char *filename)
+// Return 1 for binary, 0 for text
+// Hint: Check for null bytes or high proportion of non-printable chars
+```
+
+### Exercise 2: Endianness Converter
+Create a tool that converts binary files between big-endian and little-endian:
+
+```c
+// TODO: Implement convert_endianness(const char *input, const char *output)
+// Read 32-bit integers from input
+// Swap byte order and write to output
+```
+
+### Exercise 3: Structure Serializer
+Implement portable serialization for a complex structure:
+
+```c
+typedef struct {
+    uint32_t id;
+    char name[64];
+    double values[10];
+    uint8_t flags;
+} ComplexData;
+
+// TODO: Implement serialize(FILE *file, const ComplexData *data)
+// TODO: Implement deserialize(FILE *file, ComplexData *data)
+// Must work across platforms and endianness
+```
+
+### Exercise 4: Text-Binary Converter
+Create a program that:
+- Reads a text file with numbers (one per line)
+- Writes them to a binary file as integers
+- Reads the binary file back
+- Compares file sizes and performance
+
+## Key Takeaways
+
+- Binary mode (`"rb"`, `"wb"`) prevents line ending translation
+- Text mode (`"r"`, `"w"`) translates `\n` to platform-specific endings
+- Always use binary mode for structures and non-text data
+- Endianness affects multi-byte values on different architectures
+- Structure padding can vary between compilers and platforms
+- Text files are portable and readable but larger and slower
+- Binary files are compact and fast but platform-dependent
+- For portability, serialize field-by-field instead of writing raw structures
+- Always specify binary mode explicitly when needed - don't rely on defaults
+- Consider using standard formats (JSON, XML) for truly portable data
+
+Understanding binary vs text mode is crucial for data integrity and portability. Next, we'll explore POSIX system calls for process management on Unix/Linux systems.

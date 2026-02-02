@@ -1,0 +1,205 @@
+---
+id: compilation-process
+title: Understanding the Compilation Process
+order: 4
+---
+
+# Understanding the Compilation Process
+
+When you compile a C program, it goes through multiple stages before becoming an executable. Understanding this process helps you debug compilation errors and optimize your code.
+
+## The Four Stages of Compilation
+
+C compilation happens in four distinct stages:
+
+1. **Preprocessing** - Handles directives like `#include` and `#define`
+2. **Compilation** - Converts C code to assembly language
+3. **Assembly** - Converts assembly to machine code (object files)
+4. **Linking** - Combines object files and libraries into an executable
+
+```
+hello.c → [Preprocessor] → hello.i → [Compiler] → hello.s → [Assembler] → hello.o → [Linker] → hello
+```
+
+## Stage 1: Preprocessing
+
+The preprocessor handles all lines starting with `#`:
+
+```c
+#include <stdio.h>  // Copy contents of stdio.h here
+#define PI 3.14159  // Replace PI with 3.14159 everywhere
+
+int main(void) {
+    printf("Value of PI: %f\n", PI);
+    return 0;
+}
+```
+
+To see the preprocessed output:
+
+```bash
+gcc -E hello.c -o hello.i
+# Open hello.i to see all #include files expanded
+```
+
+The preprocessor:
+- Expands `#include` files (copies their entire contents)
+- Replaces `#define` macros with their values
+- Handles conditional compilation (`#ifdef`, `#ifndef`)
+- Removes comments
+
+## Stage 2: Compilation (C to Assembly)
+
+The compiler converts C code to assembly language:
+
+```bash
+gcc -S hello.c -o hello.s
+```
+
+This produces human-readable assembly code:
+
+```assembly
+main:
+    pushq   %rbp
+    movq    %rsp, %rbp
+    leaq    .LC0(%rip), %rdi
+    call    puts
+    movl    $0, %eax
+    popq    %rbp
+    ret
+```
+
+You don't need to understand assembly, but it's useful to know this intermediate step exists.
+
+## Stage 3: Assembly (Assembly to Object Code)
+
+The assembler converts assembly to machine code (binary):
+
+```bash
+gcc -c hello.c -o hello.o
+```
+
+This creates an **object file** (`.o` or `.obj`):
+- Contains machine code but is not yet executable
+- References to external functions (like `printf`) are unresolved
+- Multiple `.c` files produce multiple `.o` files
+
+Object files are binary, so you can't read them directly. Use tools to inspect:
+
+```bash
+# View symbols in object file
+nm hello.o
+
+# View in hexdump format
+xxd hello.o | head
+```
+
+## Stage 4: Linking
+
+The linker combines object files and resolves external references:
+
+```bash
+gcc hello.o -o hello
+```
+
+The linker:
+- Combines multiple `.o` files into one executable
+- Links standard library functions (like `printf`)
+- Resolves all function and variable references
+- Produces the final executable
+
+## Seeing All Stages at Once
+
+You can see what GCC is doing with the `-v` (verbose) flag:
+
+```bash
+gcc -v hello.c -o hello
+```
+
+This shows:
+- Preprocessor invocation
+- Compiler invocation
+- Assembler invocation
+- Linker invocation with all libraries
+
+## Multi-File Compilation Example
+
+When you have multiple source files:
+
+```c
+// math_utils.c
+int add(int a, int b) {
+    return a + b;
+}
+```
+
+```c
+// main.c
+#include <stdio.h>
+
+int add(int a, int b);  // Function declaration
+
+int main(void) {
+    int result = add(5, 3);
+    printf("5 + 3 = %d\n", result);
+    return 0;
+}
+```
+
+Compile separately then link:
+
+```bash
+# Compile to object files
+gcc -c math_utils.c -o math_utils.o
+gcc -c main.c -o main.o
+
+# Link object files
+gcc math_utils.o main.o -o calculator
+
+# Or do it all in one command
+gcc math_utils.c main.c -o calculator
+```
+
+## Common Compilation Errors by Stage
+
+**Preprocessing errors:**
+```
+fatal error: stdio.h: No such file or directory
+```
+- Missing header files or wrong paths
+
+**Compilation errors:**
+```
+error: 'x' undeclared
+```
+- Syntax errors, type mismatches, undeclared variables
+
+**Linking errors:**
+```
+undefined reference to 'add'
+```
+- Missing function definitions, library not linked
+
+## Why This Matters
+
+Understanding compilation stages helps you:
+- **Debug errors** - Know whether it's a syntax issue, missing definition, or linking problem
+- **Optimize build times** - Compile only changed files, not everything
+- **Use libraries** - Understand how to link external code
+- **Write build systems** - Create Makefiles and build scripts
+
+## Key Takeaways
+
+- C compilation has 4 stages: preprocessing, compilation, assembly, linking
+- Each stage produces an intermediate file: `.i`, `.s`, `.o`, and finally the executable
+- Use `-E`, `-S`, `-c` flags to stop at each stage for inspection
+- Object files (`.o`) contain machine code but aren't executable until linked
+- Linking errors occur when references can't be resolved (missing functions/libraries)
+
+## Practice Exercises
+
+1. Create `hello.c` and run `gcc -E hello.c` to see preprocessed output
+2. Run `gcc -S hello.c` and open `hello.s` to see assembly code
+3. Create two `.c` files, compile them separately to `.o` files, then link them
+4. Intentionally create a linking error by declaring a function but not defining it
+5. Use `gcc -v` to see all compilation stages for a simple program

@@ -2,6 +2,8 @@
 
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { cn } from "@/lib/utils"
 
 interface MarkdownContentProps {
@@ -47,7 +49,10 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
             <li className="text-foreground/90">{children}</li>
           ),
           code: ({ className, children, ...props }) => {
+            const match = /language-(\w+)/.exec(className || "")
+            const language = match ? match[1] : ""
             const isInline = !className
+
             if (isInline) {
               return (
                 <code
@@ -58,20 +63,31 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
                 </code>
               )
             }
+
             return (
-              <code
-                className={cn("font-mono text-sm", className)}
+              <SyntaxHighlighter
+                style={oneDark}
+                language={language}
+                PreTag="div"
+                className="!rounded-lg !mb-4 !text-sm !border !border-border !bg-sidebar"
+                customStyle={{
+                  margin: 0,
+                  padding: "1rem",
+                  background: "var(--sidebar)",
+                  borderRadius: "0.5rem",
+                }}
+                codeTagProps={{
+                  style: {
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  }
+                }}
                 {...props}
               >
-                {children}
-              </code>
+                {String(children).replace(/\n$/, "")}
+              </SyntaxHighlighter>
             )
           },
-          pre: ({ children }) => (
-            <pre className="bg-secondary/80 border border-border rounded-lg p-4 overflow-x-auto mb-4 text-sm">
-              {children}
-            </pre>
-          ),
+          pre: ({ children }) => <>{children}</>,
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-primary pl-4 italic text-muted-foreground my-4">
               {children}

@@ -19,6 +19,7 @@ import {
   Trash2,
   ChevronDown,
 } from "lucide-react"
+import { ChatMessageContent } from "@/components/chat-message-content"
 
 interface StepChatProps {
   courseId: string
@@ -122,7 +123,7 @@ Student's question: ${input}`
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all",
+          "fixed bottom-20 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all",
           isOpen
             ? "bg-secondary text-secondary-foreground"
             : "bg-primary text-primary-foreground hover:scale-105"
@@ -149,12 +150,12 @@ Student's question: ${input}`
       {/* Chat panel */}
       <div
         className={cn(
-          "fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-3rem)] bg-card border border-border rounded-xl shadow-2xl transition-all duration-300 flex flex-col",
+          "fixed bottom-40 right-6 z-50 w-[600px] max-w-[calc(100vw-3rem)] bg-card border border-border rounded-xl shadow-2xl transition-all duration-300 flex flex-col",
           isOpen
             ? "opacity-100 translate-y-0 pointer-events-auto"
             : "opacity-0 translate-y-4 pointer-events-none"
         )}
-        style={{ height: "500px", maxHeight: "calc(100vh - 8rem)" }}
+        style={{ height: "700px", maxHeight: "calc(100vh - 12rem)" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/50 rounded-t-xl">
@@ -232,7 +233,11 @@ Student's question: ${input}`
                         : "bg-secondary text-secondary-foreground"
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{content}</p>
+                    {isUser ? (
+                      <p className="whitespace-pre-wrap">{content}</p>
+                    ) : (
+                      <ChatMessageContent content={content} />
+                    )}
                   </div>
                 </div>
               )

@@ -1,0 +1,335 @@
+---
+title: "Project Choice: Shell or Allocator"
+order: 1
+---
+
+# Project Choice: Shell or Allocator
+
+## Introduction
+
+Before diving into implementation, you need to make an important decision: which capstone project will you build? This step presents both options in detail, helping you understand the requirements, challenges, and learning outcomes of each.
+
+Take your time with this decision. Both projects are equally valuable, but they emphasize different aspects of systems programming.
+
+## Option A: Unix Shell
+
+### What You'll Build
+
+A command-line shell similar to bash or sh, capable of:
+
+- Reading and parsing user commands
+- Executing programs with arguments
+- Handling built-in commands (cd, exit, etc.)
+- Managing I/O redirection (`>`, `<`, `>>`)
+- Creating pipelines (`|`)
+- Running background processes (`&`)
+- Managing environment variables
+
+### Core Concepts
+
+**Systems Programming**:
+- Process creation with `fork()` and `exec()`
+- Process management and waiting
+- Signal handling (SIGINT, SIGCHLD)
+- File descriptor manipulation
+
+**Parsing and Data Structures**:
+- Tokenizing command strings
+- Building command structures
+- Handling special characters and quotes
+
+**Example Interaction**:
+```bash
+myshell> ls -la | grep ".c" > c_files.txt
+myshell> cat c_files.txt
+myshell> gcc program.c -o program && ./program
+myshell> export PATH=/usr/local/bin:$PATH
+myshell> cd projects
+myshell> make &
+[1] 12345
+myshell> exit
+```
+
+### Difficulty Assessment
+
+**Moderate Challenges**:
+- String parsing (handling quotes, special characters)
+- Process lifecycle management
+- Implementing built-in commands
+
+**Advanced Challenges**:
+- I/O redirection and pipes
+- Signal handling without race conditions
+- Background process tracking
+- Complex command parsing (quoted strings, escaping)
+
+### Time Estimate
+
+- **Basic shell (read-parse-execute)**: 1 week
+- **Built-ins and process management**: 3-4 days
+- **I/O redirection and pipes**: 3-4 days
+- **Polish and testing**: 2-3 days
+
+**Total**: 2-3 weeks
+
+### Learning Outcomes
+
+You'll gain deep understanding of:
+- How shells work internally
+- Unix process model
+- System call interfaces
+- Parsing and tokenization
+- Asynchronous event handling
+
+### Best For
+
+This project is ideal if you:
+- Enjoy working with command-line tools
+- Want to understand operating systems deeply
+- Like parsing and text processing challenges
+- Are interested in DevOps or systems administration
+
+## Option B: Custom Memory Allocator
+
+### What You'll Build
+
+A replacement for `malloc()` and `free()` that manages memory efficiently:
+
+- `my_malloc(size)` - Allocate memory blocks
+- `my_free(ptr)` - Free allocated blocks
+- `my_realloc(ptr, size)` - Resize allocations
+- `my_calloc(n, size)` - Allocate and zero memory
+
+With advanced features:
+- Free list management
+- Block coalescing (merging adjacent free blocks)
+- Block splitting (dividing large blocks)
+- Multiple allocation strategies (first-fit, best-fit)
+- Alignment handling
+- Debugging utilities (leak detection, corruption checking)
+
+### Core Concepts
+
+**Memory Management**:
+- Managing a heap using `sbrk()` or `mmap()`
+- Metadata structures for tracking blocks
+- Pointer arithmetic and alignment
+
+**Data Structures**:
+- Linked lists for free blocks
+- Binary tree or other structures for fast searching
+
+**Algorithms**:
+- First-fit, best-fit, worst-fit allocation
+- Coalescing adjacent free blocks
+- Splitting blocks efficiently
+
+### Example Usage
+
+```c
+// Initialize allocator
+allocator_init();
+
+// Allocate various sizes
+char *str = my_malloc(100);
+int *arr = my_malloc(50 * sizeof(int));
+struct data *d = my_malloc(sizeof(struct data));
+
+// Use memory
+strcpy(str, "Hello, world!");
+for (int i = 0; i < 50; i++) arr[i] = i * i;
+
+// Free memory
+my_free(str);
+my_free(arr);
+my_free(d);
+
+// Check for leaks
+allocator_report();
+```
+
+### Difficulty Assessment
+
+**Moderate Challenges**:
+- Implementing basic malloc/free
+- Maintaining free list
+- Pointer arithmetic and casting
+
+**Advanced Challenges**:
+- Efficient coalescing algorithm
+- Handling alignment requirements
+- Preventing fragmentation
+- Thread safety (optional)
+- Debugging memory corruption
+
+### Time Estimate
+
+- **Basic allocator (malloc/free with free list)**: 1 week
+- **Coalescing and splitting**: 3-4 days
+- **Advanced features (realloc, calloc, alignment)**: 3-4 days
+- **Testing and debugging utilities**: 2-3 days
+
+**Total**: 2-3 weeks
+
+### Learning Outcomes
+
+You'll gain deep understanding of:
+- How memory allocators work
+- Low-level memory layout
+- Data structure implementation in C
+- Performance optimization
+- Memory debugging techniques
+
+### Best For
+
+This project is ideal if you:
+- Are fascinated by memory management
+- Enjoy algorithmic challenges
+- Want to understand malloc internals
+- Like optimizing for performance
+- Are interested in systems programming or embedded systems
+
+## Making Your Choice
+
+### Compare the Projects
+
+| Aspect | Shell | Allocator |
+|--------|-------|-----------|
+| **Primary Focus** | Process management, I/O | Memory management, algorithms |
+| **System Calls** | fork, exec, pipe, dup2 | sbrk, mmap |
+| **Data Structures** | Arrays, simple lists | Linked lists, possibly trees |
+| **Debugging** | Process state, signals | Memory corruption, leaks |
+| **Visible Results** | Interactive program | Library functions |
+| **Real-world Usage** | Daily command-line work | Understanding malloc/valgrind |
+
+### Decision Criteria
+
+**Choose Shell if**:
+- You use the command line frequently
+- You're curious how bash works
+- You want more variety in implementation challenges
+- You prefer building interactive programs
+
+**Choose Allocator if**:
+- You're fascinated by how malloc works
+- You enjoy deep algorithmic thinking
+- You want to master pointer manipulation
+- You prefer solving one problem deeply
+
+### Hybrid Approach (Not Recommended)
+
+While it's technically possible to implement both projects at a basic level, we **strongly recommend** choosing one and implementing it thoroughly. A well-designed, fully-featured shell or allocator is more impressive and educational than two half-finished projects.
+
+## Project Requirements
+
+Regardless of which project you choose, you must:
+
+### 1. Core Functionality
+- Implement all basic features correctly
+- Handle errors gracefully
+- Follow C best practices
+
+### 2. Code Quality
+- Clear, consistent style
+- Meaningful variable names
+- Modular design with separate files
+- Comments for complex logic
+
+### 3. Documentation
+- README with overview and usage examples
+- Design document explaining architecture
+- Comments in code
+
+### 4. Testing
+- Test suite with various scenarios
+- Edge case testing
+- Stress testing (if applicable)
+
+### 5. Build System
+- Makefile with proper targets
+- Clean compilation with no warnings
+- Debug and release builds
+
+## Next Steps
+
+### Once You've Chosen
+
+1. **Announce Your Choice**: Write down which project you've chosen and why
+2. **Research**: Read the relevant step (Shell Design or Allocator Design)
+3. **Plan**: Create a timeline for implementation
+4. **Set Up**: Create project directory and initial files
+
+### Project Structure Recommendation
+
+```
+capstone-project/
+├── Makefile
+├── README.md
+├── DESIGN.md
+├── src/
+│   ├── main.c
+│   ├── [shell/allocator specific files]
+│   └── ...
+├── include/
+│   └── *.h
+├── tests/
+│   └── test_*.c
+└── docs/
+    └── ...
+```
+
+## Exercise: Make Your Decision
+
+Before moving to the next step, complete this exercise:
+
+1. **Write a brief statement** (3-5 sentences) explaining which project you chose and why
+
+2. **List your goals**: What do you want to learn from this project? What will success look like?
+
+3. **Identify concerns**: What parts worry you? What will be most challenging?
+
+4. **Create a rough timeline**: Break the project into weekly milestones
+
+Example:
+```
+Choice: Custom Memory Allocator
+
+Why: I've always wondered how malloc works internally, and I want to
+master pointer manipulation and memory management at a deep level.
+
+Goals:
+- Understand free list data structures
+- Implement efficient coalescing
+- Handle all edge cases correctly
+- Learn to debug memory issues
+
+Concerns:
+- Pointer arithmetic might be tricky
+- Worried about subtle bugs
+- Not sure how to test thoroughly
+
+Timeline:
+Week 1: Basic malloc/free with free list
+Week 2: Coalescing, splitting, realloc
+Week 3: Testing, debugging tools, documentation
+```
+
+## Resources for Both Projects
+
+### General C Programming
+- man pages (man 2 for system calls, man 3 for library functions)
+- gdb for debugging
+- valgrind for memory checking
+
+### Shell-Specific
+- "Advanced Programming in the UNIX Environment" by Stevens
+- man pages: fork, exec, pipe, dup2, waitpid
+- Study existing shells (bash source code)
+
+### Allocator-Specific
+- "The C Programming Language" by K&R, Chapter 8
+- man pages: sbrk, mmap
+- glibc malloc source code
+- Papers on memory allocation algorithms
+
+Good luck with your decision! The next steps will guide you through the design and implementation of your chosen project.

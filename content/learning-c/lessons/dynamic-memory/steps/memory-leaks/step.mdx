@@ -1,0 +1,558 @@
+---
+title: "Memory Leaks"
+order: 5
+---
+
+# Memory Leaks
+
+A memory leak occurs when allocated memory is never freed, causing your program to consume more and more memory over time. Understanding how to detect, prevent, and fix memory leaks is crucial for writing robust C programs.
+
+## What is a Memory Leak?
+
+A memory leak happens when you allocate memory on the heap but lose the pointer to it before freeing it, making the memory permanently inaccessible but still allocated.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void leak_example() {
+    int *ptr = malloc(sizeof(int));  // Allocate memory
+    *ptr = 42;
+    // Function returns without freeing ptr
+    // Memory is leaked - we can't access or free it anymore
+}
+
+int main() {
+    for (int i = 0; i < 1000; i++) {
+        leak_example();  // Leaks 4 bytes per call = 4000 bytes total
+    }
+    printf("Leaked 4000 bytes!\n");
+    return 0;
+}
+```
+
+## Common Causes of Memory Leaks
+
+### 1. Forgetting to Free
+
+The most basic type of leak:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void simple_leak() {
+    int *data = malloc(100 * sizeof(int));
+    if (data == NULL) return;
+
+    // Use data...
+    for (int i = 0; i < 100; i++) {
+        data[i] = i;
+    }
+
+    // Oops! Forgot to free(data)
+}
+
+int main() {
+    simple_leak();
+    return 0;
+}
+```
+
+### 2. Losing Pointer Before Freeing
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void lost_pointer() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    *ptr = 10;
+
+    // LEAK! Overwrote pointer without freeing
+    ptr = malloc(sizeof(int));
+    if (ptr != NULL) {
+        *ptr = 20;
+        free(ptr);  // Only frees second allocation
+    }
+    // First allocation is leaked
+}
+
+int main() {
+    lost_pointer();
+    return 0;
+}
+```
+
+### 3. Early Return Without Cleanup
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int process_file(const char *filename) {
+    char *buffer = malloc(1024);
+    if (buffer == NULL) {
+        return -1;
+    }
+
+    FILE *f = fopen(filename, "r");
+    if (f == NULL) {
+        // LEAK! Forgot to free buffer before returning
+        return -1;
+    }
+
+    // Process file...
+
+    fclose(f);
+    free(buffer);
+    return 0;
+}
+
+// FIXED VERSION
+int process_file_fixed(const char *filename) {
+    char *buffer = malloc(1024);
+    if (buffer == NULL) {
+        return -1;
+    }
+
+    FILE *f = fopen(filename, "r");
+    if (f == NULL) {
+        free(buffer);  // Don't forget to free!
+        return -1;
+    }
+
+    // Process file...
+
+    fclose(f);
+    free(buffer);
+    return 0;
+}
+
+int main() {
+    process_file("nonexistent.txt");  // Leaks
+    process_file_fixed("nonexistent.txt");  // No leak
+    return 0;
+}
+```
+
+### 4. Reassignment in Loops
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void loop_leak() {
+    int *ptr = NULL;
+
+    for (int i = 0; i < 10; i++) {
+        ptr = malloc(sizeof(int));  // LEAK! Loses previous ptr
+        if (ptr != NULL) {
+            *ptr = i;
+        }
+    }
+
+    free(ptr);  // Only frees last allocation, 9 are leaked
+}
+
+// FIXED VERSION
+void loop_fixed() {
+    for (int i = 0; i < 10; i++) {
+        int *ptr = malloc(sizeof(int));
+        if (ptr != NULL) {
+            *ptr = i;
+            // Use ptr...
+            free(ptr);  // Free each allocation
+        }
+    }
+}
+
+int main() {
+    loop_leak();
+    loop_fixed();
+    return 0;
+}
+```
+
+## Detecting Memory Leaks
+
+### Method 1: Manual Tracking
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// Global counters for debugging
+static size_t total_allocated = 0;
+static size_t total_freed = 0;
+static int allocation_count = 0;
+
+void *debug_malloc(size_t size, const char *file, int line) {
+    void *ptr = malloc(size);
+    if (ptr != NULL) {
+        total_allocated += size;
+        allocation_count++;
+        printf("MALLOC: %zu bytes at %s:%d (total: %zu)\n",
+               size, file, line, total_allocated);
+    }
+    return ptr;
+}
+
+void debug_free(void *ptr, size_t size, const char *file, int line) {
+    if (ptr != NULL) {
+        free(ptr);
+        total_freed += size;
+        allocation_count--;
+        printf("FREE:   %zu bytes at %s:%d (total freed: %zu)\n",
+               size, file, line, total_freed);
+    }
+}
+
+void report_memory() {
+    printf("\n=== MEMORY REPORT ===\n");
+    printf("Total allocated: %zu bytes\n", total_allocated);
+    printf("Total freed:     %zu bytes\n", total_freed);
+    printf("Leaked:          %zu bytes\n", total_allocated - total_freed);
+    printf("Active allocs:   %d\n", allocation_count);
+}
+
+#define MALLOC(size) debug_malloc(size, __FILE__, __LINE__)
+#define FREE(ptr, size) debug_free(ptr, size, __FILE__, __LINE__)
+
+int main() {
+    int *p1 = MALLOC(sizeof(int));
+    int *p2 = MALLOC(10 * sizeof(int));
+    int *p3 = MALLOC(sizeof(int));
+
+    if (p1) *p1 = 10;
+    if (p2) p2[0] = 20;
+    if (p3) *p3 = 30;
+
+    FREE(p1, sizeof(int));
+    FREE(p2, 10 * sizeof(int));
+    // Intentionally not freeing p3 to show leak
+
+    report_memory();
+
+    return 0;
+}
+```
+
+### Method 2: Using Valgrind (Preview)
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Allocate some memory
+    int *arr = malloc(10 * sizeof(int));
+    if (arr == NULL) {
+        return 1;
+    }
+
+    for (int i = 0; i < 10; i++) {
+        arr[i] = i;
+    }
+
+    // Intentional leak for demonstration
+    // free(arr);
+
+    printf("Done\n");
+    return 0;
+}
+```
+
+Run with Valgrind (covered in detail in Step 7):
+```bash
+valgrind --leak-check=full ./program
+```
+
+## Preventing Memory Leaks
+
+### Strategy 1: RAII Pattern (Resource Acquisition Is Initialization)
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct {
+    int *data;
+    size_t size;
+} Array;
+
+// Constructor - acquires resource
+Array *array_create(size_t size) {
+    Array *arr = malloc(sizeof(Array));
+    if (arr == NULL) {
+        return NULL;
+    }
+
+    arr->data = malloc(size * sizeof(int));
+    if (arr->data == NULL) {
+        free(arr);
+        return NULL;
+    }
+
+    arr->size = size;
+    return arr;
+}
+
+// Destructor - releases resource
+void array_destroy(Array *arr) {
+    if (arr != NULL) {
+        free(arr->data);
+        free(arr);
+    }
+}
+
+int main() {
+    Array *arr = array_create(10);
+    if (arr == NULL) {
+        return 1;
+    }
+
+    // Use array...
+    for (size_t i = 0; i < arr->size; i++) {
+        arr->data[i] = i;
+    }
+
+    // Single cleanup call
+    array_destroy(arr);
+
+    return 0;
+}
+```
+
+### Strategy 2: Cleanup Labels with goto
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int process_data(const char *input) {
+    char *buffer = NULL;
+    int *numbers = NULL;
+    char *result = NULL;
+    int status = -1;
+
+    buffer = malloc(1024);
+    if (buffer == NULL) {
+        goto cleanup;
+    }
+
+    numbers = malloc(100 * sizeof(int));
+    if (numbers == NULL) {
+        goto cleanup;
+    }
+
+    result = malloc(2048);
+    if (result == NULL) {
+        goto cleanup;
+    }
+
+    // Process data...
+    strcpy(buffer, input);
+    for (int i = 0; i < 100; i++) {
+        numbers[i] = i;
+    }
+
+    status = 0;  // Success
+
+cleanup:
+    // Free all allocations - free(NULL) is safe
+    free(buffer);
+    free(numbers);
+    free(result);
+
+    return status;
+}
+
+int main() {
+    int result = process_data("test data");
+    printf("Result: %d\n", result);
+    return 0;
+}
+```
+
+### Strategy 3: Smart Pointer Pattern
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct {
+    void *ptr;
+    void (*destructor)(void*);
+} SmartPtr;
+
+SmartPtr smart_ptr_create(void *ptr, void (*destructor)(void*)) {
+    SmartPtr sp;
+    sp.ptr = ptr;
+    sp.destructor = destructor;
+    return sp;
+}
+
+void smart_ptr_destroy(SmartPtr *sp) {
+    if (sp != NULL && sp->ptr != NULL) {
+        if (sp->destructor != NULL) {
+            sp->destructor(sp->ptr);
+        } else {
+            free(sp->ptr);
+        }
+        sp->ptr = NULL;
+    }
+}
+
+// Custom destructor for complex types
+void free_int_array(void *ptr) {
+    free(ptr);
+    printf("Custom destructor called\n");
+}
+
+int main() {
+    int *data = malloc(10 * sizeof(int));
+    if (data == NULL) {
+        return 1;
+    }
+
+    SmartPtr sp = smart_ptr_create(data, free_int_array);
+
+    // Use data through sp.ptr
+    int *arr = (int*)sp.ptr;
+    for (int i = 0; i < 10; i++) {
+        arr[i] = i;
+    }
+
+    // Automatic cleanup
+    smart_ptr_destroy(&sp);
+
+    return 0;
+}
+```
+
+## Real-World Leak Example and Fix
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Node {
+    char *data;
+    struct Node *next;
+} Node;
+
+// LEAKY VERSION
+Node *list_append_leaky(Node *head, const char *data) {
+    Node *new_node = malloc(sizeof(Node));
+    if (new_node == NULL) {
+        return head;
+    }
+
+    new_node->data = malloc(strlen(data) + 1);
+    if (new_node->data == NULL) {
+        // LEAK! Forgot to free new_node
+        return head;
+    }
+
+    strcpy(new_node->data, data);
+    new_node->next = NULL;
+
+    if (head == NULL) {
+        return new_node;
+    }
+
+    Node *current = head;
+    while (current->next != NULL) {
+        current = current->next;
+    }
+    current->next = new_node;
+
+    return head;
+}
+
+// FIXED VERSION
+Node *list_append_fixed(Node *head, const char *data) {
+    Node *new_node = malloc(sizeof(Node));
+    if (new_node == NULL) {
+        return head;
+    }
+
+    new_node->data = malloc(strlen(data) + 1);
+    if (new_node->data == NULL) {
+        free(new_node);  // Fix: free node on error
+        return head;
+    }
+
+    strcpy(new_node->data, data);
+    new_node->next = NULL;
+
+    if (head == NULL) {
+        return new_node;
+    }
+
+    Node *current = head;
+    while (current->next != NULL) {
+        current = current->next;
+    }
+    current->next = new_node;
+
+    return head;
+}
+
+void list_free(Node *head) {
+    Node *current = head;
+    while (current != NULL) {
+        Node *next = current->next;
+        free(current->data);
+        free(current);
+        current = next;
+    }
+}
+
+int main() {
+    Node *list = NULL;
+
+    list = list_append_fixed(list, "First");
+    list = list_append_fixed(list, "Second");
+    list = list_append_fixed(list, "Third");
+
+    // Print list
+    Node *current = list;
+    while (current != NULL) {
+        printf("%s\n", current->data);
+        current = current->next;
+    }
+
+    // Cleanup
+    list_free(list);
+
+    return 0;
+}
+```
+
+## Key Takeaways
+
+1. **Memory leaks waste resources** and can crash long-running programs
+2. **Every allocation needs a corresponding free** in all code paths
+3. **Don't lose pointers** before freeing the memory they point to
+4. **Use cleanup patterns** (goto cleanup, RAII, smart pointers)
+5. **Test with Valgrind** to catch leaks during development
+6. **Track allocations** in complex programs
+7. **Free in reverse order** for nested structures
+8. **Small leaks accumulate** - even 1 byte leaked millions of times is serious
+
+## Exercises
+
+1. Write a program that demonstrates each common leak pattern
+2. Create a memory tracking system that reports leaks at program exit
+3. Fix a deliberately leaky linked list implementation
+4. Implement a memory pool that prevents leaks by tracking all allocations
+5. Write a program that leaks memory in a loop and observe memory usage grow
+6. Create wrapper functions for malloc/free that help prevent leaks
+
+In the next step, we'll explore dangling pointers and use-after-free errors, another critical memory safety issue.

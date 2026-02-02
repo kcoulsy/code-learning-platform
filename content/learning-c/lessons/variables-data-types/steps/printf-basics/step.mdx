@@ -1,0 +1,190 @@
+---
+id: printf-basics
+title: "Printf Function Basics"
+order: 3
+---
+
+# Printf Function Basics
+
+The `printf` function is one of the most fundamental tools in C programming for output. It provides powerful formatting capabilities that allow you to control exactly how your data appears on screen.
+
+## Understanding Printf
+
+`printf` stands for "print formatted" and is part of the standard I/O library (`stdio.h`). Unlike simple output functions, `printf` allows you to mix text with variables, control number precision, align output, and format data in countless ways using format specifiers.
+
+The general syntax is `printf("format string", argument1, argument2, ...)`. The format string contains regular text and format specifiers (starting with `%`) that tell `printf` how to display the corresponding arguments.
+
+## Format Specifiers
+
+Each data type requires its own format specifier. Using the wrong specifier leads to undefined behavior and incorrect output.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age = 25;
+    float height = 5.9;
+    char grade = 'A';
+    double pi = 3.14159265359;
+
+    // Basic format specifiers
+    printf("Age: %d years\n", age);           // %d for integers
+    printf("Height: %f feet\n", height);      // %f for floats
+    printf("Grade: %c\n", grade);             // %c for characters
+    printf("Pi: %lf\n", pi);                  // %lf for doubles
+    printf("Hex value: %x\n", age);           // %x for hexadecimal
+    printf("Pointer: %p\n", (void*)&age);     // %p for pointers
+
+    return 0;
+}
+```
+
+## Width, Precision, and Flags
+
+Printf offers fine-grained control over output formatting through width, precision, and flags.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int num = 42;
+    float price = 19.99;
+
+    // Width: minimum number of characters to print
+    printf("|%5d|\n", num);        // |   42| (right-aligned)
+    printf("|%-5d|\n", num);       // |42   | (left-aligned with -)
+
+    // Precision: decimal places for floats
+    printf("%.2f\n", price);       // 19.99 (2 decimal places)
+    printf("%.4f\n", price);       // 19.9900 (4 decimal places)
+
+    // Combined width and precision
+    printf("%8.2f\n", price);      // _____19.99 (8 chars wide, 2 decimals)
+
+    // Flags
+    printf("%+d\n", num);          // +42 (force sign display)
+    printf("%05d\n", num);         // 00042 (pad with zeros)
+    printf("% d\n", num);          // _42 (space before positive numbers)
+
+    return 0;
+}
+```
+
+## Practical Examples
+
+Here's a real-world example showing formatted table output.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Creating a formatted table
+    printf("%-15s %10s %8s\n", "Product", "Price", "Stock");
+    printf("----------------------------------------\n");
+    printf("%-15s $%9.2f %8d\n", "Laptop", 999.99, 15);
+    printf("%-15s $%9.2f %8d\n", "Mouse", 29.50, 243);
+    printf("%-15s $%9.2f %8d\n", "Keyboard", 79.99, 87);
+
+    return 0;
+}
+
+/* Output:
+Product              Price    Stock
+----------------------------------------
+Laptop           $   999.99       15
+Mouse            $    29.50      243
+Keyboard         $    79.99       87
+*/
+```
+
+## Advanced Format Specifiers
+
+Some less common but useful format specifiers.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    unsigned int unum = 4294967295;
+    long long bignum = 9223372036854775807LL;
+
+    // Unsigned integers
+    printf("Unsigned: %u\n", unum);        // %u for unsigned int
+
+    // Long integers
+    printf("Long long: %lld\n", bignum);   // %lld for long long
+
+    // Scientific notation
+    printf("Scientific: %e\n", 12345.67);  // %e for exponential
+    printf("Compact: %g\n", 0.0000123);    // %g chooses best format
+
+    // Octal
+    printf("Octal: %o\n", 64);             // %o for octal (100)
+
+    // Literal percent sign
+    printf("Discount: 25%% off\n");        // %% prints a single %
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+**Mismatched Format Specifiers**
+Using the wrong format specifier causes undefined behavior. Always match the specifier to the data type.
+
+```c
+int x = 42;
+printf("%f", x);      // WRONG: %f expects double, not int
+printf("%d", 3.14);   // WRONG: %d expects int, not double
+```
+
+**Missing Arguments**
+Each format specifier must have a corresponding argument.
+
+```c
+printf("%d %d\n", 5);        // WRONG: missing second argument
+printf("Value: %d\n");       // WRONG: missing argument entirely
+```
+
+**Buffer Overflow with Long Strings**
+While `printf` itself is safe, be careful when building format strings dynamically.
+
+```c
+char buffer[10];
+sprintf(buffer, "%d", 12345678901);  // WRONG: buffer overflow!
+// Use snprintf instead: snprintf(buffer, sizeof(buffer), "%d", num);
+```
+
+**Forgetting Newlines**
+Without `\n`, output may not appear immediately due to buffering.
+
+```c
+printf("Calculating...");     // May not appear immediately
+fflush(stdout);               // Force output without newline
+// Or: printf("Calculating...\n");
+```
+
+## Practice Exercises
+
+1. Write a program that displays a receipt with item names, quantities, prices, and a total, all properly aligned in columns.
+
+2. Create a program that shows the same floating-point number in 5 different formats: standard, scientific notation, 2 decimals, 6 decimals, and compact form.
+
+3. Write a program that displays the ASCII value and character for numbers 65-90, formatted in a table with borders.
+
+4. Create a program that displays the binary, octal, decimal, and hexadecimal representations of numbers 0-15 in a formatted table.
+
+## Key Takeaways
+
+- `printf` uses format specifiers (starting with `%`) to control how data is displayed
+- Common specifiers: `%d` (int), `%f` (float), `%lf` (double), `%c` (char), `%s` (string)
+- Width controls minimum characters, precision controls decimal places
+- Flags like `-` (left-align), `+` (show sign), `0` (zero-pad) modify formatting
+- Always match format specifiers to argument types to avoid undefined behavior
+- Use `%%` to print a literal percent sign in your output
+
+Compile with:
+```bash
+gcc -Wall -Wextra -std=c11 -g printf_examples.c -o printf_examples
+```

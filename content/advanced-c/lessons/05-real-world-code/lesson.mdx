@@ -1,0 +1,79 @@
+---
+id: 05-real-world-code
+title: Reading & Writing Real C Code
+description: Learn code style patterns, defensive idioms, ownership conventions, API design, and how to read mature codebases.
+type: lesson
+order: 5
+---
+
+import { LearningObjectives } from '@/components/learning-objectives'
+
+# Reading & Writing Real C Code
+
+Most professional C programming involves reading and understanding existing codebases. This phase teaches you to navigate, understand, and write production-quality C.
+
+<LearningObjectives>
+
+- Recognize common code style patterns in large projects
+- Apply defensive C idioms for robust code
+- Understand and use ownership conventions
+- Design clean, maintainable APIs in C
+- Practice documentation-driven development
+- Read libc source code
+- Study SQLite and Redis code patterns
+- Refactor messy C into clean modules
+
+</LearningObjectives>
+
+## Why Real-World Skills Matter
+
+Academic C and production C differ significantly:
+
+- Large codebases have conventions
+- Error handling is pervasive
+- Documentation is critical
+- API design matters for maintainability
+- Reading code is more common than writing
+
+## Large Project Patterns
+
+### Code Style
+
+Different projects have different styles:
+
+- **Linux kernel**: 8-char tabs, specific naming
+- **SQLite**: Heavy comments, clear sections
+- **Redis**: Minimal, focused functions
+- **curl**: Extensive documentation
+
+### Defensive Idioms
+
+Professional C code assumes:
+
+- Inputs can be malicious
+- Memory can fail to allocate
+- Functions can fail
+- Pointers can be NULL
+- Sizes can be zero
+
+### Ownership Conventions
+
+Who frees what:
+
+- **Caller-owned**: Must free returned pointers
+- **Callee-owned**: Don't free, pointers valid for lifetime
+- **Borrowed**: Don't free, may become invalid
+- **Transfer**: Ownership explicitly transferred
+
+## What You'll Learn
+
+1. **Code style patterns** — Linux, SQLite, Redis styles
+2. **Defensive idioms** — Parameter validation, error handling
+3. **Ownership conventions** — Memory management patterns
+4. **API design** — Clean interfaces, versioning
+5. **Documentation** — Writing useful headers and comments
+6. **Reading libc** — Understanding standard library implementation
+7. **Reading SQLite** — Learning from a well-designed codebase
+8. **Refactoring** — Transforming messy code into clean modules
+
+Let's start by examining code style patterns.

@@ -1,0 +1,261 @@
+---
+title: "Assignment Operators"
+description: "Master assignment operators and learn efficient ways to update variables"
+order: 2
+---
+
+# Assignment Operators
+
+Assignment operators allow you to store values in variables. While the basic assignment operator `=` is straightforward, C provides several compound assignment operators and increment/decrement operators that make your code more concise and efficient.
+
+## Basic Assignment
+
+The assignment operator `=` stores a value in a variable:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int x;
+
+    x = 10;              // Assign 10 to x
+    printf("x = %d\n", x);
+
+    x = 20;              // Reassign x to 20
+    printf("x = %d\n", x);
+
+    int y = x;           // Assign x's value to y
+    printf("y = %d\n", y);
+
+    // Assignment returns a value, so you can chain assignments
+    int a, b, c;
+    a = b = c = 5;       // All three variables become 5
+    printf("a = %d, b = %d, c = %d\n", a, b, c);
+
+    return 0;
+}
+```
+
+## Compound Assignment Operators
+
+Compound assignment operators combine an arithmetic operation with assignment, providing a shorter way to update variables:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int x = 10;
+
+    // Addition assignment
+    x += 5;       // Equivalent to: x = x + 5
+    printf("After x += 5: %d\n", x);    // 15
+
+    // Subtraction assignment
+    x -= 3;       // Equivalent to: x = x - 3
+    printf("After x -= 3: %d\n", x);    // 12
+
+    // Multiplication assignment
+    x *= 2;       // Equivalent to: x = x * 2
+    printf("After x *= 2: %d\n", x);    // 24
+
+    // Division assignment
+    x /= 4;       // Equivalent to: x = x / 4
+    printf("After x /= 4: %d\n", x);    // 6
+
+    // Modulo assignment
+    x %= 4;       // Equivalent to: x = x % 4
+    printf("After x %%= 4: %d\n", x);   // 2
+
+    return 0;
+}
+```
+
+## Increment and Decrement Operators
+
+The increment `++` and decrement `--` operators increase or decrease a variable by 1. They come in two forms: prefix and postfix.
+
+```c
+#include <stdio.h>
+
+int main() {
+    int x = 5;
+
+    // Postfix increment: use current value, then increment
+    printf("x = %d\n", x);       // 5
+    printf("x++ = %d\n", x++);   // Prints 5, then x becomes 6
+    printf("x = %d\n", x);       // 6
+
+    // Prefix increment: increment first, then use new value
+    printf("++x = %d\n", ++x);   // x becomes 7, then prints 7
+    printf("x = %d\n", x);       // 7
+
+    // Postfix decrement
+    printf("x-- = %d\n", x--);   // Prints 7, then x becomes 6
+    printf("x = %d\n", x);       // 6
+
+    // Prefix decrement
+    printf("--x = %d\n", --x);   // x becomes 5, then prints 5
+    printf("x = %d\n", x);       // 5
+
+    return 0;
+}
+```
+
+## Prefix vs Postfix: The Difference
+
+Understanding the difference between prefix and postfix is crucial:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int a = 10, b = 10;
+    int result1, result2;
+
+    // Postfix: use current value, then increment
+    result1 = a++;
+    printf("Postfix: result1 = %d, a = %d\n", result1, a);  // result1 = 10, a = 11
+
+    // Prefix: increment first, then use new value
+    result2 = ++b;
+    printf("Prefix: result2 = %d, b = %d\n", result2, b);   // result2 = 11, b = 11
+
+    // Practical example: loop counters
+    int i = 0;
+    printf("Loop with postfix: ");
+    while (i < 5) {
+        printf("%d ", i++);    // Prints 0 1 2 3 4
+    }
+    printf("\n");
+
+    int j = 0;
+    printf("Loop with prefix: ");
+    while (j < 5) {
+        printf("%d ", ++j);    // Prints 1 2 3 4 5
+    }
+    printf("\n");
+
+    return 0;
+}
+```
+
+## Practical Applications
+
+Here are some common patterns using assignment operators:
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Accumulating a sum
+    int sum = 0;
+    sum += 10;
+    sum += 20;
+    sum += 30;
+    printf("Sum: %d\n", sum);    // 60
+
+    // Doubling a value repeatedly
+    int value = 1;
+    value *= 2;    // 2
+    value *= 2;    // 4
+    value *= 2;    // 8
+    printf("Value after tripling: %d\n", value);
+
+    // Counting items
+    int count = 0;
+    count++;    // Found one item
+    count++;    // Found another
+    count++;    // And another
+    printf("Total items: %d\n", count);    // 3
+
+    // Applying a discount
+    float price = 100.0;
+    price *= 0.9;    // 10% discount (multiply by 0.9)
+    printf("Price after discount: $%.2f\n", price);    // $90.00
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Confusing = with ==
+
+```c
+int x = 5;
+
+// Wrong: This is assignment, not comparison!
+if (x = 10) {    // Always true, and x is now 10!
+    printf("This will always execute\n");
+}
+
+// Correct: Use == for comparison
+if (x == 10) {
+    printf("x is equal to 10\n");
+}
+```
+
+### Pitfall 2: Multiple Increment/Decrement Operations
+
+```c
+int x = 5;
+
+// Undefined behavior - don't do this!
+int result = x++ + x++;    // Result is unpredictable
+
+// Correct: Use separate statements
+x++;
+x++;
+int result = x;
+```
+
+### Pitfall 3: Using Increment in Complex Expressions
+
+```c
+int i = 5;
+
+// Confusing and potentially undefined
+int result = i++ + ++i * i--;    // Don't do this!
+
+// Clear and correct: Break it into steps
+int result = i * 2;
+i++;
+```
+
+### Pitfall 4: Forgetting Operator Order in Compound Assignment
+
+```c
+int x = 10;
+
+// This might not do what you expect
+x *= 2 + 3;    // x = x * (2 + 3) = 50, not x = x * 2 + 3 = 23
+
+// Be explicit with parentheses if needed
+x = x * 2 + 3;    // 23
+```
+
+## Exercises
+
+1. Write a program that starts with a variable set to 100 and uses compound assignment operators to: add 50, subtract 30, multiply by 2, divide by 4, and find the remainder when divided by 7. Print the result after each operation.
+
+2. Create a simple counter program that increments a variable 10 times using a loop and prints each value.
+
+3. Write a program that demonstrates the difference between prefix and postfix increment by using both in expressions and showing the results.
+
+4. Create a program that calculates compound interest. Start with $1000, apply 5% interest using `*= 1.05` for 5 years, and print the final amount.
+
+5. Write a program that swaps two variables without using a third variable. (Hint: use compound assignment operators with addition and subtraction)
+
+## Key Takeaways
+
+- The basic assignment operator `=` stores values in variables
+- Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`) combine arithmetic with assignment
+- Compound operators are more concise and often more efficient than separate operations
+- Increment `++` adds 1, decrement `--` subtracts 1
+- Postfix (`x++`) uses the current value, then increments
+- Prefix (`++x`) increments first, then uses the new value
+- In simple statements, prefix and postfix produce the same final result
+- Avoid using increment/decrement operators in complex expressions
+- Assignment returns a value, allowing chained assignments
+- Don't confuse `=` (assignment) with `==` (comparison)
+- Keep expressions simple and readable - clarity beats cleverness

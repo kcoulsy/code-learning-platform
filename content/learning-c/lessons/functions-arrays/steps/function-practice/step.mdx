@@ -1,0 +1,554 @@
+---
+title: "Function Practice"
+description: "Apply your knowledge with real-world utility functions and string operations"
+order: 8
+---
+
+# Function Practice
+
+Now it's time to put everything together! This step challenges you to build practical utility functions that combine functions, arrays, strings, and safe programming practices.
+
+## Introduction
+
+The best way to master C programming is through hands-on practice. In this step, you'll implement real-world functions that demonstrate:
+
+- Proper function design and organization
+- Safe array and string manipulation
+- Modular, reusable code
+- Error handling and edge cases
+- Common algorithmic patterns
+
+These exercises mirror problems you'll encounter in professional C development.
+
+## Practice Projects
+
+### Project 1: String Utility Library
+
+Build a comprehensive string utility library with these functions:
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+// Trim leading and trailing whitespace
+void trimString(char str[]) {
+    if (str == NULL) return;
+
+    // Find first non-whitespace
+    int start = 0;
+    while (str[start] && isspace(str[start])) {
+        start++;
+    }
+
+    // Find last non-whitespace
+    int end = strlen(str) - 1;
+    while (end >= start && isspace(str[end])) {
+        end--;
+    }
+
+    // Shift string to beginning
+    int i;
+    for (i = 0; i <= end - start; i++) {
+        str[i] = str[start + i];
+    }
+    str[i] = '\0';
+}
+
+// Check if string is a valid integer
+int isInteger(char str[]) {
+    if (str == NULL || str[0] == '\0') {
+        return 0;
+    }
+
+    int i = 0;
+
+    // Allow leading sign
+    if (str[0] == '+' || str[0] == '-') {
+        i = 1;
+        if (str[1] == '\0') return 0;  // Just a sign is not valid
+    }
+
+    // Check remaining characters
+    while (str[i] != '\0') {
+        if (!isdigit(str[i])) {
+            return 0;
+        }
+        i++;
+    }
+
+    return 1;
+}
+
+// Count words in a string
+int countWords(char str[]) {
+    int count = 0;
+    int inWord = 0;
+
+    for (int i = 0; str[i] != '\0'; i++) {
+        if (isspace(str[i])) {
+            inWord = 0;
+        } else if (!inWord) {
+            inWord = 1;
+            count++;
+        }
+    }
+
+    return count;
+}
+
+// Replace all occurrences of a character
+int replaceChar(char str[], char oldChar, char newChar) {
+    int count = 0;
+
+    for (int i = 0; str[i] != '\0'; i++) {
+        if (str[i] == oldChar) {
+            str[i] = newChar;
+            count++;
+        }
+    }
+
+    return count;
+}
+
+// Check if string is palindrome (ignore case and spaces)
+int isPalindrome(char str[]) {
+    char cleaned[1000];
+    int j = 0;
+
+    // Remove spaces and convert to lowercase
+    for (int i = 0; str[i] != '\0'; i++) {
+        if (!isspace(str[i])) {
+            cleaned[j++] = tolower(str[i]);
+        }
+    }
+    cleaned[j] = '\0';
+
+    // Check palindrome
+    int len = strlen(cleaned);
+    for (int i = 0; i < len / 2; i++) {
+        if (cleaned[i] != cleaned[len - 1 - i]) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int main() {
+    // Test trim
+    char str1[100] = "   Hello World   ";
+    printf("Original: '%s'\n", str1);
+    trimString(str1);
+    printf("Trimmed: '%s'\n\n", str1);
+
+    // Test isInteger
+    printf("'123' is integer: %d\n", isInteger("123"));
+    printf("'-456' is integer: %d\n", isInteger("-456"));
+    printf("'12.5' is integer: %d\n", isInteger("12.5"));
+    printf("'abc' is integer: %d\n\n", isInteger("abc"));
+
+    // Test countWords
+    char str2[] = "The quick brown fox jumps";
+    printf("Words in '%s': %d\n\n", str2, countWords(str2));
+
+    // Test replaceChar
+    char str3[] = "Hello World";
+    printf("Original: %s\n", str3);
+    int replaced = replaceChar(str3, 'l', 'X');
+    printf("After replacing 'l' with 'X': %s (replaced %d)\n\n", str3, replaced);
+
+    // Test palindrome
+    printf("'racecar' is palindrome: %d\n", isPalindrome("racecar"));
+    printf("'A man a plan a canal Panama' is palindrome: %d\n",
+           isPalindrome("A man a plan a canal Panama"));
+    printf("'hello' is palindrome: %d\n", isPalindrome("hello"));
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Original: '   Hello World   '
+Trimmed: 'Hello World'
+
+'123' is integer: 1
+'-456' is integer: 1
+'12.5' is integer: 0
+'abc' is integer: 0
+
+Words in 'The quick brown fox jumps': 5
+
+Original: Hello World
+After replacing 'l' with 'X': HeXXo WorXd (replaced 3)
+
+'racecar' is palindrome: 1
+'A man a plan a canal Panama' is palindrome: 1
+'hello' is palindrome: 0
+```
+
+### Project 2: Array Statistics and Operations
+
+```c
+#include <stdio.h>
+
+// Calculate average
+double arrayAverage(int arr[], int size) {
+    if (size == 0) return 0.0;
+
+    int sum = 0;
+    for (int i = 0; i < size; i++) {
+        sum += arr[i];
+    }
+
+    return (double)sum / size;
+}
+
+// Find median (middle value in sorted array)
+double arrayMedian(int arr[], int size) {
+    if (size == 0) return 0.0;
+
+    // Simple bubble sort
+    int temp[size];
+    for (int i = 0; i < size; i++) {
+        temp[i] = arr[i];
+    }
+
+    for (int i = 0; i < size - 1; i++) {
+        for (int j = 0; j < size - i - 1; j++) {
+            if (temp[j] > temp[j + 1]) {
+                int swap = temp[j];
+                temp[j] = temp[j + 1];
+                temp[j + 1] = swap;
+            }
+        }
+    }
+
+    if (size % 2 == 0) {
+        return (temp[size/2 - 1] + temp[size/2]) / 2.0;
+    } else {
+        return temp[size/2];
+    }
+}
+
+// Find mode (most frequent value)
+int arrayMode(int arr[], int size) {
+    if (size == 0) return 0;
+
+    int maxCount = 0;
+    int mode = arr[0];
+
+    for (int i = 0; i < size; i++) {
+        int count = 0;
+        for (int j = 0; j < size; j++) {
+            if (arr[j] == arr[i]) {
+                count++;
+            }
+        }
+
+        if (count > maxCount) {
+            maxCount = count;
+            mode = arr[i];
+        }
+    }
+
+    return mode;
+}
+
+// Remove duplicates and return new size
+int removeDuplicates(int arr[], int size) {
+    if (size <= 1) return size;
+
+    int newSize = 0;
+
+    for (int i = 0; i < size; i++) {
+        int isDuplicate = 0;
+
+        // Check if already in result
+        for (int j = 0; j < newSize; j++) {
+            if (arr[i] == arr[j]) {
+                isDuplicate = 1;
+                break;
+            }
+        }
+
+        if (!isDuplicate) {
+            arr[newSize++] = arr[i];
+        }
+    }
+
+    return newSize;
+}
+
+// Rotate array right by k positions
+void rotateArray(int arr[], int size, int k) {
+    if (size == 0) return;
+
+    k = k % size;  // Handle k > size
+    if (k == 0) return;
+
+    int temp[k];
+
+    // Save last k elements
+    for (int i = 0; i < k; i++) {
+        temp[i] = arr[size - k + i];
+    }
+
+    // Shift remaining elements right
+    for (int i = size - 1; i >= k; i--) {
+        arr[i] = arr[i - k];
+    }
+
+    // Place saved elements at beginning
+    for (int i = 0; i < k; i++) {
+        arr[i] = temp[i];
+    }
+}
+
+void printArray(int arr[], int size) {
+    printf("[");
+    for (int i = 0; i < size; i++) {
+        printf("%d", arr[i]);
+        if (i < size - 1) printf(", ");
+    }
+    printf("]\n");
+}
+
+int main() {
+    int numbers[] = {5, 2, 8, 2, 9, 1, 5, 5};
+    int size = 8;
+
+    printf("Array: ");
+    printArray(numbers, size);
+
+    printf("Average: %.2f\n", arrayAverage(numbers, size));
+    printf("Median: %.2f\n", arrayMedian(numbers, size));
+    printf("Mode: %d\n\n", arrayMode(numbers, size));
+
+    // Test remove duplicates
+    int arr2[] = {1, 2, 2, 3, 4, 4, 5, 5, 5};
+    int size2 = 9;
+    printf("With duplicates: ");
+    printArray(arr2, size2);
+    size2 = removeDuplicates(arr2, size2);
+    printf("Without duplicates: ");
+    printArray(arr2, size2);
+    printf("\n");
+
+    // Test rotation
+    int arr3[] = {1, 2, 3, 4, 5};
+    printf("Original: ");
+    printArray(arr3, 5);
+    rotateArray(arr3, 5, 2);
+    printf("Rotated right by 2: ");
+    printArray(arr3, 5);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Array: [5, 2, 8, 2, 9, 1, 5, 5]
+Average: 4.62
+Median: 5.00
+Mode: 5
+
+With duplicates: [1, 2, 2, 3, 4, 4, 5, 5, 5]
+Without duplicates: [1, 2, 3, 4, 5]
+
+Original: [1, 2, 3, 4, 5]
+Rotated right by 2: [4, 5, 1, 2, 3]
+```
+
+### Project 3: Matrix Operations
+
+```c
+#include <stdio.h>
+
+#define MAX_SIZE 10
+
+void printMatrix(int matrix[][MAX_SIZE], int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            printf("%4d ", matrix[i][j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+// Add two matrices
+void addMatrices(int a[][MAX_SIZE], int b[][MAX_SIZE],
+                 int result[][MAX_SIZE], int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            result[i][j] = a[i][j] + b[i][j];
+        }
+    }
+}
+
+// Multiply two matrices
+int multiplyMatrices(int a[][MAX_SIZE], int aRows, int aCols,
+                     int b[][MAX_SIZE], int bRows, int bCols,
+                     int result[][MAX_SIZE]) {
+    if (aCols != bRows) {
+        return 0;  // Can't multiply
+    }
+
+    for (int i = 0; i < aRows; i++) {
+        for (int j = 0; j < bCols; j++) {
+            result[i][j] = 0;
+            for (int k = 0; k < aCols; k++) {
+                result[i][j] += a[i][k] * b[k][j];
+            }
+        }
+    }
+
+    return 1;  // Success
+}
+
+// Check if matrix is symmetric
+int isSymmetric(int matrix[][MAX_SIZE], int size) {
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            if (matrix[i][j] != matrix[j][i]) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+// Transpose matrix
+void transpose(int matrix[][MAX_SIZE], int result[][MAX_SIZE],
+               int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            result[j][i] = matrix[i][j];
+        }
+    }
+}
+
+int main() {
+    int matrixA[MAX_SIZE][MAX_SIZE] = {
+        {1, 2, 3},
+        {4, 5, 6}
+    };
+
+    int matrixB[MAX_SIZE][MAX_SIZE] = {
+        {7, 8, 9},
+        {10, 11, 12}
+    };
+
+    int matrixC[MAX_SIZE][MAX_SIZE] = {
+        {1, 2},
+        {3, 4},
+        {5, 6}
+    };
+
+    int result[MAX_SIZE][MAX_SIZE];
+
+    printf("Matrix A:\n");
+    printMatrix(matrixA, 2, 3);
+
+    printf("Matrix B:\n");
+    printMatrix(matrixB, 2, 3);
+
+    // Add matrices
+    addMatrices(matrixA, matrixB, result, 2, 3);
+    printf("A + B:\n");
+    printMatrix(result, 2, 3);
+
+    // Multiply matrices
+    printf("Matrix C:\n");
+    printMatrix(matrixC, 3, 2);
+
+    if (multiplyMatrices(matrixA, 2, 3, matrixC, 3, 2, result)) {
+        printf("A × C:\n");
+        printMatrix(result, 2, 2);
+    }
+
+    // Test symmetric
+    int symmetric[MAX_SIZE][MAX_SIZE] = {
+        {1, 2, 3},
+        {2, 4, 5},
+        {3, 5, 6}
+    };
+
+    printf("Symmetric matrix:\n");
+    printMatrix(symmetric, 3, 3);
+    printf("Is symmetric: %d\n\n", isSymmetric(symmetric, 3));
+
+    // Transpose
+    transpose(matrixA, result, 2, 3);
+    printf("Transpose of A:\n");
+    printMatrix(result, 3, 2);
+
+    return 0;
+}
+```
+
+## Challenge Exercises
+
+### Challenge 1: Text Analyzer
+Create a program that analyzes a text file or string:
+- Count characters, words, sentences
+- Find longest word
+- Calculate average word length
+- List unique words (word frequency)
+
+### Challenge 2: CSV Parser
+Build a complete CSV parser that:
+- Handles quoted fields (including commas inside quotes)
+- Supports escape sequences
+- Returns data in a 2D array or array of strings
+- Handles edge cases (empty fields, trailing commas)
+
+### Challenge 3: Mini Text Editor Commands
+Implement basic text editor operations:
+- Insert text at position
+- Delete text from position
+- Find and replace
+- Undo/redo (bonus!)
+
+### Challenge 4: Matrix Calculator
+Build an interactive matrix calculator:
+- Input matrices from user
+- Perform operations (add, subtract, multiply, transpose)
+- Display results
+- Handle invalid operations gracefully
+
+### Challenge 5: String Pattern Matching
+Implement a simple pattern matching function:
+- Support wildcards (`*` matches any sequence, `?` matches single character)
+- Example: `"h*o"` matches `"hello"`, `"halo"`, `"h123o"`
+
+## Key Takeaways
+
+1. **Function Design**: Break problems into small, focused functions
+2. **Input Validation**: Always check for edge cases (NULL, empty, invalid sizes)
+3. **Buffer Safety**: Never assume string lengths; always validate buffer sizes
+4. **Error Handling**: Return error codes or use special values to indicate failure
+5. **Reusability**: Write general-purpose functions that can be reused
+6. **Testing**: Test with normal cases, edge cases, and error cases
+7. **Documentation**: Comment complex logic and function purposes
+8. **Efficiency**: Consider time complexity for array/string operations
+9. **Memory**: Be aware of stack size limits for large arrays
+10. **Modularity**: Build libraries of related functions that work together
+
+## Best Practices Demonstrated
+
+- **Bounds Checking**: Always verify array indices are valid
+- **Null Termination**: Ensure strings are properly null-terminated
+- **Size Parameters**: Pass array/string sizes to functions
+- **Const Correctness**: Use `const` for parameters that shouldn't be modified
+- **Return Values**: Use return values to indicate success/failure
+- **Defensive Programming**: Check inputs and handle error conditions
+- **Clear Naming**: Use descriptive function and variable names
+- **Single Responsibility**: Each function does one thing well
+
+Mastering these patterns will make you a proficient C programmer. The key is practice, practice, practice! Start with simple implementations, then optimize and add features as you gain confidence.
+
+Happy coding!

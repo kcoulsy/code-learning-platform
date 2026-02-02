@@ -1,0 +1,373 @@
+---
+title: "Expressions in Practice"
+description: "Apply your knowledge of operators through practical examples and challenging problems"
+order: 5
+---
+
+# Expressions in Practice
+
+Now that you understand operators individually, let's combine them into powerful expressions. This step will help you master complex expressions, boolean logic, and common programming patterns.
+
+## Building Complex Expressions
+
+Complex expressions combine multiple operators to perform sophisticated calculations:
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Example 1: Calculate final grade with weighted components
+    float homework = 85.0;
+    float midterm = 78.0;
+    float final_exam = 92.0;
+
+    float final_grade = homework * 0.3 + midterm * 0.3 + final_exam * 0.4;
+    printf("Final grade: %.2f\n", final_grade);
+
+    // Example 2: Convert temperature with single expression
+    float fahrenheit = 98.6;
+    float celsius = (fahrenheit - 32) * 5 / 9;
+    printf("%.1fF = %.1fC\n", fahrenheit, celsius);
+
+    // Example 3: Calculate distance between two points
+    int x1 = 3, y1 = 4;
+    int x2 = 7, y2 = 1;
+    // Using integer arithmetic (will truncate)
+    int dx = x2 - x1;
+    int dy = y2 - y1;
+    int distance_squared = dx * dx + dy * dy;
+    printf("Distance squared: %d\n", distance_squared);
+
+    // Example 4: Calculate compound interest
+    float principal = 1000.0;
+    float rate = 0.05;        // 5% annual rate
+    int years = 3;
+    float amount = principal * (1 + rate) * (1 + rate) * (1 + rate);
+    printf("Amount after %d years: $%.2f\n", years, amount);
+
+    return 0;
+}
+```
+
+## Boolean Logic Patterns
+
+Mastering boolean expressions is essential for control flow:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int age = 25;
+    int income = 45000;
+    int credit_score = 720;
+    int employed = 1;
+    int student = 0;
+
+    // Pattern 1: Range checking
+    int adult = (age >= 18 && age < 65);
+    printf("Working age adult: %d\n", adult);
+
+    // Pattern 2: Multiple requirements (AND)
+    int loan_eligible = (age >= 21 && employed && credit_score >= 650);
+    printf("Loan eligible: %d\n", loan_eligible);
+
+    // Pattern 3: Alternative qualifications (OR)
+    int discount_eligible = (student || age >= 65 || income < 30000);
+    printf("Discount eligible: %d\n", discount_eligible);
+
+    // Pattern 4: Negation for opposite condition
+    int not_student = !student;
+    printf("Not a student: %d\n", not_student);
+
+    // Pattern 5: Complex eligibility
+    int special_offer = ((age >= 18 && age <= 25 && student) ||
+                         (employed && income > 40000) ||
+                         (credit_score >= 750));
+    printf("Special offer eligible: %d\n", special_offer);
+
+    return 0;
+}
+```
+
+## Common Expression Patterns
+
+Here are frequently used expression patterns:
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Pattern 1: Swap two variables using arithmetic
+    int a = 5, b = 10;
+    printf("Before swap: a = %d, b = %d\n", a, b);
+    a = a + b;    // a = 15
+    b = a - b;    // b = 5
+    a = a - b;    // a = 10
+    printf("After swap: a = %d, b = %d\n", a, b);
+
+    // Pattern 2: Find maximum of two numbers
+    int x = 15, y = 23;
+    int max = (x > y) ? x : y;    // Using ternary operator (preview)
+    // Or without ternary:
+    int max_alt = x;
+    if (y > x) max_alt = y;
+    printf("Max of %d and %d: %d\n", x, y, max_alt);
+
+    // Pattern 3: Check if number is even
+    int num = 42;
+    int is_even = (num % 2 == 0);
+    printf("%d is even: %d\n", num, is_even);
+
+    // Pattern 4: Check if number is positive
+    int value = -5;
+    int is_positive = (value > 0);
+    printf("%d is positive: %d\n", value, is_positive);
+
+    // Pattern 5: Clamp a value to a range
+    int score = 150;
+    int min = 0, max_score = 100;
+    if (score < min) score = min;
+    if (score > max_score) score = max_score;
+    printf("Clamped score: %d\n", score);
+
+    // Pattern 6: Count digits in a number
+    int number = 12345;
+    int digit_count = 0;
+    int temp = number;
+    while (temp != 0) {
+        temp /= 10;
+        digit_count++;
+    }
+    printf("%d has %d digits\n", number, digit_count);
+
+    return 0;
+}
+```
+
+## Practical Problem Solving
+
+Let's solve real-world problems using expressions:
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Problem 1: Calculate pizza slices per person
+    int total_slices = 24;
+    int people = 5;
+    int slices_per_person = total_slices / people;
+    int leftover_slices = total_slices % people;
+    printf("Each person gets %d slices, %d slices left over\n",
+           slices_per_person, leftover_slices);
+
+    // Problem 2: Determine if a year is a leap year
+    int year = 2024;
+    int is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    printf("%d is a leap year: %d\n", year, is_leap);
+
+    // Problem 3: Calculate time in hours, minutes, seconds
+    int total_seconds = 3725;
+    int hours = total_seconds / 3600;
+    int minutes = (total_seconds % 3600) / 60;
+    int seconds = total_seconds % 60;
+    printf("%d seconds = %d:%02d:%02d\n",
+           total_seconds, hours, minutes, seconds);
+
+    // Problem 4: Check if character is uppercase letter
+    char ch = 'M';
+    int is_uppercase = (ch >= 'A' && ch <= 'Z');
+    printf("'%c' is uppercase: %d\n", ch, is_uppercase);
+
+    // Problem 5: Calculate change for vending machine
+    int item_price = 375;    // cents
+    int payment = 500;       // cents
+    int change = payment - item_price;
+    int dollars = change / 100;
+    int quarters = (change % 100) / 25;
+    int dimes = ((change % 100) % 25) / 10;
+    int nickels = (((change % 100) % 25) % 10) / 5;
+    int pennies = (((change % 100) % 25) % 10) % 5;
+
+    printf("Change: $%d.%02d\n", dollars, change % 100);
+    printf("Quarters: %d, Dimes: %d, Nickels: %d, Pennies: %d\n",
+           quarters, dimes, nickels, pennies);
+
+    return 0;
+}
+```
+
+## Expression Optimization Tips
+
+Writing efficient and readable expressions:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int a = 10, b = 20, c = 30;
+
+    // Tip 1: Avoid redundant operations
+    // Less efficient:
+    int result1 = a * 2 + b * 2 + c * 2;
+
+    // More efficient (factor out common term):
+    int result2 = 2 * (a + b + c);
+
+    printf("Result1: %d, Result2: %d\n", result1, result2);
+
+    // Tip 2: Use compound assignments
+    // Verbose:
+    int x = 5;
+    x = x + 10;
+    x = x * 2;
+    x = x - 3;
+
+    // Concise:
+    int y = 5;
+    y += 10;
+    y *= 2;
+    y -= 3;
+
+    printf("x: %d, y: %d\n", x, y);
+
+    // Tip 3: Break complex expressions into steps
+    // Hard to read:
+    int total = (a * b + c) / (a - b + c % 5) * 2;
+
+    // Easier to read and debug:
+    int numerator = a * b + c;
+    int denominator = a - b + c % 5;
+    int total_clear = (numerator / denominator) * 2;
+
+    printf("Total: %d, Clear: %d\n", total, total_clear);
+
+    return 0;
+}
+```
+
+## Debugging Expression Errors
+
+Common mistakes and how to fix them:
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Error 1: Integer division losing precision
+    int miles = 100;
+    int gallons = 3;
+
+    // Wrong: Both integers
+    float mpg_wrong = miles / gallons;    // 33.0 (not 33.333)
+
+    // Correct: Cast to float
+    float mpg_correct = (float)miles / gallons;    // 33.333
+
+    printf("Wrong MPG: %.2f\n", mpg_wrong);
+    printf("Correct MPG: %.2f\n", mpg_correct);
+
+    // Error 2: Assignment in condition
+    int score = 85;
+
+    // Wrong: Assignment, not comparison
+    if (score = 90) {    // Always true, score becomes 90!
+        printf("This is wrong!\n");
+    }
+
+    // Correct: Comparison
+    score = 85;    // Reset
+    if (score == 90) {
+        printf("Score is 90\n");
+    }
+
+    // Error 3: Incorrect range check
+    int age = 25;
+
+    // Wrong: This is always true!
+    if (age >= 18 || age <= 65) {
+        printf("This is always true\n");
+    }
+
+    // Correct: Use AND for range
+    if (age >= 18 && age <= 65) {
+        printf("Working age\n");
+    }
+
+    // Error 4: Order of operations
+    int base = 10;
+    int tax_rate = 8;    // 8%
+
+    // Wrong: Addition happens before division
+    int total_wrong = base + base * tax_rate / 100;    // 10 + 0 = 10
+
+    // Correct: Force proper order
+    int total_correct = base + (base * tax_rate) / 100;    // 10 + 0 = 10
+    // Better: Use float for percentage
+    float total_best = base * (1 + tax_rate / 100.0);    // 10.8
+
+    printf("Total wrong: %d\n", total_wrong);
+    printf("Total correct: %d\n", total_correct);
+    printf("Total best: %.2f\n", total_best);
+
+    return 0;
+}
+```
+
+## Practice Challenges
+
+Try solving these problems:
+
+### Challenge 1: BMI Calculator
+Write a program that calculates Body Mass Index (BMI) given weight in pounds and height in inches. Use the formula: BMI = (weight * 703) / (height * height)
+
+### Challenge 2: Time Calculator
+Create a program that adds two times together (each given as hours, minutes, seconds) and displays the result, handling carry-over correctly.
+
+### Challenge 3: Grade Calculator
+Write a program that converts a numerical score (0-100) to a letter grade:
+- A: 90-100
+- B: 80-89
+- C: 70-79
+- D: 60-69
+- F: Below 60
+
+### Challenge 4: Palindrome Number
+Check if a three-digit number is a palindrome (reads the same forwards and backwards) using only arithmetic and comparison operators.
+
+### Challenge 5: Day of the Week
+Given a day number (1-7, where 1=Monday), determine if it's a weekday or weekend using boolean expressions.
+
+## Exercises
+
+1. Write an expression that converts kilometers to miles (1 km = 0.621371 miles).
+
+2. Create a boolean expression that checks if a number is divisible by both 3 and 5.
+
+3. Write an expression to extract the last two digits of a number.
+
+4. Calculate the average of three test scores, handling integer division correctly.
+
+5. Create a complex boolean expression that validates a password requirement:
+   - At least 8 characters long
+   - Contains at least one digit
+   - (Hint: use character comparisons like `ch >= '0' && ch <= '9'`)
+
+6. Write an expression that rounds a floating-point number to the nearest integer using only arithmetic operators.
+
+7. Create an expression that determines if a point (x, y) is inside a rectangle defined by coordinates (x1, y1) and (x2, y2).
+
+## Key Takeaways
+
+- Complex expressions combine multiple operators to solve real problems
+- Break complex expressions into intermediate variables for clarity
+- Boolean logic is essential for building sophisticated conditions
+- Use parentheses liberally to ensure correct evaluation order
+- Common patterns include range checking, validation, and calculations
+- Integer division can cause precision loss - cast to float when needed
+- Compound assignment operators make code more concise
+- Short-circuit evaluation can improve efficiency and safety
+- Test expressions with various inputs to catch edge cases
+- Debug by breaking expressions into smaller parts
+- Readable code is more valuable than clever one-liners
+- Master the fundamentals before attempting complex expressions
+- Practice is key to becoming comfortable with expressions

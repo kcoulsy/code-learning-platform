@@ -1,0 +1,466 @@
+---
+id: break-continue
+title: Break and Continue
+order: 6
+---
+
+# Break and Continue
+
+Break and continue are control flow statements that modify loop behavior. They give you fine-grained control over when to exit loops or skip iterations.
+
+## Break Statement
+
+The `break` statement immediately exits the nearest enclosing loop or switch statement.
+
+### Break in Loops
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Stop when reaching 5
+    for (int i = 1; i <= 10; i++) {
+        if (i == 5) {
+            break;  // Exit loop immediately
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 1 2 3 4
+
+    return 0;
+}
+```
+
+### Search with Break
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int numbers[] = {10, 23, 45, 67, 89, 34, 56, 78};
+    int target = 67;
+    int found = 0;
+
+    for (int i = 0; i < 8; i++) {
+        if (numbers[i] == target) {
+            printf("Found %d at index %d\n", target, i);
+            found = 1;
+            break;  // No need to continue searching
+        }
+    }
+
+    if (!found) {
+        printf("%d not found\n", target);
+    }
+
+    return 0;
+}
+```
+
+### Break in While Loop
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int sum = 0;
+    int count = 0;
+
+    while (1) {  // Infinite loop
+        printf("Enter a number (0 to stop): ");
+        int num;
+        scanf("%d", &num);
+
+        if (num == 0) {
+            break;  // Exit loop
+        }
+
+        sum += num;
+        count++;
+    }
+
+    if (count > 0) {
+        printf("Average: %.2f\n", (double)sum / count);
+    }
+
+    return 0;
+}
+```
+
+## Continue Statement
+
+The `continue` statement skips the rest of the current iteration and jumps to the next iteration.
+
+### Continue in For Loop
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Print only odd numbers
+    for (int i = 1; i <= 10; i++) {
+        if (i % 2 == 0) {
+            continue;  // Skip even numbers
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 1 3 5 7 9
+
+    return 0;
+}
+```
+
+### Skip Specific Values
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    for (int i = 1; i <= 10; i++) {
+        if (i == 3 || i == 7) {
+            continue;  // Skip 3 and 7
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 1 2 4 5 6 8 9 10
+
+    return 0;
+}
+```
+
+### Input Validation with Continue
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int sum = 0;
+    int count = 0;
+
+    for (int i = 0; i < 5; i++) {
+        int num;
+        printf("Enter a positive number: ");
+        scanf("%d", &num);
+
+        if (num <= 0) {
+            printf("Invalid! Skipping...\n");
+            continue;  // Skip to next iteration
+        }
+
+        sum += num;
+        count++;
+    }
+
+    printf("Sum of valid numbers: %d\n", sum);
+    printf("Valid numbers entered: %d\n", count);
+
+    return 0;
+}
+```
+
+## Break vs Continue
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    printf("Using break:\n");
+    for (int i = 1; i <= 10; i++) {
+        if (i == 5) {
+            break;  // Stop completely
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 1 2 3 4
+
+    printf("Using continue:\n");
+    for (int i = 1; i <= 10; i++) {
+        if (i == 5) {
+            continue;  // Skip only 5
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 1 2 3 4 6 7 8 9 10
+
+    return 0;
+}
+```
+
+## Nested Loops with Break/Continue
+
+### Break in Nested Loops
+
+Break only exits the innermost loop.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    for (int i = 1; i <= 3; i++) {
+        printf("Outer loop: i = %d\n", i);
+
+        for (int j = 1; j <= 5; j++) {
+            if (j == 3) {
+                break;  // Exits inner loop only
+            }
+            printf("  Inner loop: j = %d\n", j);
+        }
+    }
+
+    return 0;
+}
+```
+
+Output:
+```
+Outer loop: i = 1
+  Inner loop: j = 1
+  Inner loop: j = 2
+Outer loop: i = 2
+  Inner loop: j = 1
+  Inner loop: j = 2
+Outer loop: i = 3
+  Inner loop: j = 1
+  Inner loop: j = 2
+```
+
+### Breaking Out of Nested Loops
+
+Use a flag to break from nested loops.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int found = 0;
+
+    for (int i = 1; i <= 5 && !found; i++) {
+        for (int j = 1; j <= 5; j++) {
+            printf("(%d, %d) ", i, j);
+
+            if (i * j > 10) {
+                found = 1;
+                break;  // Exit inner loop
+            }
+        }
+        printf("\n");
+        // Outer loop also checks !found condition
+    }
+
+    printf("Stopped early\n");
+
+    return 0;
+}
+```
+
+### Continue in Nested Loops
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Print a multiplication table, skip multiples of 5
+    for (int i = 1; i <= 5; i++) {
+        for (int j = 1; j <= 5; j++) {
+            int product = i * j;
+
+            if (product % 5 == 0) {
+                continue;  // Skip multiples of 5
+            }
+
+            printf("%2d ", product);
+        }
+        printf("\n");
+    }
+
+    return 0;
+}
+```
+
+## Practical Examples
+
+### Prime Number Checker
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int n;
+    printf("Enter a number: ");
+    scanf("%d", &n);
+
+    if (n <= 1) {
+        printf("%d is not prime\n", n);
+        return 0;
+    }
+
+    int is_prime = 1;
+    for (int i = 2; i * i <= n; i++) {
+        if (n % i == 0) {
+            is_prime = 0;
+            break;  // Found a divisor, no need to continue
+        }
+    }
+
+    if (is_prime) {
+        printf("%d is prime\n", n);
+    } else {
+        printf("%d is not prime\n", n);
+    }
+
+    return 0;
+}
+```
+
+### Skip Vowels
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+int main(void) {
+    char text[] = "Hello World";
+
+    printf("Without vowels: ");
+    for (int i = 0; i < strlen(text); i++) {
+        char ch = tolower(text[i]);
+
+        if (ch == 'a' || ch == 'e' || ch == 'i' || ch == 'o' || ch == 'u') {
+            continue;  // Skip vowels
+        }
+
+        printf("%c", text[i]);
+    }
+    printf("\n");
+    // Output: Hll Wrld
+
+    return 0;
+}
+```
+
+### Processing Valid Inputs Only
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int scores[5];
+    int valid_count = 0;
+
+    for (int i = 0; i < 5; i++) {
+        printf("Enter score #%d (0-100): ", i + 1);
+        scanf("%d", &scores[valid_count]);
+
+        if (scores[valid_count] < 0 || scores[valid_count] > 100) {
+            printf("Invalid score! Skipping...\n");
+            continue;  // Don't increment valid_count
+        }
+
+        valid_count++;
+    }
+
+    // Calculate average of valid scores
+    if (valid_count > 0) {
+        int sum = 0;
+        for (int i = 0; i < valid_count; i++) {
+            sum += scores[i];
+        }
+        printf("Average: %.2f\n", (double)sum / valid_count);
+    }
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+### Using Break in Switch Inside Loop
+
+```c
+// break exits switch, not loop!
+for (int i = 0; i < 10; i++) {
+    switch (i) {
+        case 5:
+            break;  // Exits switch, not loop!
+        default:
+            printf("%d ", i);
+    }
+}
+// Output: 0 1 2 3 4 6 7 8 9
+
+// To exit loop from switch, use goto or flag
+for (int i = 0; i < 10; i++) {
+    switch (i) {
+        case 5:
+            goto exit_loop;  // Exits loop
+        default:
+            printf("%d ", i);
+    }
+}
+exit_loop:
+// Output: 0 1 2 3 4
+```
+
+### Continue with Update Statement
+
+```c
+int i = 0;
+
+// CAREFUL: continue skips the increment in while
+while (i < 10) {
+    if (i == 5) {
+        continue;  // Infinite loop! Never increments i
+    }
+    printf("%d ", i);
+    i++;
+}
+
+// CORRECT: Increment before continue
+while (i < 10) {
+    if (i == 5) {
+        i++;
+        continue;
+    }
+    printf("%d ", i);
+    i++;
+}
+
+// FOR LOOPS ARE SAFER: update happens automatically
+for (int i = 0; i < 10; i++) {
+    if (i == 5) {
+        continue;  // No problem - i++ still happens
+    }
+    printf("%d ", i);
+}
+```
+
+## Exercises
+
+1. **First N Primes**: Find and print the first N prime numbers. Use break when you've found enough primes.
+
+2. **Sum Positive Numbers**: Read numbers from user until they enter a negative number (use break). Skip any zeros encountered (use continue). Print the sum.
+
+3. **Password Strength Checker**: Check if a password meets criteria. Use continue to skip checking remaining criteria once one fails. Use break to exit early if all criteria are met.
+
+4. **Pattern with Gaps**: Print a 10x10 grid of asterisks but skip positions where row equals column (use continue).
+
+5. **Find First Pair**: In two arrays, find the first pair of numbers that sum to a target value. Use break once found.
+
+## Key Takeaways
+
+- `break` exits the nearest enclosing loop or switch immediately
+- `continue` skips the rest of the current iteration and goes to the next
+- Break only exits ONE level of nested loops (the innermost)
+- Use flags or goto to break out of multiple nested loops
+- In for loops, continue still executes the update statement
+- In while loops, be careful with continue - ensure loop variable updates
+- Break is useful for early exit when a condition is met (search, validation)
+- Continue is useful for skipping specific values or invalid input
+- Both improve efficiency by avoiding unnecessary iterations
+- Don't overuse them - sometimes restructuring the code is clearer

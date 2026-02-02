@@ -1,0 +1,430 @@
+---
+id: debugging-basics
+title: Debugging with GDB
+order: 6
+---
+
+# Debugging with GDB
+
+Debugging is the process of finding and fixing bugs in your code. GDB (GNU Debugger) is a powerful tool that lets you examine your program as it runs, step through code line by line, and inspect variables.
+
+## Why Learn GDB?
+
+`printf` debugging (adding print statements everywhere) works, but has limitations:
+- Requires recompilation for every change
+- Clutters your code
+- Can't inspect program state at arbitrary points
+- Doesn't work well for crashes
+
+GDB lets you:
+- Pause execution at any line
+- Step through code one line at a time
+- Inspect and modify variables
+- Examine the call stack when programs crash
+- Set conditional breakpoints
+
+## Setting Up for Debugging
+
+Always compile with `-g` flag to include debug symbols:
+
+```bash
+gcc -Wall -Wextra -std=c11 -g -o program program.c
+```
+
+## Basic GDB Commands
+
+### Starting GDB
+
+```bash
+# Start GDB with your program
+gdb ./program
+
+# Or run and immediately start
+gdb ./program
+```
+
+### Essential Commands
+
+```
+(gdb) run                  # Run the program
+(gdb) break main           # Set breakpoint at main function
+(gdb) break 15             # Set breakpoint at line 15
+(gdb) break file.c:20      # Set breakpoint at line 20 in file.c
+(gdb) continue             # Continue execution until next breakpoint
+(gdb) next                 # Execute next line (step over functions)
+(gdb) step                 # Execute next line (step into functions)
+(gdb) print variable       # Print value of variable
+(gdb) quit                 # Exit GDB
+```
+
+## Walkthrough Example
+
+Let's debug a program with a bug:
+
+```c
+#include <stdio.h>
+
+int factorial(int n) {
+    int result = 1;
+    for (int i = 1; i < n; i++) {  // BUG: should be i <= n
+        result *= i;
+    }
+    return result;
+}
+
+int main(void) {
+    int num = 5;
+    int fact = factorial(num);
+    printf("Factorial of %d is %d\n", num, fact);
+    return 0;
+}
+```
+
+Expected output: `Factorial of 5 is 120`
+Actual output: `Factorial of 5 is 24` (Wrong!)
+
+### Debugging Session
+
+```bash
+# Compile with debug symbols
+gcc -g -o factorial factorial.c
+
+# Start GDB
+gdb ./factorial
+```
+
+Inside GDB:
+
+```
+(gdb) break main
+Breakpoint 1 at 0x... : file factorial.c, line 10.
+
+(gdb) run
+Starting program: ./factorial
+Breakpoint 1, main () at factorial.c:10
+10          int num = 5;
+
+(gdb) next
+11          int fact = factorial(num);
+
+(gdb) step
+factorial (n=5) at factorial.c:4
+4           int result = 1;
+
+(gdb) next
+5           for (int i = 1; i < n; i++) {
+
+(gdb) print i
+$1 = 1
+
+(gdb) next
+6               result *= i;
+
+(gdb) print result
+$2 = 1
+
+(gdb) next
+5           for (int i = 1; i < n; i++) {
+
+(gdb) print i
+$3 = 2
+
+(gdb) print result
+$4 = 1
+
+# Continue stepping and notice i goes 1,2,3,4 but never 5!
+# The bug is i < n instead of i <= n
+```
+
+## Inspecting Variables
+
+```c
+(gdb) print variable_name       # Print variable
+(gdb) print array[3]            # Print array element
+(gdb) print *pointer            # Dereference pointer
+(gdb) print sizeof(var)         # Print size
+(gdb) display variable          # Auto-print variable after each step
+(gdb) info locals               # Show all local variables
+```
+
+Example:
+
+```c
+int arr[5] = {10, 20, 30, 40, 50};
+int *ptr = arr;
+```
+
+```
+(gdb) print arr
+$1 = {10, 20, 30, 40, 50}
+
+(gdb) print arr[2]
+$2 = 30
+
+(gdb) print *ptr
+$3 = 10
+
+(gdb) print *(ptr + 2)
+$4 = 30
+```
+
+## Examining Program Crashes
+
+When a program crashes with a segmentation fault:
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int *ptr = NULL;
+    *ptr = 42;  // CRASH: dereferencing NULL pointer
+    return 0;
+}
+```
+
+```bash
+gcc -g -o crash crash.c
+gdb ./crash
+```
+
+```
+(gdb) run
+Program received signal SIGSEGV, Segmentation fault.
+0x... in main () at crash.c:5
+5           *ptr = 42;
+
+(gdb) print ptr
+$1 = (int *) 0x0
+
+(gdb) backtrace
+#0  0x... in main () at crash.c:5
+```
+
+The `backtrace` (or `bt`) command shows the call stack - where the crash occurred.
+
+## Breakpoints
+
+### Setting Breakpoints
+
+```
+(gdb) break main              # Break at function
+(gdb) break 42                # Break at line 42
+(gdb) break file.c:15         # Break at specific file:line
+(gdb) break function_name     # Break at function
+```
+
+### Conditional Breakpoints
+
+Break only when a condition is true:
+
+```
+(gdb) break 10 if i == 5      # Break at line 10 only when i equals 5
+(gdb) break main if argc > 1  # Break if program has arguments
+```
+
+### Managing Breakpoints
+
+```
+(gdb) info breakpoints        # List all breakpoints
+(gdb) delete 1                # Delete breakpoint 1
+(gdb) disable 2               # Temporarily disable breakpoint 2
+(gdb) enable 2                # Re-enable breakpoint 2
+(gdb) clear                   # Delete all breakpoints
+```
+
+## Stepping Through Code
+
+```
+(gdb) next                    # Execute next line (don't enter functions)
+(gdb) step                    # Execute next line (enter functions)
+(gdb) finish                  # Run until current function returns
+(gdb) continue                # Continue running until next breakpoint
+(gdb) until                   # Run until next line (useful in loops)
+```
+
+### next vs step
+
+```c
+int add(int a, int b) {
+    return a + b;
+}
+
+int main(void) {
+    int x = add(5, 3);  // Line 6
+    printf("%d\n", x);  // Line 7
+    return 0;
+}
+```
+
+```
+(gdb) break 6
+(gdb) run
+
+(gdb) next        # Executes add() completely, stops at line 7
+(gdb) step        # Enters add() function, stops at return statement
+```
+
+## Examining the Call Stack
+
+```
+(gdb) backtrace   # or 'bt' - show call stack
+(gdb) frame 0     # Switch to frame 0
+(gdb) up          # Move up one frame
+(gdb) down        # Move down one frame
+```
+
+Example with nested calls:
+
+```c
+void c(void) {
+    int x = 0;
+    int y = 5 / x;  // Division by zero
+}
+
+void b(void) {
+    c();
+}
+
+void a(void) {
+    b();
+}
+
+int main(void) {
+    a();
+    return 0;
+}
+```
+
+```
+(gdb) run
+Program received signal SIGFPE, Arithmetic exception.
+
+(gdb) backtrace
+#0  c () at test.c:3
+#1  b () at test.c:7
+#2  a () at test.c:11
+#3  main () at test.c:15
+```
+
+This shows the exact call chain that led to the crash.
+
+## Watching Variables
+
+Watch for when a variable changes:
+
+```
+(gdb) watch variable_name     # Break when variable changes
+(gdb) rwatch variable_name    # Break when variable is read
+(gdb) awatch variable_name    # Break on read or write
+```
+
+Example:
+
+```c
+for (int i = 0; i < 100; i++) {
+    if (i == 50)
+        i = 0;  // Bug: infinite loop
+}
+```
+
+```
+(gdb) watch i
+(gdb) continue
+# GDB will pause every time i changes, helping you spot the reset
+```
+
+## Practical Tips
+
+### 1. Quick Debug Workflow
+
+```bash
+# Compile with debug symbols
+gcc -g -Wall -Wextra -o program program.c
+
+# Run in GDB
+gdb ./program
+
+# Set breakpoint and run
+(gdb) break main
+(gdb) run
+```
+
+### 2. Debug with Arguments
+
+```bash
+# Program expects: ./program file.txt 10
+(gdb) run file.txt 10
+```
+
+### 3. Attach to Running Process
+
+```bash
+# Get process ID
+ps aux | grep myprogram
+
+# Attach GDB
+gdb -p <PID>
+```
+
+### 4. GDB Shortcuts
+
+```
+r     = run
+b     = break
+c     = continue
+n     = next
+s     = step
+p     = print
+bt    = backtrace
+q     = quit
+```
+
+## Common Debugging Scenarios
+
+### Segmentation Fault
+
+```
+(gdb) run
+Program received signal SIGSEGV
+
+(gdb) backtrace
+(gdb) print pointer_variable
+```
+
+### Infinite Loop
+
+```
+(gdb) break suspicious_loop_line
+(gdb) run
+(gdb) print loop_counter
+(gdb) watch loop_counter
+```
+
+### Wrong Output
+
+```
+(gdb) break function_with_bug
+(gdb) run
+(gdb) print variable
+(gdb) next  # Step through and watch values change
+```
+
+## Key Takeaways
+
+- Always compile with `-g` to enable debugging
+- Use `break` to set breakpoints at functions or lines
+- Use `next` to step over functions, `step` to step into them
+- Use `print` to inspect variable values
+- Use `backtrace` to see the call stack when crashes occur
+- Conditional breakpoints save time: `break 10 if x == 5`
+- GDB is more powerful than `printf` debugging for complex bugs
+- Learn keyboard shortcuts (`r`, `n`, `s`, `c`, `p`) for faster debugging
+
+## Practice Exercises
+
+1. Write a program with an intentional segmentation fault, use GDB to find the exact line
+2. Create a function that calculates the sum of an array, introduce an off-by-one error, debug with GDB
+3. Write a program with nested function calls, use `backtrace` to examine the call stack
+4. Use a conditional breakpoint: `break main if argc > 2`
+5. Set a watchpoint on a variable in a loop and observe when it changes
+6. Debug a program that crashes only when given specific input values

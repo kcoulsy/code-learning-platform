@@ -1,13 +1,53 @@
 import { Link } from "@tanstack/react-router"
 import { cn } from "@/lib/utils"
 import type { Course, CourseItem } from "@/lib/course-data"
-import { BookOpen, FolderCog as FolderCode, ChevronRight, ChevronDown } from "lucide-react"
+import { BookOpen, FolderCog as FolderCode, ChevronRight, ChevronDown, CheckCircle } from "lucide-react"
 import { useState } from "react"
+import { ThemeToggle } from "./theme-toggle"
+import { CourseProgressBar } from "./course-progress-bar"
+import { useStepCompletion } from "@/lib/progress-hooks"
 
 interface CourseSidebarProps {
   course: Course
   currentItemId?: string
   currentStepId?: string
+}
+
+function StepEntry({
+  step,
+  courseId,
+  itemId,
+  stepId,
+  index,
+}: {
+  step: { id: string; title: string }
+  courseId: string
+  itemId: string
+  stepId?: string
+  index: number
+}) {
+  const { isComplete } = useStepCompletion(courseId, itemId, step.id)
+
+  return (
+    <Link
+      key={step.id}
+      to={`/course/${courseId}/${itemId}/${step.id}`}
+      className={cn(
+        "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors",
+        stepId === step.id
+          ? "bg-primary text-primary-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+      )}
+    >
+      <span className="text-xs text-muted-foreground mr-2">
+        {index + 1}.
+      </span>
+      <span className="flex-1">{step.title}</span>
+      {isComplete && (
+        <CheckCircle className="h-3 w-3 text-primary shrink-0" />
+      )}
+    </Link>
+  )
 }
 
 function CourseItemEntry({
@@ -52,21 +92,14 @@ function CourseItemEntry({
       {isExpanded && (
         <div className="ml-6 mt-1 space-y-0.5 border-l border-border pl-3">
           {item.steps.map((step, index) => (
-            <Link
+            <StepEntry
               key={step.id}
-              to={`/course/${courseId}/${item.id}/${step.id}`}
-              className={cn(
-                "block px-3 py-1.5 rounded-md text-sm transition-colors",
-                currentStepId === step.id
-                  ? "bg-primary text-primary-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              )}
-            >
-              <span className="text-xs text-muted-foreground mr-2">
-                {index + 1}.
-              </span>
-              {step.title}
-            </Link>
+              step={step}
+              courseId={courseId}
+              itemId={item.id}
+              stepId={currentStepId}
+              index={index}
+            />
           ))}
         </div>
       )}
@@ -80,20 +113,23 @@ export function CourseSidebar({
   currentStepId,
 }: CourseSidebarProps) {
   return (
-    <aside className="w-72 border-r border-border bg-sidebar h-screen overflow-y-auto flex-shrink-0">
-      <div className="p-4 border-b border-border">
-        <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-          All Courses
-        </Link>
-        <h2 className="font-semibold text-lg text-sidebar-foreground mt-1">
-          {course.title}
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {course.description}
-        </p>
+    <aside className="w-72 border-r border-border bg-sidebar h-screen overflow-y-auto flex-shrink-0 flex flex-col">
+      <div className="p-4 border-b border-border space-y-3">
+        <div>
+          <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            All Courses
+          </Link>
+          <h2 className="font-semibold text-lg text-sidebar-foreground mt-1">
+            {course.title}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {course.description}
+          </p>
+        </div>
+        <CourseProgressBar courseId={course.id} course={course} variant="compact" />
       </div>
 
-      <nav className="p-3">
+      <nav className="p-3 flex-1">
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">
           Course Outline
         </div>
@@ -107,6 +143,10 @@ export function CourseSidebar({
           />
         ))}
       </nav>
+
+      <div className="p-3 border-t border-border">
+        <ThemeToggle />
+      </div>
     </aside>
   )
 }

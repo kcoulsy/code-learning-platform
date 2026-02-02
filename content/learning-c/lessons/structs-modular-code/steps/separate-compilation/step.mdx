@@ -1,0 +1,562 @@
+---
+title: "Separate Compilation"
+description: "Master the process of compiling and linking multiple source files to build larger programs efficiently."
+order: 6
+---
+
+# Separate Compilation
+
+When programs grow beyond a single file, compiling everything from scratch every time becomes inefficient. **Separate compilation** allows you to compile each source file independently into object files, then link them together. This means you only recompile files that changed, dramatically speeding up development.
+
+## The Compilation Process
+
+Compiling a C program involves four stages:
+
+1. **Preprocessing**: Handle directives (#include, #define, etc.)
+2. **Compilation**: Convert C code to assembly
+3. **Assembly**: Convert assembly to machine code (object files)
+4. **Linking**: Combine object files into an executable
+
+Separate compilation stops after the assembly stage, creating **object files** (.o on Linux/Mac, .obj on Windows) that can be linked later.
+
+## Example 1: Basic Separate Compilation
+
+Let's start with a simple multi-file project:
+
+**Project structure:**
+```
+project/
+  ├── main.c
+  ├── math_ops.h
+  └── math_ops.c
+```
+
+**math_ops.h**:
+```c
+#ifndef MATH_OPS_H
+#define MATH_OPS_H
+
+int add(int a, int b);
+int multiply(int a, int b);
+int factorial(int n);
+
+#endif
+```
+
+**math_ops.c**:
+```c
+#include "math_ops.h"
+
+int add(int a, int b) {
+    return a + b;
+}
+
+int multiply(int a, int b) {
+    return a * b;
+}
+
+int factorial(int n) {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+}
+```
+
+**main.c**:
+```c
+#include <stdio.h>
+#include "math_ops.h"
+
+int main(void) {
+    int x = 5, y = 3;
+
+    printf("%d + %d = %d\n", x, y, add(x, y));
+    printf("%d * %d = %d\n", x, y, multiply(x, y));
+    printf("%d! = %d\n", x, factorial(x));
+
+    return 0;
+}
+```
+
+**Compilation approaches:**
+
+**Method 1: All at once (simple but inefficient)**
+```bash
+gcc -o program main.c math_ops.c
+```
+
+**Method 2: Separate compilation (efficient)**
+```bash
+# Compile each .c file to .o object file
+gcc -c main.c        # Creates main.o
+gcc -c math_ops.c    # Creates math_ops.o
+
+# Link object files into executable
+gcc -o program main.o math_ops.o
+```
+
+**Method 3: With debugging symbols**
+```bash
+gcc -c -g main.c
+gcc -c -g math_ops.c
+gcc -o program main.o math_ops.o
+```
+
+**Output:**
+```
+5 + 3 = 8
+5 * 3 = 15
+5! = 120
+```
+
+**Key Points:**
+- `-c` flag compiles without linking, creating .o files
+- `-o` flag specifies output file name
+- `-g` adds debugging information
+- Only changed files need recompilation
+
+## Example 2: Larger Project with Multiple Modules
+
+**Project structure:**
+```
+library_system/
+  ├── main.c
+  ├── book.h
+  ├── book.c
+  ├── library.h
+  ├── library.c
+  ├── utils.h
+  └── utils.c
+```
+
+**book.h**:
+```c
+#ifndef BOOK_H
+#define BOOK_H
+
+typedef struct {
+    char title[100];
+    char author[50];
+    int year;
+    char isbn[20];
+    int available;
+} Book;
+
+Book createBook(const char *title, const char *author, int year, const char *isbn);
+void printBook(const Book *book);
+
+#endif
+```
+
+**book.c**:
+```c
+#include "book.h"
+#include <stdio.h>
+#include <string.h>
+
+Book createBook(const char *title, const char *author, int year, const char *isbn) {
+    Book book = {0};
+    strncpy(book.title, title, sizeof(book.title) - 1);
+    strncpy(book.author, author, sizeof(book.author) - 1);
+    book.year = year;
+    strncpy(book.isbn, isbn, sizeof(book.isbn) - 1);
+    book.available = 1;
+    return book;
+}
+
+void printBook(const Book *book) {
+    printf("%-40s by %-20s (%d) [%s] %s\n",
+           book->title,
+           book->author,
+           book->year,
+           book->isbn,
+           book->available ? "Available" : "Checked out");
+}
+```
+
+**library.h**:
+```c
+#ifndef LIBRARY_H
+#define LIBRARY_H
+
+#include "book.h"
+
+#define MAX_BOOKS 100
+
+typedef struct {
+    Book books[MAX_BOOKS];
+    int count;
+} Library;
+
+Library createLibrary(void);
+int addBook(Library *lib, Book book);
+Book* findBookByISBN(Library *lib, const char *isbn);
+int checkoutBook(Library *lib, const char *isbn);
+int returnBook(Library *lib, const char *isbn);
+void printLibrary(const Library *lib);
+
+#endif
+```
+
+**library.c**:
+```c
+#include "library.h"
+#include <string.h>
+#include <stdio.h>
+
+Library createLibrary(void) {
+    Library lib = {0};
+    return lib;
+}
+
+int addBook(Library *lib, Book book) {
+    if (lib->count >= MAX_BOOKS) {
+        return 0;
+    }
+    lib->books[lib->count++] = book;
+    return 1;
+}
+
+Book* findBookByISBN(Library *lib, const char *isbn) {
+    for (int i = 0; i < lib->count; i++) {
+        if (strcmp(lib->books[i].isbn, isbn) == 0) {
+            return &lib->books[i];
+        }
+    }
+    return NULL;
+}
+
+int checkoutBook(Library *lib, const char *isbn) {
+    Book *book = findBookByISBN(lib, isbn);
+    if (book && book->available) {
+        book->available = 0;
+        return 1;
+    }
+    return 0;
+}
+
+int returnBook(Library *lib, const char *isbn) {
+    Book *book = findBookByISBN(lib, isbn);
+    if (book && !book->available) {
+        book->available = 1;
+        return 1;
+    }
+    return 0;
+}
+
+void printLibrary(const Library *lib) {
+    printf("\nLibrary Catalog (%d books):\n", lib->count);
+    printf("=================================================================="
+           "===================\n");
+    for (int i = 0; i < lib->count; i++) {
+        printf("%2d. ", i + 1);
+        printBook(&lib->books[i]);
+    }
+    printf("=================================================================="
+           "===================\n");
+}
+```
+
+**utils.h**:
+```c
+#ifndef UTILS_H
+#define UTILS_H
+
+void clearInputBuffer(void);
+void printSeparator(void);
+
+#endif
+```
+
+**utils.c**:
+```c
+#include "utils.h"
+#include <stdio.h>
+
+void clearInputBuffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+void printSeparator(void) {
+    printf("=====================================\n");
+}
+```
+
+**main.c**:
+```c
+#include <stdio.h>
+#include "book.h"
+#include "library.h"
+#include "utils.h"
+
+int main(void) {
+    Library lib = createLibrary();
+
+    // Add some books
+    addBook(&lib, createBook("The C Programming Language",
+                             "Kernighan & Ritchie", 1978, "978-0131103627"));
+    addBook(&lib, createBook("Expert C Programming",
+                             "Peter van der Linden", 1994, "978-0131774292"));
+    addBook(&lib, createBook("C: A Reference Manual",
+                             "Harbison & Steele", 2002, "978-0130895929"));
+
+    printLibrary(&lib);
+
+    // Checkout a book
+    printSeparator();
+    printf("\nChecking out book with ISBN 978-0131103627...\n");
+    if (checkoutBook(&lib, "978-0131103627")) {
+        printf("Success!\n");
+    } else {
+        printf("Failed to checkout book.\n");
+    }
+
+    printLibrary(&lib);
+
+    // Return the book
+    printSeparator();
+    printf("\nReturning book with ISBN 978-0131103627...\n");
+    if (returnBook(&lib, "978-0131103627")) {
+        printf("Success!\n");
+    } else {
+        printf("Failed to return book.\n");
+    }
+
+    printLibrary(&lib);
+
+    return 0;
+}
+```
+
+**Building the project:**
+
+**Step-by-step compilation:**
+```bash
+gcc -c -Wall main.c
+gcc -c -Wall book.c
+gcc -c -Wall library.c
+gcc -c -Wall utils.c
+gcc -o library main.o book.o library.o utils.o
+```
+
+**All at once (for comparison):**
+```bash
+gcc -Wall -o library main.c book.c library.c utils.c
+```
+
+**With optimizations:**
+```bash
+gcc -c -Wall -O2 main.c
+gcc -c -Wall -O2 book.c
+gcc -c -Wall -O2 library.c
+gcc -c -Wall -O2 utils.c
+gcc -o library main.o book.o library.o utils.o
+```
+
+**Output:**
+```
+Library Catalog (3 books):
+==============================================================================
+ 1. The C Programming Language           by Kernighan & Ritchie    (1978) [978-0131103627] Available
+ 2. Expert C Programming                 by Peter van der Linden   (1994) [978-0131774292] Available
+ 3. C: A Reference Manual                by Harbison & Steele      (2002) [978-0130895929] Available
+==============================================================================
+=====================================
+
+Checking out book with ISBN 978-0131103627...
+Success!
+
+Library Catalog (3 books):
+==============================================================================
+ 1. The C Programming Language           by Kernighan & Ritchie    (1978) [978-0131103627] Checked out
+ 2. Expert C Programming                 by Peter van der Linden   (1994) [978-0131774292] Available
+ 3. C: A Reference Manual                by Harbison & Steele      (2002) [978-0130895929] Available
+==============================================================================
+=====================================
+
+Returning book with ISBN 978-0131103627...
+Success!
+
+Library Catalog (3 books):
+==============================================================================
+ 1. The C Programming Language           by Kernighan & Ritchie    (1978) [978-0131103627] Available
+ 2. Expert C Programming                 by Peter van der Linden   (1994) [978-0131774292] Available
+ 3. C: A Reference Manual                by Harbison & Steele      (2002) [978-0130895929] Available
+==============================================================================
+```
+
+## Example 3: Using Static Libraries
+
+You can package object files into a static library for reuse across projects:
+
+**Creating a static library:**
+```bash
+# Compile the modules
+gcc -c book.c
+gcc -c library.c
+gcc -c utils.c
+
+# Create static library (archive)
+ar rcs liblibrary.a book.o library.o utils.o
+
+# Now compile main using the library
+gcc -o program main.c -L. -llibrary
+
+# Or equivalently:
+gcc -o program main.c liblibrary.a
+```
+
+**Key commands:**
+- `ar`: Archive tool for creating libraries
+- `r`: Replace or add files to archive
+- `c`: Create the archive
+- `s`: Create an index (for faster linking)
+- `-L.`: Look for libraries in current directory
+- `-llibrary`: Link with liblibrary.a
+
+**Viewing library contents:**
+```bash
+ar t liblibrary.a    # List files in archive
+nm liblibrary.a       # List symbols in archive
+```
+
+## Example 4: Build Script
+
+For larger projects, create a simple build script:
+
+**build.sh** (Linux/Mac):
+```bash
+#!/bin/bash
+
+# Compilation flags
+CFLAGS="-Wall -Wextra -std=c11 -O2"
+CC=gcc
+
+# Source files
+SOURCES="main.c book.c library.c utils.c"
+
+# Output binary
+OUTPUT="library"
+
+echo "Building $OUTPUT..."
+
+# Compile each source file
+for src in $SOURCES; do
+    echo "  Compiling $src..."
+    $CC $CFLAGS -c $src || exit 1
+done
+
+# Link
+echo "  Linking..."
+$CC -o $OUTPUT *.o || exit 1
+
+echo "Build complete: $OUTPUT"
+
+# Cleanup
+echo "  Cleaning up object files..."
+rm -f *.o
+```
+
+**build.bat** (Windows):
+```batch
+@echo off
+echo Building library...
+
+gcc -c -Wall main.c
+gcc -c -Wall book.c
+gcc -c -Wall library.c
+gcc -c -Wall utils.c
+
+gcc -o library.exe main.o book.o library.o utils.o
+
+echo Build complete!
+
+del *.o
+```
+
+**Usage:**
+```bash
+chmod +x build.sh  # Make executable (Linux/Mac)
+./build.sh         # Run the build
+```
+
+## Compiler Flags Reference
+
+**Common compilation flags:**
+- `-c`: Compile without linking
+- `-o <file>`: Specify output file
+- `-Wall`: Enable all warnings
+- `-Wextra`: Enable extra warnings
+- `-Werror`: Treat warnings as errors
+- `-std=c11`: Use C11 standard
+- `-g`: Include debugging information
+- `-O0`: No optimization (default)
+- `-O1`, `-O2`, `-O3`: Optimization levels
+- `-I<dir>`: Add include directory
+- `-L<dir>`: Add library directory
+- `-l<name>`: Link with library
+
+**Example with multiple flags:**
+```bash
+gcc -c -Wall -Wextra -std=c11 -O2 -g main.c
+```
+
+## Best Practices
+
+1. **Use Separate Compilation for Large Projects**: Saves time by only recompiling changed files
+
+2. **Enable All Warnings**: Use `-Wall -Wextra` to catch potential bugs
+
+3. **Create Build Scripts**: Automate the build process for consistency
+
+4. **Organize Object Files**: Consider a separate build directory
+   ```bash
+   gcc -c src/main.c -o build/main.o
+   ```
+
+5. **Use Version Control**: Don't commit object files or executables
+
+6. **Document Build Process**: Add a README with build instructions
+
+7. **Clean Before Release Builds**: Remove all object files before final build
+
+## Common Pitfalls
+
+1. **Forgetting to Recompile After Header Changes**: Change a .h file? Recompile all .c files that include it
+
+2. **Linking Order Matters**: Libraries should come after files that use them
+   ```bash
+   gcc main.o -lm      # Correct
+   gcc -lm main.o      # May fail
+   ```
+
+3. **Missing Libraries**: Linker errors like "undefined reference" usually mean missing `-l` flags
+
+4. **Include Path Issues**: Use `-I` to specify additional include directories
+
+5. **Stale Object Files**: Run `make clean` or delete .o files if you get weird errors
+
+## Exercises
+
+1. **Calculator Project**: Create a multi-file calculator with separate modules for basic operations, scientific functions, and unit conversions. Use separate compilation to build it.
+
+2. **Contact Manager**: Build a contact management system with modules for data structures, file I/O, and user interface. Create a static library from the data and file modules.
+
+3. **Game Engine**: Design a simple game engine with separate modules for rendering, input, physics, and game logic. Write a build script that compiles everything.
+
+4. **Build Optimization**: Take an existing multi-file project and measure compilation time with and without separate compilation. Create a script that only recompiles changed files.
+
+## Key Takeaways
+
+- **Separate compilation** compiles each source file independently to object files
+- Use **`gcc -c`** to compile without linking
+- **Object files (.o)** contain machine code but aren't yet executable
+- **Linking** combines object files into an executable
+- Only **changed files need recompilation**, saving time
+- **Static libraries (.a)** package object files for reuse
+- Use **build scripts** to automate complex builds
+- **Compiler flags** control warnings, optimization, and debugging
+- Enable **`-Wall -Wextra`** to catch potential bugs
+- **Header changes require recompiling** all dependent files
+
+In the next step, you'll learn modular design principles and patterns for organizing large-scale C programs, including Makefiles for automated builds.

@@ -1,0 +1,357 @@
+---
+id: 09-valgrind
+title: Valgrind Memcheck: Memory Debugging
+order: 9
+---
+
+# Valgrind Memcheck: Memory Debugging
+
+Valgrind Memcheck is the most comprehensive memory error detector for C. It finds leaks, invalid accesses, and other memory bugs.
+
+## What Memcheck Detects
+
+1. **Invalid memory access**: Out-of-bounds reads/writes
+2. **Use of uninitialized values**: Reading undefined memory
+3. **Use of freed memory**: Use-after-free
+4. **Memory leaks**: Unfreed allocations
+5. **Mismatched allocation/free**: Wrong free/delete
+6. **Overlapping source/destination**: memcpy() overlap
+
+## Basic Usage
+
+```bash
+valgrind ./program
+```
+
+## Recommended Flags
+
+```bash
+valgrind --leak-check=full \
+         --show-leak-kinds=all \
+         --track-origins=yes \
+         --verbose \
+         --log-file=valgrind-out.txt \
+         ./program
+```
+
+- `--leak-check=full`: Detailed leak information
+- `--show-leak-kinds=all`: Show all leak types
+- `--track-origins=yes`: Track uninitialized values
+- `--verbose`: More detailed output
+- `--log-file`: Save to file
+
+## Compiling for Valgrind
+
+```bash
+gcc -g -O0 program.c -o program
+```
+
+- `-g`: Debug symbols (line numbers)
+- `-O0`: No optimization (clearer error messages)
+
+## Common Errors
+
+### 1. Invalid Read
+
+```c
+int *arr = malloc(5 * sizeof(int));
+int x = arr[5];  // Out of bounds!
+```
+
+Output:
+
+```
+==12345== Invalid read of size 4
+==12345==    at 0x40051E: main (test.c:5)
+==12345==  Address 0x5204054 is 0 bytes after a block of size 20 alloc'd
+==12345==    at 0x4C2DB8F: malloc (vg_replace_malloc.c:309)
+==12345==    by 0x400511: main (test.c:4)
+```
+
+### 2. Invalid Write
+
+```c
+int *arr = malloc(5 * sizeof(int));
+arr[5] = 42;  // Out of bounds!
+```
+
+Output:
+
+```
+==12345== Invalid write of size 4
+==12345==    at 0x400524: main (test.c:5)
+==12345==  Address 0x5204054 is 0 bytes after a block of size 20
+```
+
+### 3. Use of Uninitialized Value
+
+```c
+int x;
+int y = x + 5;  // x is uninitialized!
+```
+
+Output (with `--track-origins=yes`):
+
+```
+==12345== Conditional jump or move depends on uninitialised value(s)
+==12345==    at 0x40051E: main (test.c:3)
+==12345==  Uninitialised value was created by a stack allocation
+==12345==    at 0x400511: main (test.c:2)
+```
+
+### 4. Use After Free
+
+```c
+int *ptr = malloc(sizeof(int));
+free(ptr);
+*ptr = 42;  // Use after free!
+```
+
+Output:
+
+```
+==12345== Invalid write of size 4
+==12345==    at 0x400524: main (test.c:4)
+==12345==  Address 0x5204050 is 0 bytes inside a block of size 4 free'd
+==12345==    at 0x4C2EDEB: free (vg_replace_malloc.c:546)
+==12345==    by 0x400519: main (test.c:3)
+```
+
+### 5. Memory Leak
+
+```c
+void leak(void) {
+    int *ptr = malloc(sizeof(int));  // Never freed!
+}
+```
+
+Output (with `--leak-check=full`):
+
+```
+==12345== 4 bytes in 1 blocks are definitely lost
+==12345==    at 0x4C2DB8F: malloc (vg_replace_malloc.c:309)
+==12345==    by 0x400511: leak (test.c:2)
+==12345==    by 0x400526: main (test.c:6)
+```
+
+### 6. Mismatched Free
+
+```c
+int *arr = malloc(5 * sizeof(int));
+free(arr);
+free(arr);  // Double free!
+```
+
+Output:
+
+```
+==12345== Invalid free() / delete / delete[] / realloc()
+==12345==    at 0x4C2EDEB: free (vg_replace_malloc.c:546)
+==12345==    by 0x400526: main (test.c:4)
+==12345==  Address 0x5204050 is 0 bytes inside a block of size 20 free'd
+==12345==    at 0x4C2EDEB: free (vg_replace_malloc.c:546)
+==12345==    by 0x40051D: main (test.c:3)
+```
+
+## Leak Types
+
+### Definitely Lost
+
+```c
+void func(void) {
+    int *ptr = malloc(sizeof(int));
+    // ptr is lost when function returns
+}
+```
+
+Memory has no pointers pointing to it.
+
+### Indirectly Lost
+
+```c
+struct Node {
+    int data;
+    struct Node *next;
+};
+
+void func(void) {
+    struct Node *head = malloc(sizeof(*head));
+    head->next = malloc(sizeof(*head));
+    free(head);  // head->next is indirectly lost!
+}
+```
+
+Memory referenced by lost pointers.
+
+### Possibly Lost
+
+```c
+int *ptr = malloc(sizeof(int));
+ptr++;  // Pointer no longer points to block start
+```
+
+Likely a leak, but could be intentional pointer arithmetic.
+
+### Still Reachable
+
+```c
+int *global_ptr = NULL;
+
+void init(void) {
+    global_ptr = malloc(sizeof(int));
+}
+
+int main(void) {
+    init();
+    return 0;  // global_ptr still reachable, but leaked
+}
+```
+
+Memory still pointed to at program exit (common in global state).
+
+### Suppressed
+
+Leaks you've explicitly told Valgrind to ignore.
+
+## Suppression Files
+
+Create `valgrind.supp`:
+
+```
+{
+    ignore_libc_leak
+    Memcheck:Leak
+    match-leak-kinds: definite
+    fun:malloc
+    ...
+}
+```
+
+Run with:
+
+```bash
+valgrind --suppressions=valgrind.supp ./program
+```
+
+## Integration with Makefiles
+
+```makefile
+valgrind:
+	valgrind --leak-check=full \
+	         --show-leak-kinds=all \
+	         --track-origins=yes \
+	         --error-exitcode=1 \
+	         ./program
+
+.PHONY: valgrind
+```
+
+## CI/CD Integration
+
+```yaml
+- name: Run Valgrind
+  run: |
+    valgrind --leak-check=full \
+             --show-leak-kinds=all \
+             --error-exitcode=1 \
+             ./program
+```
+
+## Valgrind vs Sanitizers
+
+| Feature              | Valgrind          | AddressSanitizer |
+| -------------------- | ----------------- | ---------------- |
+| Slowdown             | 20-30x            | 2x               |
+| Memory overhead      | High              | Moderate         |
+| Required recompile   | No                | Yes              |
+| Use after free       | Yes               | Yes              |
+| Memory leaks         | Yes               | Yes              |
+| Uninitialized values | Yes               | No (mostly)      |
+| Thread errors        | No (use Helgrind) | Yes (TSan)       |
+
+When to use:
+
+- **Valgrind**: Quick tests without recompiling, uninitialized values
+- **ASan**: Production testing, faster feedback
+
+## Limitations
+
+1. **False positives**: Some optimizations look like bugs
+2. **Slow**: 20-30x slower than native execution
+3. **Not perfect**: Misses some bugs, has false positives
+4. **Platform**: Unix/Linux only (not Windows)
+
+## Best Practices
+
+### 1. Always Test with Valgrind
+
+```bash
+make test
+make valgrind
+```
+
+### 2. Fix All Definitely Lost Leaks
+
+These are real bugs.
+
+### 3. Investigate Possibly Lost
+
+Usually bugs, sometimes intentional.
+
+### 4. Review Still Reachable
+
+Often global state that should be freed.
+
+### 5. Use With Debug Builds
+
+```bash
+gcc -g -O0 program.c -o program
+valgrind ./program
+```
+
+## Practice Exercise
+
+Find all memory errors:
+
+```c
+// memtest.c
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) {
+    int *arr = malloc(5 * sizeof(int));
+
+    for (int i = 0; i <= 5; i++) {
+        arr[i] = i;
+    }
+
+    int *ptr = malloc(sizeof(int));
+    free(ptr);
+    *ptr = 42;
+
+    char *str = malloc(10);
+    strcpy(str, "Hello, World!");
+
+    int *leak = malloc(sizeof(int));
+
+    return 0;
+}
+```
+
+Run:
+
+```bash
+gcc -g -O0 memtest.c -o memtest
+valgrind --leak-check=full --show-leak-kinds=all ./memtest
+```
+
+**Errors found**:
+
+1. `arr[5]` = 5 — out of bounds write
+2. `*ptr = 42` after `free(ptr)` — use after free
+3. `str` overflow — "Hello, World!" is 14 bytes, allocated 10
+4. `leak` never freed — memory leak
+
+---
+
+**Next**: Build tools and automation.

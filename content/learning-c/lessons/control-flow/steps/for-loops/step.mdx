@@ -1,0 +1,360 @@
+---
+id: for-loops
+title: For Loops
+order: 4
+---
+
+# For Loops
+
+For loops are ideal when you know in advance how many times you want to repeat something. They combine initialization, condition checking, and updating in one compact statement.
+
+## Basic For Loop Structure
+
+**Syntax:** `for (initialization; condition; update) { body }`
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // initialization; condition; update
+    for (int i = 1; i <= 5; i++) {
+        printf("Count: %d\n", i);
+    }
+
+    return 0;
+}
+```
+
+**How it works:**
+1. **Initialization** (`int i = 1`): Runs once before the loop starts
+2. **Condition** (`i <= 5`): Checked before each iteration
+3. **Body** (`printf...`): Executes if condition is true
+4. **Update** (`i++`): Runs after each iteration
+5. Repeat steps 2-4 until condition is false
+
+## Common For Loop Patterns
+
+### Counting Up
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Print 0 to 9
+    for (int i = 0; i < 10; i++) {
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 0 1 2 3 4 5 6 7 8 9
+
+    return 0;
+}
+```
+
+### Counting Down
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Print 10 to 1
+    for (int i = 10; i >= 1; i--) {
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 10 9 8 7 6 5 4 3 2 1
+
+    return 0;
+}
+```
+
+### Custom Step Size
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Print even numbers 0 to 20
+    for (int i = 0; i <= 20; i += 2) {
+        printf("%d ", i);
+    }
+    printf("\n");
+    // Output: 0 2 4 6 8 10 12 14 16 18 20
+
+    return 0;
+}
+```
+
+## Practical Examples
+
+### Sum of Numbers
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int n = 100;
+    int sum = 0;
+
+    for (int i = 1; i <= n; i++) {
+        sum += i;
+    }
+
+    printf("Sum of 1 to %d = %d\n", n, sum);
+    // Output: Sum of 1 to 100 = 5050
+
+    return 0;
+}
+```
+
+### Multiplication Table
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int number = 7;
+
+    printf("Multiplication table for %d:\n", number);
+    for (int i = 1; i <= 10; i++) {
+        printf("%d x %d = %d\n", number, i, number * i);
+    }
+
+    return 0;
+}
+```
+
+### Factorial Calculation
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int n = 5;
+    long long factorial = 1;
+
+    for (int i = 1; i <= n; i++) {
+        factorial *= i;
+    }
+
+    printf("%d! = %lld\n", n, factorial);
+    // Output: 5! = 120
+
+    return 0;
+}
+```
+
+### Pattern Printing
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int rows = 5;
+
+    // Right-angled triangle
+    for (int i = 1; i <= rows; i++) {
+        for (int j = 1; j <= i; j++) {
+            printf("* ");
+        }
+        printf("\n");
+    }
+
+    return 0;
+}
+```
+
+Output:
+```
+*
+* *
+* * *
+* * * *
+* * * * *
+```
+
+## Nested For Loops
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Multiplication table (1-10)
+    printf("    ");
+    for (int i = 1; i <= 10; i++) {
+        printf("%4d", i);
+    }
+    printf("\n");
+    printf("    ");
+    for (int i = 0; i < 40; i++) printf("-");
+    printf("\n");
+
+    for (int i = 1; i <= 10; i++) {
+        printf("%2d |", i);
+        for (int j = 1; j <= 10; j++) {
+            printf("%4d", i * j);
+        }
+        printf("\n");
+    }
+
+    return 0;
+}
+```
+
+## For Loop Variations
+
+### Multiple Initializations/Updates
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Multiple variables
+    for (int i = 0, j = 10; i < j; i++, j--) {
+        printf("i=%d, j=%d\n", i, j);
+    }
+
+    return 0;
+}
+```
+
+### Infinite For Loop
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int count = 0;
+
+    // All parts optional (but semicolons required)
+    for (;;) {
+        printf("Count: %d\n", count);
+        count++;
+
+        if (count >= 5) {
+            break;  // Exit the infinite loop
+        }
+    }
+
+    return 0;
+}
+```
+
+### For Loop as While Loop
+
+```c
+// These are equivalent:
+
+// For loop style
+for (int i = 0; i < 10; i++) {
+    printf("%d ", i);
+}
+
+// While loop style
+int i = 0;
+while (i < 10) {
+    printf("%d ", i);
+    i++;
+}
+```
+
+## Common Pitfalls
+
+### Modifying Loop Counter Inside Loop
+
+```c
+// WRONG: Unpredictable behavior
+for (int i = 0; i < 10; i++) {
+    printf("%d ", i);
+    if (i == 5) {
+        i = 8;  // Skips values - confusing!
+    }
+}
+
+// CORRECT: Use break or adjust condition instead
+for (int i = 0; i < 10; i++) {
+    printf("%d ", i);
+    if (i == 5) {
+        break;  // Clear intent to exit
+    }
+}
+```
+
+### Off-By-One Errors
+
+```c
+// WRONG: Misses last element
+int arr[5] = {10, 20, 30, 40, 50};
+for (int i = 0; i < 4; i++) {  // Should be i < 5
+    printf("%d ", arr[i]);
+}
+// Output: 10 20 30 40 (missing 50)
+
+// CORRECT: Loop through all elements
+for (int i = 0; i < 5; i++) {
+    printf("%d ", arr[i]);
+}
+// Output: 10 20 30 40 50
+```
+
+### Semicolon After For
+
+```c
+// WRONG: Empty loop body!
+for (int i = 0; i < 5; i++);  // Semicolon here!
+{
+    printf("Hello\n");  // Only executes once after loop!
+}
+
+// CORRECT: No semicolon after for
+for (int i = 0; i < 5; i++) {
+    printf("Hello\n");  // Executes 5 times
+}
+```
+
+### Floating-Point Loop Counters
+
+```c
+// RISKY: Floating-point precision issues
+for (float f = 0.0f; f != 1.0f; f += 0.1f) {
+    printf("%.1f ", f);
+}
+// May never reach exactly 1.0 due to rounding errors!
+
+// BETTER: Use integer counter
+for (int i = 0; i < 10; i++) {
+    float f = i * 0.1f;
+    printf("%.1f ", f);
+}
+```
+
+## Exercises
+
+1. **Prime Number Checker**: Write a program that checks if a number is prime by testing divisibility from 2 to n-1.
+
+2. **Fibonacci Sequence**: Print the first n numbers in the Fibonacci sequence (0, 1, 1, 2, 3, 5, 8, 13, ...).
+
+3. **Number Pyramid**: Create a pyramid pattern:
+   ```
+       1
+      121
+     12321
+    1234321
+   123454321
+   ```
+
+4. **Sum of Squares**: Calculate the sum of squares from 1² to n².
+
+5. **Perfect Numbers**: Find all perfect numbers between 1 and 1000. A perfect number equals the sum of its proper divisors (e.g., 6 = 1+2+3).
+
+## Key Takeaways
+
+- For loops are best when you know the number of iterations in advance
+- Structure: `for (init; condition; update)`
+- Loop variable scope is typically limited to the loop (C99 and later)
+- All three parts are optional but semicolons are required: `for (;;)`
+- Avoid modifying the loop counter inside the loop body
+- Watch out for off-by-one errors: `<` vs `<=`
+- Never put a semicolon immediately after the for statement
+- Nested for loops are useful for 2D patterns, tables, and matrices
+- For loops can do everything while loops can, but they're cleaner when counting

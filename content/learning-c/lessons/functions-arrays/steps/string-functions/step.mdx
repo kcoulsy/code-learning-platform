@@ -1,0 +1,496 @@
+---
+title: "String Functions"
+description: "Use standard library functions for safe string manipulation"
+order: 7
+---
+
+# String Functions
+
+The C standard library (`string.h`) provides essential functions for string manipulation. Learning to use these functions correctly is crucial for writing safe, efficient code.
+
+## Introduction
+
+While you can implement string operations manually, the standard library provides optimized, well-tested functions. However, many traditional string functions are vulnerable to buffer overflows, so you must use them carefully and understand their safer alternatives.
+
+Key library: `<string.h>`
+
+Categories:
+- **Length**: `strlen`
+- **Copying**: `strcpy`, `strncpy`
+- **Concatenation**: `strcat`, `strncat`
+- **Comparison**: `strcmp`, `strncmp`
+- **Searching**: `strchr`, `strstr`
+- **Tokenizing**: `strtok`
+
+## Code Examples
+
+### Example 1: String Length and Basic Functions
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+int main() {
+    char str1[] = "Hello, World!";
+    char str2[50];
+
+    // strlen - get string length (doesn't count '\0')
+    size_t len = strlen(str1);
+    printf("Length of '%s': %zu\n", str1, len);
+
+    // strcpy - copy string (UNSAFE if dest too small!)
+    strcpy(str2, str1);
+    printf("Copied: %s\n", str2);
+
+    // strcmp - compare strings
+    // Returns: 0 if equal, <0 if str1 < str2, >0 if str1 > str2
+    if (strcmp(str1, str2) == 0) {
+        printf("Strings are equal\n");
+    }
+
+    // strcat - concatenate strings (UNSAFE if dest too small!)
+    char greeting[50] = "Hello";
+    strcat(greeting, " ");
+    strcat(greeting, "World");
+    printf("Concatenated: %s\n", greeting);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Length of 'Hello, World!': 13
+Copied: Hello, World!
+Strings are equal
+Concatenated: Hello World
+```
+
+### Example 2: Safe String Copying with strncpy
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+int main() {
+    char source[] = "This is a very long string that might overflow";
+    char dest1[20];
+    char dest2[20];
+
+    // UNSAFE: strcpy doesn't check bounds
+    // strcpy(dest1, source);  // BUFFER OVERFLOW!
+
+    // SAFER: strncpy limits number of characters copied
+    strncpy(dest1, source, sizeof(dest1) - 1);
+    dest1[sizeof(dest1) - 1] = '\0';  // Ensure null termination!
+
+    printf("Safely copied (truncated): %s\n", dest1);
+
+    // strncpy doesn't always null-terminate!
+    strncpy(dest2, "Short", sizeof(dest2));
+    // This is safe because "Short" fits
+    printf("Short string: %s\n", dest2);
+
+    // Better approach: manual copy with size check
+    size_t destSize = sizeof(dest1);
+    size_t sourceLen = strlen(source);
+    if (sourceLen >= destSize) {
+        printf("Warning: Source too long, will be truncated\n");
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Safely copied (truncated): This is a very lon
+Short string: Short
+Warning: Source too long, will be truncated
+```
+
+**Critical point**: `strncpy` doesn't guarantee null termination if source is too long!
+
+### Example 3: String Comparison
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+// Case-insensitive comparison (not in standard library)
+int strcasecmp_custom(char *str1, char *str2) {
+    while (*str1 && *str2) {
+        int c1 = tolower(*str1);
+        int c2 = tolower(*str2);
+        if (c1 != c2) {
+            return c1 - c2;
+        }
+        str1++;
+        str2++;
+    }
+    return tolower(*str1) - tolower(*str2);
+}
+
+int main() {
+    char str1[] = "Apple";
+    char str2[] = "Banana";
+    char str3[] = "Apple";
+    char str4[] = "apple";
+
+    // strcmp - exact comparison
+    printf("strcmp results:\n");
+    printf("'%s' vs '%s': %d\n", str1, str2, strcmp(str1, str2));
+    printf("'%s' vs '%s': %d\n", str1, str3, strcmp(str1, str3));
+    printf("'%s' vs '%s': %d\n", str1, str4, strcmp(str1, str4));
+
+    // strncmp - compare first n characters
+    printf("\nstrncmp (first 3 chars):\n");
+    printf("'Apple' vs 'Application': %d\n",
+           strncmp("Apple", "Application", 3));
+
+    // Custom case-insensitive comparison
+    printf("\nCase-insensitive comparison:\n");
+    printf("'%s' vs '%s': %d\n", str1, str4,
+           strcasecmp_custom(str1, str4));
+
+    // Practical use: menu selection
+    char input[20];
+    printf("\nEnter 'yes' or 'no': ");
+    scanf("%s", input);
+
+    if (strcmp(input, "yes") == 0) {
+        printf("You said yes!\n");
+    } else if (strcmp(input, "no") == 0) {
+        printf("You said no!\n");
+    } else {
+        printf("Invalid input\n");
+    }
+
+    return 0;
+}
+```
+
+**Sample output:**
+```
+strcmp results:
+'Apple' vs 'Banana': -1
+'Apple' vs 'Apple': 0
+'Apple' vs 'apple': -32
+
+strncmp (first 3 chars):
+'Apple' vs 'Application': 0
+
+Case-insensitive comparison:
+'Apple' vs 'apple': 0
+
+Enter 'yes' or 'no': yes
+You said yes!
+```
+
+### Example 4: String Searching
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+int main() {
+    char text[] = "The quick brown fox jumps over the lazy dog";
+
+    // strchr - find first occurrence of character
+    char *ptr = strchr(text, 'q');
+    if (ptr != NULL) {
+        printf("Found 'q' at position: %ld\n", ptr - text);
+        printf("Substring from 'q': %s\n", ptr);
+    }
+
+    // strrchr - find last occurrence of character
+    ptr = strrchr(text, 'o');
+    if (ptr != NULL) {
+        printf("\nLast 'o' at position: %ld\n", ptr - text);
+    }
+
+    // strstr - find substring
+    ptr = strstr(text, "fox");
+    if (ptr != NULL) {
+        printf("\nFound 'fox' at position: %ld\n", ptr - text);
+        printf("Substring from 'fox': %s\n", ptr);
+    }
+
+    // Search for multiple words
+    char *words[] = {"quick", "lazy", "cat"};
+    printf("\nSearching for words:\n");
+    for (int i = 0; i < 3; i++) {
+        if (strstr(text, words[i]) != NULL) {
+            printf("'%s' - FOUND\n", words[i]);
+        } else {
+            printf("'%s' - NOT FOUND\n", words[i]);
+        }
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Found 'q' at position: 4
+Substring from 'q': quick brown fox jumps over the lazy dog
+
+Last 'o' at position: 41
+
+Found 'fox' at position: 16
+Substring from 'fox': fox jumps over the lazy dog
+
+Searching for words:
+'quick' - FOUND
+'lazy' - FOUND
+'cat' - NOT FOUND
+```
+
+### Example 5: String Tokenization (Splitting)
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+int main() {
+    // strtok modifies the string, so use a copy!
+    char sentence[] = "The,quick,brown,fox";
+    char copy[100];
+    strcpy(copy, sentence);
+
+    printf("Original: %s\n\n", sentence);
+
+    // strtok splits string by delimiter
+    char *token = strtok(copy, ",");
+    int count = 1;
+
+    while (token != NULL) {
+        printf("Token %d: %s\n", count++, token);
+        token = strtok(NULL, ",");  // NULL continues from last position
+    }
+
+    // Multiple delimiters
+    char data[] = "apple;banana,cherry:date;elderberry";
+    strcpy(copy, data);
+
+    printf("\nSplitting by multiple delimiters (;,:):\n");
+    token = strtok(copy, ";,:");
+    while (token != NULL) {
+        printf("- %s\n", token);
+        token = strtok(NULL, ";,:");
+    }
+
+    // Practical: Parse CSV-like data
+    char csvLine[] = "John,Doe,30,Engineer";
+    strcpy(copy, csvLine);
+
+    printf("\nParsing CSV line:\n");
+    char *firstName = strtok(copy, ",");
+    char *lastName = strtok(NULL, ",");
+    char *age = strtok(NULL, ",");
+    char *occupation = strtok(NULL, ",");
+
+    printf("First Name: %s\n", firstName);
+    printf("Last Name: %s\n", lastName);
+    printf("Age: %s\n", age);
+    printf("Occupation: %s\n", occupation);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Original: The,quick,brown,fox
+
+Token 1: The
+Token 2: quick
+Token 3: brown
+Token 4: fox
+
+Splitting by multiple delimiters (;,:):
+- apple
+- banana
+- cherry
+- date
+- elderberry
+
+Parsing CSV line:
+First Name: John
+Last Name: Doe
+Age: 30
+Occupation: Engineer
+```
+
+**Warning**: `strtok` modifies the original string by replacing delimiters with `'\0'`!
+
+### Example 6: Safe String Functions (Modern Approach)
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Safer string copy
+int safeCopy(char *dest, const char *src, size_t destSize) {
+    if (destSize == 0) return -1;
+
+    size_t srcLen = strlen(src);
+    if (srcLen >= destSize) {
+        // Truncate and warn
+        strncpy(dest, src, destSize - 1);
+        dest[destSize - 1] = '\0';
+        return -1;  // Indicate truncation
+    }
+
+    strcpy(dest, src);
+    return 0;  // Success
+}
+
+// Safer string concatenation
+int safeConcat(char *dest, const char *src, size_t destSize) {
+    size_t destLen = strlen(dest);
+    size_t srcLen = strlen(src);
+
+    if (destLen + srcLen >= destSize) {
+        return -1;  // Would overflow
+    }
+
+    strcat(dest, src);
+    return 0;
+}
+
+int main() {
+    char buffer[20];
+
+    // Safe copying
+    if (safeCopy(buffer, "Hello", sizeof(buffer)) == 0) {
+        printf("Copied: %s\n", buffer);
+    }
+
+    // Safe concatenation
+    if (safeConcat(buffer, " World", sizeof(buffer)) == 0) {
+        printf("Concatenated: %s\n", buffer);
+    }
+
+    // Test overflow protection
+    char small[5];
+    if (safeCopy(small, "This is too long", sizeof(small)) != 0) {
+        printf("Warning: String truncated to: %s\n", small);
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Copied: Hello
+Concatenated: Hello World
+Warning: String truncated to: This
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Buffer Overflow with strcpy/strcat
+
+```c
+char dest[10];
+
+// WRONG: No bounds checking!
+strcpy(dest, "This is way too long");  // OVERFLOW!
+strcat(dest, " more text");            // OVERFLOW!
+
+// CORRECT: Use bounded versions or check manually
+char dest[10];
+strncpy(dest, "Short", sizeof(dest) - 1);
+dest[sizeof(dest) - 1] = '\0';
+```
+
+### Pitfall 2: strncpy Not Null-Terminating
+
+```c
+char dest[5];
+strncpy(dest, "Hello World", 5);  // Copies "Hello" but NO '\0'!
+printf("%s\n", dest);  // Undefined behavior!
+
+// CORRECT: Always null-terminate manually
+strncpy(dest, "Hello World", sizeof(dest) - 1);
+dest[sizeof(dest) - 1] = '\0';
+```
+
+### Pitfall 3: Modifying String Literals
+
+```c
+char *str = "Hello";
+strcpy(str, "World");  // CRASH! Can't modify string literal
+
+// CORRECT: Use array
+char str[] = "Hello";
+strcpy(str, "World");  // OK
+```
+
+### Pitfall 4: strcmp for Equality (Wrong Comparison)
+
+```c
+char *str1 = "hello";
+char *str2 = "hello";
+
+// WRONG: strcmp returns 0 for equality, not true!
+if (strcmp(str1, str2)) {  // This means "if NOT equal"!
+    printf("Equal\n");  // Won't print!
+}
+
+// CORRECT:
+if (strcmp(str1, str2) == 0) {
+    printf("Equal\n");
+}
+```
+
+### Pitfall 5: strtok State Confusion
+
+```c
+char str1[] = "A,B,C";
+char str2[] = "1,2,3";
+
+char *tok1 = strtok(str1, ",");  // Starts tokenizing str1
+char *tok2 = strtok(str2, ",");  // WRONG! Forgets str1, starts str2
+char *tok3 = strtok(NULL, ",");  // Continues str2, not str1!
+
+// strtok maintains internal state - can't tokenize two strings simultaneously!
+```
+
+## Exercises
+
+### Exercise 1: Email Validator
+Write a function that validates an email address (must contain '@' and '.' after '@').
+
+### Exercise 2: URL Parser
+Parse a URL into protocol, domain, and path components.
+Example: `"https://example.com/path"` → protocol: "https", domain: "example.com", path: "/path"
+
+### Exercise 3: Word Replacer
+Write a function that replaces all occurrences of a word in a string with another word.
+
+### Exercise 4: CSV Parser
+Write a function that parses a CSV line into an array of strings, handling quoted fields.
+Example: `"John","Doe, Jr.","30"` (note the comma inside quotes)
+
+### Exercise 5: Safe String Library
+Implement safe versions of strcpy, strcat, and strcmp that include bounds checking and return error codes.
+
+## Key Takeaways
+
+1. **Include**: Always `#include <string.h>` for string functions
+2. **strlen**: Returns length (doesn't count `'\0'`)
+3. **strcpy**: Copies string but UNSAFE - no bounds checking
+4. **strncpy**: Bounded copy but doesn't always null-terminate
+5. **strcat**: Concatenates but UNSAFE - no bounds checking
+6. **strcmp**: Returns 0 if equal, not true/false
+7. **strchr/strstr**: Search for character/substring, return pointer or NULL
+8. **strtok**: Splits string, but modifies original and maintains state
+9. **Buffer Safety**: Always ensure destination has enough space
+10. **Manual Null-Termination**: With `strncpy`, always add `'\0'` manually
+
+String functions are powerful but dangerous if misused. Buffer overflows are among the most common security vulnerabilities in C programs. Always validate buffer sizes, use bounded functions, and test edge cases thoroughly!

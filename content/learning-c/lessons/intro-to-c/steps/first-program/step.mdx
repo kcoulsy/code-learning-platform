@@ -1,0 +1,46 @@
+---
+id: first-program
+title: Your First C Program
+order: 3
+---
+
+# Your First C Program
+
+Let's write the classic "Hello, World!" program and understand each part.
+
+## The Code
+
+```c
+#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\n");
+    return 0;
+}
+```
+
+## Breaking It Down
+
+### `#include <stdio.h>`
+This is a **preprocessor directive** that includes the Standard Input/Output library. This gives us access to functions like `printf()`.
+
+### `int main()`
+Every C program must have a `main()` function. This is where program execution begins.
+- `int` means the function returns an integer
+- `main` is the function name
+- `()` contains parameters (empty here)
+
+### `printf("Hello, World!\n");`
+This function prints text to the console.
+- `\n` is a newline character
+- The semicolon `;` ends the statement
+
+### `return 0;`
+Returns 0 to indicate the program ran successfully.
+
+## Try It Yourself
+
+1. Create a file called `hello.c`
+2. Type the code above
+3. Compile: `gcc -o hello hello.c`
+4. Run: `./hello`

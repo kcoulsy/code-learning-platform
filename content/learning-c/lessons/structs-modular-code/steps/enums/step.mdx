@@ -1,0 +1,585 @@
+---
+title: "Enumerations"
+description: "Use enums to create named constants that make your code more readable, type-safe, and maintainable."
+order: 4
+---
+
+# Enumerations
+
+Magic numbers are the enemy of readable code. What does `status = 2;` mean? Is 2 success or failure? **Enumerations** (enums) solve this problem by giving meaningful names to integer constants, making your code self-documenting and less error-prone.
+
+## What is an Enumeration?
+
+An enumeration is a user-defined type consisting of a set of named integer constants. The syntax is:
+
+```c
+enum enumeration_name {
+    CONSTANT1,
+    CONSTANT2,
+    CONSTANT3
+};
+```
+
+By default, constants start at 0 and increment by 1, but you can specify any integer values.
+
+## Example 1: Basic Enumerations
+
+```c
+#include <stdio.h>
+
+// Define an enumeration for days of the week
+enum Weekday {
+    MONDAY,     // 0
+    TUESDAY,    // 1
+    WEDNESDAY,  // 2
+    THURSDAY,   // 3
+    FRIDAY,     // 4
+    SATURDAY,   // 5
+    SUNDAY      // 6
+};
+
+// With typedef for cleaner syntax
+typedef enum {
+    JANUARY = 1,  // Start at 1, not 0
+    FEBRUARY,
+    MARCH,
+    APRIL,
+    MAY,
+    JUNE,
+    JULY,
+    AUGUST,
+    SEPTEMBER,
+    OCTOBER,
+    NOVEMBER,
+    DECEMBER
+} Month;
+
+const char* getDayName(enum Weekday day) {
+    switch (day) {
+        case MONDAY:    return "Monday";
+        case TUESDAY:   return "Tuesday";
+        case WEDNESDAY: return "Wednesday";
+        case THURSDAY:  return "Thursday";
+        case FRIDAY:    return "Friday";
+        case SATURDAY:  return "Saturday";
+        case SUNDAY:    return "Sunday";
+        default:        return "Invalid day";
+    }
+}
+
+int getDaysInMonth(Month month, int year) {
+    switch (month) {
+        case APRIL: case JUNE: case SEPTEMBER: case NOVEMBER:
+            return 30;
+        case FEBRUARY:
+            // Leap year check
+            return ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))
+                   ? 29 : 28;
+        default:
+            return 31;
+    }
+}
+
+int main(void) {
+    enum Weekday today = WEDNESDAY;
+    Month currentMonth = FEBRUARY;
+
+    printf("Today is %s\n", getDayName(today));
+    printf("Day number: %d\n", today);
+
+    printf("\n%d has %d days in February 2024\n",
+           2024, getDaysInMonth(currentMonth, 2024));
+    printf("%d has %d days in February 2025\n",
+           2025, getDaysInMonth(currentMonth, 2025));
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Today is Wednesday
+Day number: 2
+
+2024 has 29 days in February 2024
+2025 has 28 days in February 2025
+```
+
+**Key Points:**
+- Enum constants are integer values
+- Default numbering starts at 0
+- You can specify custom values: `JANUARY = 1`
+- Use typedef to avoid writing `enum` repeatedly
+- Enums make switch statements self-documenting
+
+## Example 2: Enums with Structures
+
+Combining enums with structures is a powerful pattern:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+typedef enum {
+    STATUS_PENDING,
+    STATUS_IN_PROGRESS,
+    STATUS_COMPLETED,
+    STATUS_CANCELLED
+} TaskStatus;
+
+typedef enum {
+    PRIORITY_LOW,
+    PRIORITY_MEDIUM,
+    PRIORITY_HIGH,
+    PRIORITY_CRITICAL
+} Priority;
+
+typedef struct {
+    char title[100];
+    char description[256];
+    TaskStatus status;
+    Priority priority;
+    int estimatedHours;
+} Task;
+
+const char* getStatusName(TaskStatus status) {
+    switch (status) {
+        case STATUS_PENDING:     return "Pending";
+        case STATUS_IN_PROGRESS: return "In Progress";
+        case STATUS_COMPLETED:   return "Completed";
+        case STATUS_CANCELLED:   return "Cancelled";
+        default:                 return "Unknown";
+    }
+}
+
+const char* getPriorityName(Priority priority) {
+    switch (priority) {
+        case PRIORITY_LOW:      return "Low";
+        case PRIORITY_MEDIUM:   return "Medium";
+        case PRIORITY_HIGH:     return "High";
+        case PRIORITY_CRITICAL: return "Critical";
+        default:                return "Unknown";
+    }
+}
+
+// Create a task
+Task createTask(const char *title, Priority priority, int hours) {
+    Task task = {0};
+    strcpy(task.title, title);
+    task.status = STATUS_PENDING;
+    task.priority = priority;
+    task.estimatedHours = hours;
+    return task;
+}
+
+void printTask(const Task *task) {
+    printf("\nTask: %s\n", task->title);
+    printf("  Status:   %s\n", getStatusName(task->status));
+    printf("  Priority: %s\n", getPriorityName(task->priority));
+    printf("  Hours:    %d\n", task->estimatedHours);
+}
+
+// Calculate total hours for high-priority incomplete tasks
+int calculateUrgentHours(const Task tasks[], int count) {
+    int total = 0;
+    for (int i = 0; i < count; i++) {
+        if ((tasks[i].priority == PRIORITY_HIGH ||
+             tasks[i].priority == PRIORITY_CRITICAL) &&
+            tasks[i].status != STATUS_COMPLETED &&
+            tasks[i].status != STATUS_CANCELLED) {
+            total += tasks[i].estimatedHours;
+        }
+    }
+    return total;
+}
+
+int main(void) {
+    Task tasks[5];
+    int taskCount = 0;
+
+    tasks[taskCount++] = createTask("Fix login bug", PRIORITY_CRITICAL, 3);
+    tasks[taskCount++] = createTask("Update documentation", PRIORITY_LOW, 5);
+    tasks[taskCount++] = createTask("Implement search feature", PRIORITY_HIGH, 8);
+    tasks[taskCount++] = createTask("Code review", PRIORITY_MEDIUM, 2);
+    tasks[taskCount++] = createTask("Database optimization", PRIORITY_HIGH, 6);
+
+    // Update some statuses
+    tasks[0].status = STATUS_IN_PROGRESS;
+    tasks[1].status = STATUS_COMPLETED;
+
+    printf("=== TASK LIST ===");
+    for (int i = 0; i < taskCount; i++) {
+        printTask(&tasks[i]);
+    }
+
+    int urgentHours = calculateUrgentHours(tasks, taskCount);
+    printf("\nTotal urgent work: %d hours\n", urgentHours);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=== TASK LIST ===
+Task: Fix login bug
+  Status:   In Progress
+  Priority: Critical
+  Hours:    3
+
+Task: Update documentation
+  Status:   Completed
+  Priority: Low
+  Hours:    5
+
+Task: Implement search feature
+  Status:   Pending
+  Priority: High
+  Hours:    8
+
+Task: Code review
+  Status:   Pending
+  Priority: Medium
+  Hours:    2
+
+Task: Database optimization
+  Status:   Pending
+  Priority: High
+  Hours:    6
+
+Total urgent work: 17 hours
+```
+
+## Example 3: Bit Flags with Enums
+
+Enums can represent bit flags for efficient storage of multiple boolean options:
+
+```c
+#include <stdio.h>
+#include <stdbool.h>
+
+// Use powers of 2 for bit flags
+typedef enum {
+    PERM_NONE    = 0,
+    PERM_READ    = 1 << 0,  // 1 (binary: 0001)
+    PERM_WRITE   = 1 << 1,  // 2 (binary: 0010)
+    PERM_EXECUTE = 1 << 2,  // 4 (binary: 0100)
+    PERM_DELETE  = 1 << 3   // 8 (binary: 1000)
+} Permission;
+
+typedef struct {
+    char username[30];
+    Permission permissions;  // Can hold multiple flags
+} User;
+
+// Add a permission
+void grantPermission(User *user, Permission perm) {
+    user->permissions |= perm;  // Bitwise OR
+}
+
+// Remove a permission
+void revokePermission(User *user, Permission perm) {
+    user->permissions &= ~perm;  // Bitwise AND with complement
+}
+
+// Check if user has a permission
+bool hasPermission(const User *user, Permission perm) {
+    return (user->permissions & perm) == perm;
+}
+
+void printPermissions(const User *user) {
+    printf("User: %s\n", user->username);
+    printf("Permissions: ");
+
+    if (user->permissions == PERM_NONE) {
+        printf("None");
+    } else {
+        if (hasPermission(user, PERM_READ))    printf("Read ");
+        if (hasPermission(user, PERM_WRITE))   printf("Write ");
+        if (hasPermission(user, PERM_EXECUTE)) printf("Execute ");
+        if (hasPermission(user, PERM_DELETE))  printf("Delete");
+    }
+    printf("\n");
+}
+
+int main(void) {
+    User user = {"alice", PERM_NONE};
+
+    // Grant multiple permissions
+    grantPermission(&user, PERM_READ);
+    grantPermission(&user, PERM_WRITE);
+    printPermissions(&user);
+
+    // Grant more permissions
+    grantPermission(&user, PERM_EXECUTE);
+    printPermissions(&user);
+
+    // Revoke a permission
+    revokePermission(&user, PERM_WRITE);
+    printPermissions(&user);
+
+    // Check specific permission
+    if (hasPermission(&user, PERM_DELETE)) {
+        printf("User can delete files.\n");
+    } else {
+        printf("User cannot delete files.\n");
+    }
+
+    // Grant multiple permissions at once using OR
+    User admin = {"bob", PERM_READ | PERM_WRITE | PERM_EXECUTE | PERM_DELETE};
+    printPermissions(&admin);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+User: alice
+Permissions: Read Write
+User: alice
+Permissions: Read Write Execute
+User: alice
+Permissions: Read Execute
+User cannot delete files.
+User: bob
+Permissions: Read Write Execute Delete
+```
+
+**Key Points:**
+- Use powers of 2 (bit positions) for flag values
+- Combine flags with bitwise OR: `flag1 | flag2`
+- Check flags with bitwise AND: `(flags & flag) == flag`
+- Remove flags with AND and complement: `flags &= ~flag`
+
+## Example 4: State Machines with Enums
+
+Enums are perfect for implementing state machines:
+
+```c
+#include <stdio.h>
+#include <stdbool.h>
+
+typedef enum {
+    STATE_OFF,
+    STATE_IDLE,
+    STATE_RUNNING,
+    STATE_PAUSED,
+    STATE_ERROR
+} MachineState;
+
+typedef enum {
+    EVENT_POWER_ON,
+    EVENT_START,
+    EVENT_PAUSE,
+    EVENT_RESUME,
+    EVENT_STOP,
+    EVENT_ERROR,
+    EVENT_RESET
+} Event;
+
+typedef struct {
+    MachineState state;
+    int runTime;
+    int errorCount;
+} Machine;
+
+const char* getStateName(MachineState state) {
+    switch (state) {
+        case STATE_OFF:     return "OFF";
+        case STATE_IDLE:    return "IDLE";
+        case STATE_RUNNING: return "RUNNING";
+        case STATE_PAUSED:  return "PAUSED";
+        case STATE_ERROR:   return "ERROR";
+        default:            return "UNKNOWN";
+    }
+}
+
+bool handleEvent(Machine *machine, Event event) {
+    MachineState oldState = machine->state;
+    bool success = true;
+
+    switch (machine->state) {
+        case STATE_OFF:
+            if (event == EVENT_POWER_ON) {
+                machine->state = STATE_IDLE;
+            } else {
+                success = false;
+            }
+            break;
+
+        case STATE_IDLE:
+            if (event == EVENT_START) {
+                machine->state = STATE_RUNNING;
+                machine->runTime = 0;
+            } else if (event == EVENT_STOP) {
+                machine->state = STATE_OFF;
+            } else {
+                success = false;
+            }
+            break;
+
+        case STATE_RUNNING:
+            if (event == EVENT_PAUSE) {
+                machine->state = STATE_PAUSED;
+            } else if (event == EVENT_STOP) {
+                machine->state = STATE_IDLE;
+            } else if (event == EVENT_ERROR) {
+                machine->state = STATE_ERROR;
+                machine->errorCount++;
+            } else {
+                success = false;
+            }
+            break;
+
+        case STATE_PAUSED:
+            if (event == EVENT_RESUME) {
+                machine->state = STATE_RUNNING;
+            } else if (event == EVENT_STOP) {
+                machine->state = STATE_IDLE;
+            } else {
+                success = false;
+            }
+            break;
+
+        case STATE_ERROR:
+            if (event == EVENT_RESET) {
+                machine->state = STATE_IDLE;
+            } else {
+                success = false;
+            }
+            break;
+    }
+
+    if (success) {
+        printf("%s -> %s\n", getStateName(oldState), getStateName(machine->state));
+    } else {
+        printf("Invalid event for state %s\n", getStateName(oldState));
+    }
+
+    return success;
+}
+
+int main(void) {
+    Machine machine = {STATE_OFF, 0, 0};
+
+    printf("Initial state: %s\n\n", getStateName(machine.state));
+
+    handleEvent(&machine, EVENT_POWER_ON);
+    handleEvent(&machine, EVENT_START);
+    handleEvent(&machine, EVENT_PAUSE);
+    handleEvent(&machine, EVENT_RESUME);
+    handleEvent(&machine, EVENT_ERROR);
+    handleEvent(&machine, EVENT_RESET);
+    handleEvent(&machine, EVENT_START);
+    handleEvent(&machine, EVENT_STOP);
+    handleEvent(&machine, EVENT_STOP);
+
+    printf("\nFinal error count: %d\n", machine.errorCount);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Initial state: OFF
+
+OFF -> IDLE
+IDLE -> RUNNING
+RUNNING -> PAUSED
+PAUSED -> RUNNING
+RUNNING -> ERROR
+ERROR -> IDLE
+IDLE -> RUNNING
+RUNNING -> IDLE
+IDLE -> OFF
+
+Final error count: 1
+```
+
+## Best Practices
+
+1. **Use ALL_CAPS for enum constants**: This is the standard convention
+   ```c
+   typedef enum {
+       STATUS_ACTIVE,
+       STATUS_INACTIVE
+   } Status;
+   ```
+
+2. **Typedef for cleaner syntax**: Avoid writing `enum` repeatedly
+   ```c
+   typedef enum { RED, GREEN, BLUE } Color;
+   Color c = RED;  // Not: enum Color c = RED;
+   ```
+
+3. **Provide conversion functions**: Create functions to convert enums to strings
+   ```c
+   const char* colorToString(Color color);
+   ```
+
+4. **Use enums in switch statements**: Compilers can warn about missing cases
+   ```c
+   switch (color) {
+       case RED:   /* ... */ break;
+       case GREEN: /* ... */ break;
+       case BLUE:  /* ... */ break;
+       // Compiler warns if you add a new color and forget to handle it
+   }
+   ```
+
+5. **Start at 1 for error checking**: Makes 0 available as an invalid/uninitialized value
+   ```c
+   typedef enum {
+       ERROR_NONE = 0,
+       ERROR_FILE_NOT_FOUND = 1,
+       ERROR_ACCESS_DENIED = 2
+   } ErrorCode;
+   ```
+
+6. **Group related constants**: Don't mix unrelated values in one enum
+
+## Common Pitfalls
+
+1. **Enum values are just integers**: No type safety by default
+   ```c
+   Color c = 999;  // Valid but wrong!
+   ```
+
+2. **No automatic string conversion**: Must write conversion functions manually
+
+3. **Name collisions**: Enum constants share global namespace (or file scope)
+   ```c
+   enum Status { ACTIVE };
+   enum Mode { ACTIVE };  // Error: ACTIVE redefined
+   ```
+
+4. **Implicit conversions**: Be careful with arithmetic on enums
+   ```c
+   Color c = RED + 1;  // Compiles, but is it meaningful?
+   ```
+
+## Exercises
+
+1. **Traffic Light Controller**: Create enums for traffic light states (RED, YELLOW, GREEN) and write a state machine that cycles through them with proper timing.
+
+2. **File System Simulator**: Use enums for file types (REGULAR, DIRECTORY, SYMLINK) and permissions. Create structures for files with these enum fields and implement permission checking.
+
+3. **Playing Card System**: Create enums for suit (CLUBS, DIAMONDS, HEARTS, SPADES) and rank (ACE through KING). Make a Card structure and implement a function to print cards in a readable format.
+
+4. **Error Handling System**: Design a comprehensive error code enum and create a structure that stores error code, line number, and filename. Write functions to log and display errors.
+
+## Key Takeaways
+
+- **Enums provide named integer constants** that make code self-documenting
+- Default values **start at 0 and increment**, but you can specify any values
+- **Use typedef** to avoid writing `enum` repeatedly
+- **Combine enums with structures** for powerful, readable data models
+- **Bit flags** use power-of-2 values for space-efficient boolean flags
+- **State machines** benefit greatly from enum-based state representation
+- Always provide **string conversion functions** for debugging and display
+- Enums make **switch statements safer** with compiler warnings
+- Follow **naming conventions**: ALL_CAPS for constants, PascalCase for types
+
+In the next step, you'll learn how to organize your code across multiple files using header files, enabling true modular programming.

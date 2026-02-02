@@ -1,0 +1,196 @@
+---
+id: 02-object-like-macros
+title: Object-like Macros
+order: 2
+---
+
+# Object-like Macros
+
+Object-like macros are the simplest form — they define a constant or symbolic name that gets replaced by a value.
+
+## Basic Syntax
+
+```c
+#define NAME replacement_text
+```
+
+The replacement text is everything after the name until the end of the line.
+
+## Common Uses
+
+### 1. Numeric Constants
+
+```c
+#define MAX_CONNECTIONS 100
+#define BUFFER_SIZE 4096
+#define TIMEOUT_MS 5000
+
+int server_fds[MAX_CONNECTIONS];
+char buffer[BUFFER_SIZE];
+sleep(TIMEOUT_MS / 1000);
+```
+
+### 2. String Constants
+
+```c
+#define DEFAULT_CONFIG "/etc/app/config.json"
+#define LOG_FILE "/var/log/app.log"
+
+FILE *f = fopen(DEFAULT_CONFIG, "r");
+```
+
+### 3. Feature Flags
+
+```c
+#define ENABLE_DEBUG 1
+#define USE_TLS 0
+
+#if ENABLE_DEBUG
+    printf("Debug: connection established\n");
+#endif
+```
+
+### 4. Path Definitions
+
+```c
+#define SRC_DIR "src/"
+#define BUILD_DIR "build/"
+#define TEST_DIR "tests/"
+```
+
+## The Substitution Rules
+
+When the preprocessor sees `NAME`, it replaces it with `replacement_text` exactly as written:
+
+```c
+#define N 10 + 2
+
+int arr[N * 2];  // What does this expand to?
+```
+
+Expands to:
+
+```c
+int arr[10 + 2 * 2];  // = int arr[14]
+```
+
+**Not** `int arr[(10 + 2) * 2]` = `int arr[24]`.
+
+This is why macro constants should always be parenthesized:
+
+```c
+#define N (10 + 2)
+
+int arr[N * 2];  // Expands to: int arr[(10 + 2) * 2] = int arr[24]
+```
+
+## Multi-line Macros with Backslashes
+
+If a replacement text is too long, use `\` to continue:
+
+```c
+#define LONG_MESSAGE \
+    "This is a very long message that spans " \
+    "multiple lines for readability"
+
+printf(LONG_MESSAGE);
+```
+
+The `\` must be the last character on the line (no trailing spaces).
+
+## Undefined Behavior Example
+
+What's wrong with this?
+
+```c
+#define A 10
+#define B A
+#undef A
+
+int x = B;  // What is B?
+```
+
+After `#undef A`, `A` is no longer defined, but `B`'s expansion was already fixed to `10` when `B` was defined. So `x = 10` is fine.
+
+Now consider:
+
+```c
+#define A B
+#define B A
+
+int x = A;  // What happens?
+```
+
+This causes **infinite macro expansion**. The preprocessor detects this and errors:
+
+```
+error: #define recursion too deep
+```
+
+## Best Practices
+
+### DO: Use ALL_CAPS for macros
+
+```c
+#define MAX_SIZE 1000  // Good
+#define max_size 1000  // Bad — looks like a variable
+```
+
+### DO: Parenthesize macro values
+
+```c
+#define VALUE (10 + 2)  // Good
+#define VALUE 10 + 2    // Bad — operator precedence issues
+```
+
+### DO: Use macros for true compile-time constants
+
+```c
+#define PAGE_SIZE 4096
+
+int data[PAGE_SIZE];  // Array size must be compile-time constant
+```
+
+### DON'T: Use macros when `const` or `enum` works
+
+```c
+enum { MAX_SIZE = 100 };  // Better — has scope and type
+const int max_size = 100; // Better — has debugger visibility
+```
+
+## When to Use Object-like Macros
+
+Use object-like macros when you need:
+
+1. **Array sizes** — must be compile-time constants
+2. **String literals** — avoid repeating strings
+3. **Feature flags** — conditional compilation
+4. **Version numbers** — `#define VERSION "2.1.0"`
+5. **Platform detection** — `#define PLATFORM_LINUX 1`
+
+Avoid macros for:
+
+- Things that could be `const` variables
+- Things that need type safety
+- Things that need debugger visibility
+
+## Practice Exercise
+
+Find the bugs in these macros:
+
+```c
+#define HALF 100 / 2
+#define MESSAGE "Hello " + ", World"
+#define STR "line1
+            line2"
+```
+
+**Answers**:
+
+- `HALF`: Needs parentheses: `(100 / 2)`, otherwise `2 * HALF` = `2 * 100 / 2` = `100`
+- `MESSAGE`: String concatenation doesn't use `+`, use `"Hello " ", World"` or adjacent string literals
+- `STR`: Multi-line strings need `\` continuation or adjacent string literals
+
+---
+
+**Next**: Function-like macros — powerful but dangerous.

@@ -1,0 +1,607 @@
+---
+title: "Dynamic Arrays"
+order: 8
+---
+
+# Dynamic Arrays
+
+Now that you understand dynamic memory management, let's build something practical: a dynamic array that can grow and shrink as needed. This brings together everything you've learned about malloc, realloc, free, and memory safety.
+
+## The Problem with Static Arrays
+
+Static arrays have fixed sizes determined at compile time:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int arr[10];  // Fixed size - what if we need 11 elements?
+
+    // Can't do this:
+    // int n = get_user_input();
+    // int arr2[n];  // VLA - not all compilers support
+
+    // Need dynamic allocation!
+    return 0;
+}
+```
+
+## Basic Dynamic Array Implementation
+
+```c
+// dynamic_array.h
+#ifndef DYNAMIC_ARRAY_H
+#define DYNAMIC_ARRAY_H
+
+#include <stddef.h>
+
+typedef struct {
+    int *data;
+    size_t size;      // Number of elements
+    size_t capacity;  // Total allocated space
+} DynamicArray;
+
+// Create new array
+DynamicArray *array_create(size_t initial_capacity);
+
+// Add element to end
+int array_push(DynamicArray *arr, int value);
+
+// Remove and return last element
+int array_pop(DynamicArray *arr, int *value);
+
+// Get element at index
+int array_get(DynamicArray *arr, size_t index, int *value);
+
+// Set element at index
+int array_set(DynamicArray *arr, size_t index, int value);
+
+// Free array
+void array_free(DynamicArray *arr);
+
+#endif
+```
+
+```c
+// dynamic_array.c
+#include "dynamic_array.h"
+#include <stdlib.h>
+#include <string.h>
+
+DynamicArray *array_create(size_t initial_capacity) {
+    if (initial_capacity == 0) {
+        initial_capacity = 10;  // Default capacity
+    }
+
+    DynamicArray *arr = malloc(sizeof(DynamicArray));
+    if (arr == NULL) {
+        return NULL;
+    }
+
+    arr->data = malloc(initial_capacity * sizeof(int));
+    if (arr->data == NULL) {
+        free(arr);
+        return NULL;
+    }
+
+    arr->size = 0;
+    arr->capacity = initial_capacity;
+
+    return arr;
+}
+
+int array_push(DynamicArray *arr, int value) {
+    if (arr == NULL) {
+        return 0;
+    }
+
+    // Need to grow?
+    if (arr->size >= arr->capacity) {
+        size_t new_capacity = arr->capacity * 2;
+        int *new_data = realloc(arr->data, new_capacity * sizeof(int));
+        if (new_data == NULL) {
+            return 0;  // Growth failed
+        }
+        arr->data = new_data;
+        arr->capacity = new_capacity;
+    }
+
+    arr->data[arr->size++] = value;
+    return 1;
+}
+
+int array_pop(DynamicArray *arr, int *value) {
+    if (arr == NULL || arr->size == 0) {
+        return 0;
+    }
+
+    if (value != NULL) {
+        *value = arr->data[arr->size - 1];
+    }
+    arr->size--;
+
+    // Optionally shrink if too much unused space
+    if (arr->size > 0 && arr->size < arr->capacity / 4) {
+        size_t new_capacity = arr->capacity / 2;
+        int *new_data = realloc(arr->data, new_capacity * sizeof(int));
+        if (new_data != NULL) {
+            arr->data = new_data;
+            arr->capacity = new_capacity;
+        }
+        // If realloc fails, just keep the larger buffer
+    }
+
+    return 1;
+}
+
+int array_get(DynamicArray *arr, size_t index, int *value) {
+    if (arr == NULL || index >= arr->size || value == NULL) {
+        return 0;
+    }
+
+    *value = arr->data[index];
+    return 1;
+}
+
+int array_set(DynamicArray *arr, size_t index, int value) {
+    if (arr == NULL || index >= arr->size) {
+        return 0;
+    }
+
+    arr->data[index] = value;
+    return 1;
+}
+
+void array_free(DynamicArray *arr) {
+    if (arr != NULL) {
+        free(arr->data);
+        free(arr);
+    }
+}
+```
+
+```c
+// main.c
+#include <stdio.h>
+#include "dynamic_array.h"
+
+int main() {
+    DynamicArray *arr = array_create(2);
+    if (arr == NULL) {
+        printf("Failed to create array\n");
+        return 1;
+    }
+
+    printf("Initial capacity: %zu\n", arr->capacity);
+
+    // Add elements - watch it grow
+    for (int i = 0; i < 10; i++) {
+        if (!array_push(arr, i * 10)) {
+            printf("Failed to push %d\n", i);
+            array_free(arr);
+            return 1;
+        }
+        printf("Size: %zu, Capacity: %zu\n", arr->size, arr->capacity);
+    }
+
+    // Print contents
+    printf("\nArray contents: ");
+    for (size_t i = 0; i < arr->size; i++) {
+        int value;
+        if (array_get(arr, i, &value)) {
+            printf("%d ", value);
+        }
+    }
+    printf("\n");
+
+    // Remove elements
+    int value;
+    while (array_pop(arr, &value)) {
+        printf("Popped: %d (size: %zu, capacity: %zu)\n",
+               value, arr->size, arr->capacity);
+    }
+
+    array_free(arr);
+
+    return 0;
+}
+```
+
+## Generic Dynamic Array (Using void*)
+
+```c
+// generic_array.h
+#ifndef GENERIC_ARRAY_H
+#define GENERIC_ARRAY_H
+
+#include <stddef.h>
+
+typedef struct {
+    void *data;
+    size_t size;
+    size_t capacity;
+    size_t element_size;
+} GenericArray;
+
+GenericArray *garray_create(size_t element_size, size_t initial_capacity);
+int garray_push(GenericArray *arr, const void *element);
+int garray_pop(GenericArray *arr, void *element);
+void *garray_get(GenericArray *arr, size_t index);
+int garray_set(GenericArray *arr, size_t index, const void *element);
+void garray_free(GenericArray *arr);
+
+#endif
+```
+
+```c
+// generic_array.c
+#include "generic_array.h"
+#include <stdlib.h>
+#include <string.h>
+
+GenericArray *garray_create(size_t element_size, size_t initial_capacity) {
+    if (element_size == 0 || initial_capacity == 0) {
+        return NULL;
+    }
+
+    GenericArray *arr = malloc(sizeof(GenericArray));
+    if (arr == NULL) {
+        return NULL;
+    }
+
+    arr->data = malloc(initial_capacity * element_size);
+    if (arr->data == NULL) {
+        free(arr);
+        return NULL;
+    }
+
+    arr->size = 0;
+    arr->capacity = initial_capacity;
+    arr->element_size = element_size;
+
+    return arr;
+}
+
+int garray_push(GenericArray *arr, const void *element) {
+    if (arr == NULL || element == NULL) {
+        return 0;
+    }
+
+    if (arr->size >= arr->capacity) {
+        size_t new_capacity = arr->capacity * 2;
+        void *new_data = realloc(arr->data, new_capacity * arr->element_size);
+        if (new_data == NULL) {
+            return 0;
+        }
+        arr->data = new_data;
+        arr->capacity = new_capacity;
+    }
+
+    // Copy element to end of array
+    void *dest = (char*)arr->data + (arr->size * arr->element_size);
+    memcpy(dest, element, arr->element_size);
+    arr->size++;
+
+    return 1;
+}
+
+int garray_pop(GenericArray *arr, void *element) {
+    if (arr == NULL || arr->size == 0) {
+        return 0;
+    }
+
+    arr->size--;
+
+    if (element != NULL) {
+        void *src = (char*)arr->data + (arr->size * arr->element_size);
+        memcpy(element, src, arr->element_size);
+    }
+
+    return 1;
+}
+
+void *garray_get(GenericArray *arr, size_t index) {
+    if (arr == NULL || index >= arr->size) {
+        return NULL;
+    }
+
+    return (char*)arr->data + (index * arr->element_size);
+}
+
+int garray_set(GenericArray *arr, size_t index, const void *element) {
+    if (arr == NULL || index >= arr->size || element == NULL) {
+        return 0;
+    }
+
+    void *dest = (char*)arr->data + (index * arr->element_size);
+    memcpy(dest, element, arr->element_size);
+
+    return 1;
+}
+
+void garray_free(GenericArray *arr) {
+    if (arr != NULL) {
+        free(arr->data);
+        free(arr);
+    }
+}
+```
+
+```c
+// test_generic.c
+#include <stdio.h>
+#include <string.h>
+#include "generic_array.h"
+
+typedef struct {
+    char name[50];
+    int age;
+} Person;
+
+int main() {
+    // Array of integers
+    GenericArray *int_arr = garray_create(sizeof(int), 5);
+    if (int_arr == NULL) return 1;
+
+    for (int i = 0; i < 10; i++) {
+        int value = i * 10;
+        garray_push(int_arr, &value);
+    }
+
+    printf("Integer array: ");
+    for (size_t i = 0; i < int_arr->size; i++) {
+        int *ptr = (int*)garray_get(int_arr, i);
+        if (ptr) printf("%d ", *ptr);
+    }
+    printf("\n");
+
+    garray_free(int_arr);
+
+    // Array of structures
+    GenericArray *person_arr = garray_create(sizeof(Person), 2);
+    if (person_arr == NULL) return 1;
+
+    Person p1 = {.age = 30};
+    strcpy(p1.name, "Alice");
+    garray_push(person_arr, &p1);
+
+    Person p2 = {.age = 25};
+    strcpy(p2.name, "Bob");
+    garray_push(person_arr, &p2);
+
+    printf("\nPerson array:\n");
+    for (size_t i = 0; i < person_arr->size; i++) {
+        Person *ptr = (Person*)garray_get(person_arr, i);
+        if (ptr) {
+            printf("  %s, age %d\n", ptr->name, ptr->age);
+        }
+    }
+
+    garray_free(person_arr);
+
+    return 0;
+}
+```
+
+## Advanced Features
+
+### Insert and Remove at Any Position
+
+```c
+int array_insert(DynamicArray *arr, size_t index, int value) {
+    if (arr == NULL || index > arr->size) {
+        return 0;
+    }
+
+    // Make room for new element
+    if (arr->size >= arr->capacity) {
+        size_t new_capacity = arr->capacity * 2;
+        int *new_data = realloc(arr->data, new_capacity * sizeof(int));
+        if (new_data == NULL) {
+            return 0;
+        }
+        arr->data = new_data;
+        arr->capacity = new_capacity;
+    }
+
+    // Shift elements right
+    for (size_t i = arr->size; i > index; i--) {
+        arr->data[i] = arr->data[i - 1];
+    }
+
+    arr->data[index] = value;
+    arr->size++;
+
+    return 1;
+}
+
+int array_remove(DynamicArray *arr, size_t index, int *value) {
+    if (arr == NULL || index >= arr->size) {
+        return 0;
+    }
+
+    if (value != NULL) {
+        *value = arr->data[index];
+    }
+
+    // Shift elements left
+    for (size_t i = index; i < arr->size - 1; i++) {
+        arr->data[i] = arr->data[i + 1];
+    }
+
+    arr->size--;
+
+    return 1;
+}
+```
+
+### Memory-Safe Array Access
+
+```c
+int array_at(DynamicArray *arr, size_t index, int *value) {
+    if (arr == NULL || index >= arr->size || value == NULL) {
+        return 0;
+    }
+
+    *value = arr->data[index];
+    return 1;
+}
+
+// Bounds-checked setter
+int array_at_put(DynamicArray *arr, size_t index, int value) {
+    if (arr == NULL || index >= arr->size) {
+        return 0;
+    }
+
+    arr->data[index] = value;
+    return 1;
+}
+```
+
+## Complete Example: Student Grade Manager
+
+```c
+// grades.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char name[50];
+    int *grades;
+    size_t num_grades;
+    size_t capacity;
+} Student;
+
+Student *student_create(const char *name) {
+    Student *s = malloc(sizeof(Student));
+    if (s == NULL) {
+        return NULL;
+    }
+
+    strncpy(s->name, name, sizeof(s->name) - 1);
+    s->name[sizeof(s->name) - 1] = '\0';
+
+    s->capacity = 5;
+    s->grades = malloc(s->capacity * sizeof(int));
+    if (s->grades == NULL) {
+        free(s);
+        return NULL;
+    }
+
+    s->num_grades = 0;
+
+    return s;
+}
+
+int student_add_grade(Student *s, int grade) {
+    if (s == NULL || grade < 0 || grade > 100) {
+        return 0;
+    }
+
+    if (s->num_grades >= s->capacity) {
+        size_t new_capacity = s->capacity * 2;
+        int *new_grades = realloc(s->grades, new_capacity * sizeof(int));
+        if (new_grades == NULL) {
+            return 0;
+        }
+        s->grades = new_grades;
+        s->capacity = new_capacity;
+    }
+
+    s->grades[s->num_grades++] = grade;
+    return 1;
+}
+
+float student_average(Student *s) {
+    if (s == NULL || s->num_grades == 0) {
+        return 0.0f;
+    }
+
+    int sum = 0;
+    for (size_t i = 0; i < s->num_grades; i++) {
+        sum += s->grades[i];
+    }
+
+    return (float)sum / s->num_grades;
+}
+
+void student_print(Student *s) {
+    if (s == NULL) {
+        return;
+    }
+
+    printf("Student: %s\n", s->name);
+    printf("Grades: ");
+    for (size_t i = 0; i < s->num_grades; i++) {
+        printf("%d ", s->grades[i]);
+    }
+    printf("\n");
+    printf("Average: %.2f\n", student_average(s));
+}
+
+void student_free(Student *s) {
+    if (s != NULL) {
+        free(s->grades);
+        free(s);
+    }
+}
+
+int main() {
+    Student *alice = student_create("Alice");
+    if (alice == NULL) {
+        return 1;
+    }
+
+    // Add grades
+    int grades[] = {85, 90, 78, 92, 88, 95, 87};
+    for (size_t i = 0; i < sizeof(grades) / sizeof(grades[0]); i++) {
+        if (!student_add_grade(alice, grades[i])) {
+            printf("Failed to add grade\n");
+            student_free(alice);
+            return 1;
+        }
+    }
+
+    student_print(alice);
+
+    student_free(alice);
+
+    return 0;
+}
+```
+
+## Testing with Valgrind
+
+```bash
+gcc -g -o grades grades.c
+valgrind --leak-check=full ./grades
+```
+
+Expected output:
+```
+All heap blocks were freed -- no leaks are possible
+```
+
+## Key Takeaways
+
+1. **Dynamic arrays solve the fixed-size problem**
+2. **Growth strategy**: Double capacity when full (amortized O(1))
+3. **Shrink strategy**: Halve capacity when 1/4 full (optional)
+4. **Always check realloc return value**
+5. **Generic arrays use void* and memcpy**
+6. **RAII pattern**: create/destroy pairs
+7. **Test with Valgrind** to ensure no leaks
+
+## Exercises
+
+1. Add `array_reserve()` to pre-allocate capacity
+2. Implement `array_clear()` to remove all elements
+3. Add `array_find()` to search for a value
+4. Implement `array_sort()` using qsort
+5. Create a dynamic 2D array
+6. Build a dynamic string type (char array)
+7. Implement iterator functions (foreach, map, filter)
+8. Add shrink-to-fit functionality
+
+Congratulations! You now have a solid understanding of dynamic memory management in C. These skills are fundamental to building real-world applications and data structures.

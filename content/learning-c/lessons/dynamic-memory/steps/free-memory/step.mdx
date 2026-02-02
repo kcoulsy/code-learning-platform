@@ -1,0 +1,399 @@
+---
+title: "Freeing Memory with free()"
+order: 4
+---
+
+# Freeing Memory with free()
+
+Allocating memory is only half the story. Every allocation must be matched with a deallocation using `free()`. This step teaches you when, how, and why to free memory correctly.
+
+## The free() Function
+
+```c
+void free(void *ptr);
+```
+
+- **Parameter**: Pointer returned by `malloc()`, `calloc()`, or `realloc()`
+- **Returns**: Nothing (void)
+- **Effect**: Returns memory to the system for reuse
+- **Header**: `<stdlib.h>`
+
+## Basic Usage
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Allocate
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) {
+        return 1;
+    }
+
+    // Use
+    *ptr = 42;
+    printf("Value: %d\n", *ptr);
+
+    // Free - returns memory to system
+    free(ptr);
+
+    // Good practice: set pointer to NULL after freeing
+    ptr = NULL;
+
+    return 0;
+}
+```
+
+## The Golden Rule: One Malloc, One Free
+
+Every allocation needs exactly one corresponding free:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Example 1: Simple allocation
+    int *p1 = malloc(sizeof(int));
+    if (p1 == NULL) return 1;
+    free(p1);  // One malloc, one free
+
+    // Example 2: Array allocation
+    int *arr = malloc(10 * sizeof(int));
+    if (arr == NULL) return 1;
+    free(arr);  // Frees entire array with one call
+
+    // Example 3: Multiple allocations
+    int *p2 = malloc(sizeof(int));
+    int *p3 = malloc(sizeof(int));
+    if (p2 == NULL || p3 == NULL) {
+        free(p2);  // Free what we got
+        free(p3);  // free(NULL) is safe
+        return 1;
+    }
+    free(p2);  // Each allocation needs its own free
+    free(p3);
+
+    return 0;
+}
+```
+
+## When to Free Memory
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// Example 1: Free before function returns
+void process_data() {
+    int *data = malloc(100 * sizeof(int));
+    if (data == NULL) {
+        return;
+    }
+
+    // Process data...
+    for (int i = 0; i < 100; i++) {
+        data[i] = i;
+    }
+
+    // Free before returning
+    free(data);
+}
+
+// Example 2: Return allocated memory (caller must free)
+int *create_array(int size) {
+    int *arr = malloc(size * sizeof(int));
+    // Caller is responsible for freeing
+    return arr;
+}
+
+// Example 3: Free in cleanup section
+int main() {
+    int *arr = NULL;
+    int *temp = NULL;
+
+    arr = malloc(50 * sizeof(int));
+    if (arr == NULL) {
+        goto cleanup;
+    }
+
+    temp = malloc(50 * sizeof(int));
+    if (temp == NULL) {
+        goto cleanup;
+    }
+
+    // Use both arrays...
+
+cleanup:
+    free(arr);   // free(NULL) is safe
+    free(temp);
+    return 0;
+}
+```
+
+## What NOT to Do: Common Mistakes
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return 1;
+
+    // MISTAKE 1: Double free
+    free(ptr);
+    // free(ptr);  // CRASH! Undefined behavior
+
+    // MISTAKE 2: Using memory after free
+    int *ptr2 = malloc(sizeof(int));
+    if (ptr2 == NULL) return 1;
+    *ptr2 = 10;
+    free(ptr2);
+    // printf("%d\n", *ptr2);  // DANGER! Use after free
+
+    // MISTAKE 3: Freeing stack memory
+    int stack_var = 5;
+    // free(&stack_var);  // CRASH! Can only free heap memory
+
+    // MISTAKE 4: Freeing part of an allocation
+    int *arr = malloc(10 * sizeof(int));
+    if (arr == NULL) return 1;
+    // free(&arr[5]);  // CRASH! Must free the original pointer
+    free(arr);  // Correct
+
+    // MISTAKE 5: Losing pointer before freeing
+    int *leak = malloc(sizeof(int));
+    if (leak == NULL) return 1;
+    leak = NULL;  // MEMORY LEAK! Lost the pointer, can't free now
+
+    // MISTAKE 6: Not freeing in all code paths
+    int *data = malloc(100 * sizeof(int));
+    if (data == NULL) return 1;
+
+    if (/* some condition */ 0) {
+        return 0;  // LEAK! Forgot to free data
+    }
+
+    free(data);
+    return 0;
+}
+```
+
+## Safe Patterns for Freeing
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// Pattern 1: Set to NULL after freeing
+void safe_free_pattern() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    *ptr = 42;
+
+    free(ptr);
+    ptr = NULL;  // Prevents accidental reuse
+
+    // Now safe - freeing NULL is a no-op
+    free(ptr);  // Does nothing, no crash
+}
+
+// Pattern 2: Wrapper function
+void safe_free(void **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        free(*ptr);
+        *ptr = NULL;
+    }
+}
+
+void use_wrapper() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    *ptr = 100;
+    safe_free((void**)&ptr);  // Frees and sets to NULL
+    safe_free((void**)&ptr);  // Safe to call multiple times
+}
+
+int main() {
+    safe_free_pattern();
+    use_wrapper();
+    return 0;
+}
+```
+
+## Freeing Complex Structures
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char *name;
+    int *scores;
+    int num_scores;
+} Student;
+
+// Allocate student with embedded allocations
+Student *create_student(const char *name, int num_scores) {
+    Student *s = malloc(sizeof(Student));
+    if (s == NULL) {
+        return NULL;
+    }
+
+    s->name = malloc(strlen(name) + 1);
+    if (s->name == NULL) {
+        free(s);
+        return NULL;
+    }
+    strcpy(s->name, name);
+
+    s->scores = malloc(num_scores * sizeof(int));
+    if (s->scores == NULL) {
+        free(s->name);
+        free(s);
+        return NULL;
+    }
+
+    s->num_scores = num_scores;
+    return s;
+}
+
+// Must free in reverse order of allocation (inside out)
+void free_student(Student *s) {
+    if (s == NULL) {
+        return;
+    }
+
+    // Free nested allocations first
+    free(s->name);
+    free(s->scores);
+
+    // Then free the structure itself
+    free(s);
+}
+
+int main() {
+    Student *student = create_student("Alice", 5);
+    if (student == NULL) {
+        return 1;
+    }
+
+    // Initialize scores
+    for (int i = 0; i < student->num_scores; i++) {
+        student->scores[i] = 80 + i * 5;
+    }
+
+    printf("Student: %s\n", student->name);
+    printf("Scores: ");
+    for (int i = 0; i < student->num_scores; i++) {
+        printf("%d ", student->scores[i]);
+    }
+    printf("\n");
+
+    // Free everything
+    free_student(student);
+
+    return 0;
+}
+```
+
+## Tracking Allocations
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// Simple allocation tracker for debugging
+typedef struct {
+    void *ptr;
+    size_t size;
+    int line;
+} Allocation;
+
+#define MAX_ALLOCATIONS 100
+Allocation allocations[MAX_ALLOCATIONS];
+int alloc_count = 0;
+
+void *tracked_malloc(size_t size, int line) {
+    void *ptr = malloc(size);
+    if (ptr != NULL && alloc_count < MAX_ALLOCATIONS) {
+        allocations[alloc_count].ptr = ptr;
+        allocations[alloc_count].size = size;
+        allocations[alloc_count].line = line;
+        alloc_count++;
+        printf("ALLOC: %zu bytes at line %d\n", size, line);
+    }
+    return ptr;
+}
+
+void tracked_free(void *ptr, int line) {
+    for (int i = 0; i < alloc_count; i++) {
+        if (allocations[i].ptr == ptr) {
+            printf("FREE:  %zu bytes (allocated at line %d) at line %d\n",
+                   allocations[i].size, allocations[i].line, line);
+            free(ptr);
+            // Remove from tracking
+            allocations[i] = allocations[--alloc_count];
+            return;
+        }
+    }
+    printf("WARNING: Freeing untracked pointer at line %d\n", line);
+}
+
+void report_leaks() {
+    if (alloc_count > 0) {
+        printf("\nMEMORY LEAKS DETECTED:\n");
+        for (int i = 0; i < alloc_count; i++) {
+            printf("  %zu bytes allocated at line %d never freed\n",
+                   allocations[i].size, allocations[i].line);
+        }
+    } else {
+        printf("\nNo memory leaks detected!\n");
+    }
+}
+
+int main() {
+    int *p1 = tracked_malloc(sizeof(int), __LINE__);
+    int *p2 = tracked_malloc(10 * sizeof(int), __LINE__);
+    int *p3 = tracked_malloc(sizeof(int), __LINE__);
+
+    if (p1 && p2 && p3) {
+        tracked_free(p1, __LINE__);
+        tracked_free(p2, __LINE__);
+        // Intentionally not freeing p3 to show leak
+    }
+
+    report_leaks();
+
+    return 0;
+}
+```
+
+## Key Takeaways
+
+1. **Every `malloc()` needs exactly one `free()`**
+2. **Free memory as soon as you're done with it**
+3. **Only free pointers returned by allocation functions**
+4. **Never free the same pointer twice** (double free)
+5. **Never use memory after freeing it** (use-after-free)
+6. **`free(NULL)` is safe** and does nothing
+7. **Set pointers to NULL after freeing** to prevent accidental reuse
+8. **Free nested allocations inside-out** (children before parent)
+9. **Free in all code paths** (error paths too!)
+10. **Can't free stack variables or string literals**
+
+## Exercises
+
+1. Write a program that intentionally has a memory leak and explain where it is
+2. Create a function that allocates a 2D array and a corresponding function that properly frees it
+3. Implement a custom `safe_free()` macro that sets pointers to NULL after freeing
+4. Write a program with multiple error paths and ensure all paths properly free memory
+5. Create a structure with nested dynamic allocations and implement proper cleanup
+6. Build a simple memory pool that tracks allocations and can free them all at once
+
+In the next step, we'll learn how to detect and prevent memory leaks using various techniques.

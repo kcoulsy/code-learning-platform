@@ -1,0 +1,310 @@
+---
+id: while-loops
+title: While Loops
+order: 3
+---
+
+# While Loops
+
+While loops repeat a block of code as long as a condition remains true. They're useful when you don't know in advance how many times to repeat.
+
+## Basic While Loop
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int count = 1;
+
+    while (count <= 5) {
+        printf("Count: %d\n", count);
+        count++;  // Increment to avoid infinite loop
+    }
+
+    printf("Loop finished!\n");
+
+    return 0;
+}
+```
+
+Output:
+```
+Count: 1
+Count: 2
+Count: 3
+Count: 4
+Count: 5
+Loop finished!
+```
+
+## User Input Validation
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int number;
+
+    printf("Enter a positive number: ");
+    scanf("%d", &number);
+
+    // Keep asking until valid input
+    while (number <= 0) {
+        printf("Invalid! Please enter a positive number: ");
+        scanf("%d", &number);
+    }
+
+    printf("You entered: %d\n", number);
+
+    return 0;
+}
+```
+
+## Sum of Numbers
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int n, sum = 0, i = 1;
+
+    printf("Enter a number: ");
+    scanf("%d", &n);
+
+    while (i <= n) {
+        sum += i;  // sum = sum + i
+        i++;
+    }
+
+    printf("Sum of 1 to %d = %d\n", n, sum);
+
+    return 0;
+}
+```
+
+## Countdown Timer
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int seconds = 10;
+
+    printf("Countdown starting...\n");
+
+    while (seconds > 0) {
+        printf("%d...\n", seconds);
+        seconds--;
+    }
+
+    printf("Blast off!\n");
+
+    return 0;
+}
+```
+
+## Number Guessing Game
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+int main(void) {
+    // Seed random number generator
+    srand(time(NULL));
+    int secret = rand() % 100 + 1;  // Random number 1-100
+    int guess;
+    int attempts = 0;
+
+    printf("Guess the number (1-100)!\n");
+
+    scanf("%d", &guess);
+    attempts++;
+
+    while (guess != secret) {
+        if (guess < secret) {
+            printf("Too low! Try again: ");
+        } else {
+            printf("Too high! Try again: ");
+        }
+        scanf("%d", &guess);
+        attempts++;
+    }
+
+    printf("Correct! You found it in %d attempts.\n", attempts);
+
+    return 0;
+}
+```
+
+## Common Loop Patterns
+
+### Accumulator Pattern
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int n = 5;
+    int factorial = 1;
+    int i = 1;
+
+    while (i <= n) {
+        factorial *= i;  // Accumulate product
+        i++;
+    }
+
+    printf("%d! = %d\n", n, factorial);
+    // Output: 5! = 120
+
+    return 0;
+}
+```
+
+### Sentinel Value Loop
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int number;
+    int sum = 0;
+
+    printf("Enter numbers (0 to stop):\n");
+    scanf("%d", &number);
+
+    while (number != 0) {  // 0 is the sentinel value
+        sum += number;
+        scanf("%d", &number);
+    }
+
+    printf("Total sum: %d\n", sum);
+
+    return 0;
+}
+```
+
+### Digit Extraction
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int number = 12345;
+
+    printf("Digits in reverse order: ");
+
+    while (number > 0) {
+        int digit = number % 10;     // Get last digit
+        printf("%d ", digit);
+        number = number / 10;         // Remove last digit
+    }
+
+    printf("\n");
+    // Output: 5 4 3 2 1
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+### Infinite Loops
+
+```c
+// WRONG: Counter never changes
+int count = 1;
+while (count <= 5) {
+    printf("Count: %d\n", count);
+    // Forgot to increment count!
+}
+// This runs forever!
+
+// CORRECT: Always update the loop variable
+int count = 1;
+while (count <= 5) {
+    printf("Count: %d\n", count);
+    count++;  // Don't forget this!
+}
+```
+
+### Off-By-One Errors
+
+```c
+// Print 1 to 10
+int i = 1;
+
+// WRONG: Stops at 9
+while (i < 10) {
+    printf("%d ", i);
+    i++;
+}
+
+// CORRECT: Includes 10
+while (i <= 10) {
+    printf("%d ", i);
+    i++;
+}
+```
+
+### Uninitialized Loop Counter
+
+```c
+// WRONG: count not initialized
+int count;  // Contains garbage value!
+while (count < 5) {
+    printf("%d ", count);
+    count++;
+}
+
+// CORRECT: Always initialize
+int count = 0;  // Start with known value
+while (count < 5) {
+    printf("%d ", count);
+    count++;
+}
+```
+
+### Modifying Loop Variable Incorrectly
+
+```c
+int i = 0;
+
+// WRONG: Incrementing twice!
+while (i < 10) {
+    printf("%d ", i);
+    i++;
+    // Some code...
+    i++;  // Accidentally increments again - skips values!
+}
+
+// CORRECT: Increment once per iteration
+while (i < 10) {
+    printf("%d ", i);
+    i++;  // Only increment here
+}
+```
+
+## Exercises
+
+1. **Power Calculator**: Write a program to calculate x^n (x to the power n) using a while loop. Don't use the `pow()` function.
+
+2. **Reverse a Number**: Take an integer input and print it in reverse order. For example, 12345 becomes 54321.
+
+3. **Sum of Digits**: Calculate the sum of all digits in a number. For example, 12345 → 1+2+3+4+5 = 15.
+
+4. **Password Attempts**: Create a program that gives users 3 attempts to enter the correct password. Use a while loop to track attempts.
+
+5. **Average Calculator**: Keep reading numbers from the user until they enter -1, then display the average of all entered numbers (excluding -1).
+
+## Key Takeaways
+
+- While loops check the condition BEFORE each iteration
+- Always initialize loop control variables before the loop
+- Always update the loop control variable inside the loop (or risk infinite loops)
+- Use while loops when the number of iterations is unknown
+- Common patterns: counters, accumulators, sentinels, validation
+- Watch out for off-by-one errors (`<` vs `<=`)
+- Break infinite loops in development: Ctrl+C (terminal) or IDE stop button
+- While loops are ideal for user input validation

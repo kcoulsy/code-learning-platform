@@ -1,0 +1,549 @@
+---
+title: "Pointer Pitfalls"
+order: 6
+---
+
+# Pointer Pitfalls
+
+Pointers are powerful but dangerous. This step covers the most common pointer mistakes that lead to crashes, data corruption, and security vulnerabilities. Learn to recognize and avoid these pitfalls!
+
+## The Segmentation Fault (Segfault)
+
+A **segmentation fault** occurs when your program tries to access memory it doesn't own. This is the most common pointer error.
+
+### What Causes Segfaults?
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int *ptr;
+
+    // Cause 1: Uninitialized pointer (wild pointer)
+    // *ptr = 42;  // SEGFAULT! ptr points to random memory
+
+    // Cause 2: NULL dereference
+    ptr = NULL;
+    // *ptr = 42;  // SEGFAULT! Can't write to address 0
+
+    // Cause 3: Out-of-bounds access
+    int arr[3] = {1, 2, 3};
+    ptr = arr;
+    ptr += 100;
+    // *ptr = 42;  // SEGFAULT! Way outside array bounds
+
+    // Cause 4: Use after free (we'll see this in next lesson)
+    // ptr = malloc(sizeof(int));
+    // free(ptr);
+    // *ptr = 42;  // SEGFAULT! Memory was freed
+
+    return 0;
+}
+```
+
+**When you see "Segmentation fault"**: Your program tried to access invalid memory. Check for these four causes.
+
+## Wild Pointers (Uninitialized)
+
+Uninitialized pointers contain garbage values and are extremely dangerous.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int *wild;              // Contains random address
+
+    // Danger level 1: Using the garbage address
+    printf("%p\n", (void*)wild);  // Prints random address
+
+    // Danger level 2: Dereferencing
+    // printf("%d\n", *wild);  // CRASH or random value
+
+    // Danger level 3: Writing
+    // *wild = 42;  // CRASH or silent memory corruption!
+
+    // ALWAYS initialize:
+    int *safe = NULL;       // Safe: explicitly NULL
+    int x = 10;
+    int *safe2 = &x;        // Safe: valid address
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Initialize all pointers at declaration
+- Use NULL if you don't have a valid address yet
+- Enable compiler warnings: `gcc -Wall -Wextra`
+
+## NULL Pointer Dereference
+
+Dereferencing NULL always crashes, which is good for debugging (fails fast).
+
+```c
+#include <stdio.h>
+
+int* find_element(int arr[], int size, int target) {
+    for (int i = 0; i < size; i++) {
+        if (arr[i] == target) {
+            return &arr[i];
+        }
+    }
+    return NULL;  // Not found
+}
+
+int main(void) {
+    int numbers[] = {10, 20, 30};
+
+    int *result = find_element(numbers, 3, 40);
+
+    // WRONG: No NULL check
+    // printf("Found: %d\n", *result);  // CRASH if NULL!
+
+    // RIGHT: Check before dereferencing
+    if (result != NULL) {
+        printf("Found: %d\n", *result);
+    } else {
+        printf("Not found\n");  // This executes
+    }
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Always check return values from functions that might return NULL
+- Check pointer parameters at the start of functions
+- Document in comments when a function might return NULL
+
+## Dangling Pointers
+
+A **dangling pointer** points to memory that's no longer valid (freed or out of scope).
+
+### Dangling After Scope Exit
+
+```c
+#include <stdio.h>
+
+int* create_number(void) {
+    int x = 42;
+    return &x;      // DANGER! x goes out of scope
+}
+
+void scope_example(void) {
+    int *ptr;
+    {
+        int y = 100;
+        ptr = &y;
+    }  // y goes out of scope here
+
+    // ptr is now dangling
+    // printf("%d\n", *ptr);  // Undefined behavior!
+}
+
+int main(void) {
+    int *bad_ptr = create_number();
+    // bad_ptr is dangling
+
+    // Might print 42, might print garbage, might crash
+    // printf("%d\n", *bad_ptr);  // Undefined behavior!
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Don't return addresses of local variables
+- Set pointers to NULL when their targets go out of scope
+- Use dynamic allocation for data that outlives its function
+
+### Dangling After Free (Preview)
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    int *ptr = malloc(sizeof(int));
+    *ptr = 42;
+
+    free(ptr);      // Memory is deallocated
+
+    // ptr is now dangling
+    // printf("%d\n", *ptr);  // Undefined behavior!
+    // *ptr = 10;             // Undefined behavior!
+
+    // Good practice: nullify after free
+    ptr = NULL;     // Now it's safe (won't accidentally dereference)
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Set pointers to NULL immediately after freeing
+- Don't use memory after calling `free()`
+- We'll cover this more in the dynamic memory lesson
+
+## Double Free
+
+Freeing the same memory twice causes corruption or crashes.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    int *ptr = malloc(sizeof(int));
+    *ptr = 42;
+
+    free(ptr);
+    // free(ptr);  // CRASH! Double free
+
+    // Prevention: nullify after free
+    ptr = NULL;
+    free(ptr);      // Safe: freeing NULL does nothing
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Set pointers to NULL after freeing
+- `free(NULL)` is safe and does nothing
+
+## Memory Leaks
+
+Losing track of allocated memory means it can never be freed.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void leak_memory(void) {
+    int *ptr = malloc(sizeof(int) * 100);
+    *ptr = 42;
+    // Forgot to free!
+}  // Memory is leaked - can never be freed now
+
+void leak_by_reassignment(void) {
+    int *ptr = malloc(sizeof(int));
+    *ptr = 10;
+
+    ptr = malloc(sizeof(int));  // LEAK! Lost reference to first allocation
+    *ptr = 20;
+
+    free(ptr);  // Only frees second allocation
+}
+
+int main(void) {
+    for (int i = 0; i < 1000; i++) {
+        leak_memory();  // Leaks 400 bytes per iteration!
+    }
+    // Program uses 400KB more than necessary
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Free every allocation before losing the pointer
+- Use tools like Valgrind to detect leaks
+- Match every `malloc` with a `free`
+
+## Buffer Overflow
+
+Writing past array boundaries corrupts adjacent memory.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[3] = {1, 2, 3};
+    int *ptr = arr;
+
+    // Within bounds: safe
+    ptr[0] = 10;
+    ptr[1] = 20;
+    ptr[2] = 30;
+
+    // Out of bounds: DANGER!
+    ptr[3] = 40;    // Writes to memory past the array
+    ptr[10] = 50;   // Might corrupt other variables or crash
+
+    // Negative indices also dangerous
+    ptr[-1] = 60;   // Writes before the array
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Always validate array indices
+- Use array size in loops: `for (i = 0; i < size; i++)`
+- Consider using bounds-checking libraries
+
+## Pointer Arithmetic Errors
+
+Going outside array bounds with pointer arithmetic.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[5] = {10, 20, 30, 40, 50};
+    int *ptr = arr;
+
+    // Safe: within bounds
+    for (int i = 0; i < 5; i++) {
+        printf("%d ", *(ptr + i));
+    }
+    printf("\n");
+
+    // DANGER: pointer arithmetic beyond bounds
+    ptr += 10;      // ptr now points outside array
+    // *ptr = 100;  // Undefined behavior!
+
+    // DANGER: pointer arithmetic before array
+    ptr = arr;
+    ptr -= 5;       // ptr now points before array
+    // *ptr = 100;  // Undefined behavior!
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Keep pointers within array bounds
+- Use `ptr < arr + size` in loops, not `ptr < arr + size + 1`
+- Validate before arithmetic
+
+## Type Confusion
+
+Casting pointers incorrectly leads to data corruption.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int x = 0x12345678;
+    int *pi = &x;
+
+    // DANGER: Treating int* as char*
+    char *pc = (char*)pi;
+    printf("As char: %d\n", *pc);  // Only reads first byte
+
+    // DANGER: Treating char* as int*
+    char c = 'A';
+    int *pi2 = (int*)&c;  // DANGEROUS! Reads past c's memory
+    // printf("As int: %d\n", *pi2);  // Undefined behavior!
+
+    // DANGER: Misaligned access
+    char buffer[10];
+    int *misaligned = (int*)&buffer[1];  // Not aligned to 4-byte boundary
+    // *misaligned = 42;  // Might crash on some architectures
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Don't cast pointers unless necessary
+- Understand alignment requirements
+- Use unions for type-safe reinterpretation
+
+## Use After Scope
+
+Using pointers to variables that have gone out of scope.
+
+```c
+#include <stdio.h>
+
+int* get_pointer(void) {
+    int *result;
+
+    if (1) {
+        int temp = 42;
+        result = &temp;
+    }  // temp goes out of scope
+
+    return result;  // Dangling pointer!
+}
+
+int main(void) {
+    int *ptr = get_pointer();
+    // printf("%d\n", *ptr);  // Undefined behavior!
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Don't return pointers to local variables
+- Don't capture addresses of variables in inner scopes
+- Use static or dynamic allocation for data that outlives scope
+
+## Pointer Comparison Pitfalls
+
+Comparing pointers that don't point into the same array.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr1[5] = {1, 2, 3, 4, 5};
+    int arr2[5] = {6, 7, 8, 9, 10};
+
+    int *p1 = arr1;
+    int *p2 = arr2;
+
+    // DANGER: Comparing pointers to different arrays
+    if (p1 < p2) {  // Undefined behavior!
+        printf("arr1 is before arr2 in memory\n");
+    }
+
+    // DANGER: Pointer subtraction on different arrays
+    // long diff = p2 - p1;  // Undefined behavior!
+
+    // SAFE: Compare pointers in same array
+    int *p3 = &arr1[0];
+    int *p4 = &arr1[4];
+    if (p3 < p4) {  // Safe: both in arr1
+        printf("p3 is before p4\n");
+    }
+
+    return 0;
+}
+```
+
+**Prevention:**
+- Only compare/subtract pointers into the same array
+- Use `==` and `!=` for pointers to different objects
+
+## Common Undefined Behaviors Summary
+
+| Mistake | Result | Prevention |
+|---------|--------|------------|
+| Uninitialized pointer | Random behavior | Always initialize |
+| NULL dereference | Immediate crash | Check before use |
+| Dangling pointer | Corruption or crash | NULL after scope ends |
+| Double free | Heap corruption | NULL after free |
+| Use after free | Corruption or crash | Don't use after free |
+| Buffer overflow | Data corruption | Bounds checking |
+| Out-of-bounds arithmetic | Undefined behavior | Stay in bounds |
+| Wrong type cast | Data corruption | Avoid unnecessary casts |
+
+## Debugging Tools
+
+### GCC Warnings
+
+```bash
+gcc -Wall -Wextra -Werror program.c -o program
+```
+
+Enables all warnings and treats them as errors.
+
+### Address Sanitizer
+
+```bash
+gcc -fsanitize=address -g program.c -o program
+./program
+```
+
+Detects memory errors at runtime (buffer overflows, use-after-free, etc.).
+
+### Valgrind (Linux)
+
+```bash
+gcc -g program.c -o program
+valgrind --leak-check=full ./program
+```
+
+Detects memory leaks, invalid accesses, and uninitialized memory use.
+
+### GDB (Debugger)
+
+```bash
+gcc -g program.c -o program
+gdb ./program
+(gdb) run
+(gdb) backtrace  # When it crashes
+```
+
+Shows where the crash occurred and the call stack.
+
+## Safe Pointer Checklist
+
+Before using any pointer, verify:
+
+1. **Is it initialized?** Not a wild pointer
+2. **Is it NULL?** Check before dereferencing
+3. **Is the memory valid?** Not freed, not out of scope
+4. **Are you in bounds?** Within array limits
+5. **Is the type correct?** No dangerous casts
+6. **Will you free it?** No leaks
+
+## Key Takeaways
+
+- **Segfault**: accessing invalid memory (uninitialized, NULL, freed, out-of-bounds)
+- **Wild pointer**: uninitialized pointer contains garbage
+- **Dangling pointer**: points to freed or out-of-scope memory
+- **Double free**: freeing same memory twice corrupts heap
+- **Memory leak**: losing track of allocated memory
+- **Buffer overflow**: writing past array bounds
+- Always initialize pointers (use NULL if no address yet)
+- Always check for NULL before dereferencing
+- Set pointers to NULL after freeing or when target goes out of scope
+- Use sanitizers and Valgrind to catch errors
+- Enable compiler warnings: `-Wall -Wextra`
+
+## Exercises
+
+1. **Bug Hunt**: Here's buggy code. Find all the pointer errors:
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int* create(void) {
+    int x = 10;
+    return &x;
+}
+
+int main(void) {
+    int *p1;
+    *p1 = 5;
+
+    int *p2 = NULL;
+    printf("%d\n", *p2);
+
+    int *p3 = create();
+    printf("%d\n", *p3);
+
+    int arr[3];
+    arr[5] = 10;
+
+    int *p4 = malloc(sizeof(int));
+    free(p4);
+    *p4 = 20;
+    free(p4);
+
+    return 0;
+}
+```
+
+2. **Safe Array Access**: Write a function `safe_array_set` that takes an array, size, index, and value. Only set the value if the index is valid. Return 1 on success, 0 on failure.
+
+3. **Leak Detector**: Write a program that allocates memory in a loop but properly frees it. Run it with Valgrind to verify no leaks.
+
+4. **NULL Safety**: Refactor this code to handle NULL safely:
+```c
+void process(int *ptr) {
+    *ptr = *ptr * 2;
+}
+```
+
+5. **Dangling Pointer Demo**: Write a program that creates a dangling pointer (but doesn't use it!). Add comments explaining why it's dangerous.
+
+6. **Bounds Checker**: Write a function that takes an array, size, and pointer. Return 1 if the pointer points within the array, 0 otherwise.
+
+7. **Use AddressSanitizer**: Compile one of your previous programs with `-fsanitize=address` and see if it catches any errors. Try introducing a deliberate buffer overflow and see the error message.

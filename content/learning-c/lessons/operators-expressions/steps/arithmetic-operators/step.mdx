@@ -1,0 +1,191 @@
+---
+title: "Arithmetic Operators"
+description: "Learn to perform mathematical calculations using C's arithmetic operators"
+order: 1
+---
+
+# Arithmetic Operators
+
+C provides a rich set of arithmetic operators for performing mathematical calculations. These operators work similarly to basic math, but with some important differences you need to understand.
+
+## The Basic Arithmetic Operators
+
+C supports five fundamental arithmetic operators:
+
+- `+` Addition
+- `-` Subtraction
+- `*` Multiplication
+- `/` Division
+- `%` Modulo (remainder)
+
+## Addition, Subtraction, and Multiplication
+
+These operators work as you'd expect from mathematics:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int a = 15, b = 4;
+    int sum, difference, product;
+
+    sum = a + b;           // 19
+    difference = a - b;    // 11
+    product = a * b;       // 60
+
+    printf("Sum: %d\n", sum);
+    printf("Difference: %d\n", difference);
+    printf("Product: %d\n", product);
+
+    return 0;
+}
+```
+
+## Integer Division
+
+Division in C behaves differently depending on the data types involved:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int x = 17, y = 5;
+    int int_result;
+    float float_result;
+
+    // Integer division truncates (rounds down)
+    int_result = x / y;              // Result: 3 (not 3.4)
+
+    // To get decimal result, cast to float
+    float_result = (float)x / y;     // Result: 3.4
+
+    printf("Integer division: %d / %d = %d\n", x, y, int_result);
+    printf("Float division: %d / %d = %.2f\n", x, y, float_result);
+
+    // Both operands as floats
+    float a = 17.0, b = 5.0;
+    printf("Float division: %.1f / %.1f = %.2f\n", a, b, a / b);
+
+    return 0;
+}
+```
+
+**Key Point**: When both operands are integers, division produces an integer result by truncating (discarding) the decimal part. This is not rounding - it always rounds toward zero.
+
+## The Modulo Operator
+
+The modulo operator `%` returns the remainder after division:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int a = 17, b = 5;
+    int remainder;
+
+    remainder = a % b;    // 17 ÷ 5 = 3 remainder 2
+    printf("%d %% %d = %d\n", a, b, remainder);
+
+    // Practical use: Check if number is even or odd
+    int number = 42;
+    if (number % 2 == 0) {
+        printf("%d is even\n", number);
+    } else {
+        printf("%d is odd\n", number);
+    }
+
+    // Check if number is divisible by another
+    if (15 % 3 == 0) {
+        printf("15 is divisible by 3\n");
+    }
+
+    return 0;
+}
+```
+
+## Working with Mixed Types
+
+When you mix data types in arithmetic expressions, C performs automatic type conversion:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int i = 5;
+    float f = 2.5;
+    double d = 3.7;
+
+    // int + float = float
+    float result1 = i + f;        // 7.5
+
+    // float + double = double
+    double result2 = f + d;       // 6.2
+
+    // int * float = float
+    float result3 = i * f;        // 12.5
+
+    printf("int + float = %.1f\n", result1);
+    printf("float + double = %.1f\n", result2);
+    printf("int * float = %.1f\n", result3);
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Integer Division Surprise
+
+```c
+// Wrong: Both operands are integers
+int average = (5 + 8 + 12) / 3;    // Result: 8 (not 8.333)
+
+// Correct: Cast to float first
+float average = (5 + 8 + 12) / 3.0;  // Result: 8.333
+```
+
+### Pitfall 2: Modulo with Negative Numbers
+
+```c
+// The sign of the result matches the sign of the dividend (first operand)
+int result1 = -17 % 5;    // -2 (not 3)
+int result2 = 17 % -5;    // 2 (not -2)
+```
+
+### Pitfall 3: Division by Zero
+
+```c
+// This will crash your program!
+int x = 10 / 0;    // Runtime error
+
+// Always check before dividing
+int divisor = 0;
+if (divisor != 0) {
+    int result = 10 / divisor;
+} else {
+    printf("Error: Cannot divide by zero\n");
+}
+```
+
+## Exercises
+
+1. Write a program that calculates the area and perimeter of a rectangle given its length and width.
+
+2. Create a program that converts a temperature from Fahrenheit to Celsius using the formula: C = (F - 32) * 5 / 9
+
+3. Write a program that takes a three-digit number and prints each digit separately. (Hint: use division and modulo operations)
+
+4. Calculate the average of five test scores, displaying the result with two decimal places.
+
+5. Write a program that determines if a year is a leap year. A leap year is divisible by 4, except for century years, which must be divisible by 400.
+
+## Key Takeaways
+
+- C has five basic arithmetic operators: `+`, `-`, `*`, `/`, `%`
+- Integer division truncates the decimal part (doesn't round)
+- Use type casting to get decimal results from integer division
+- The modulo operator `%` returns the remainder after division
+- Modulo is useful for checking divisibility and even/odd numbers
+- Division by zero causes runtime errors - always validate your divisors
+- Mixed-type arithmetic automatically converts to the "wider" type
+- Understanding integer division is crucial for avoiding calculation errors

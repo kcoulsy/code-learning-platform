@@ -1,0 +1,426 @@
+---
+title: "Delete Operations"
+order: 4
+---
+
+# Delete Operations
+
+Deletion is trickier than insertion because you must:
+1. Find the node to delete
+2. Adjust pointers to bypass it
+3. **Free the memory** (crucial!)
+4. Handle special cases (head, single node, not found)
+
+## Understanding Deletion
+
+The golden rule of deletion: **Never lose your way back!**
+
+Before freeing a node, you must:
+- Save a pointer to it
+- Update the previous node's next pointer
+- Only then free the saved pointer
+
+## Delete by Value (First Occurrence)
+
+Find and delete the first node containing a specific value.
+
+### Algorithm
+```
+1. Check if list is empty
+2. Special case: deleting the head
+3. Otherwise: traverse to find the node
+4. Update previous node's next pointer
+5. Free the deleted node
+```
+
+### Visual Example
+```
+Delete 20:
+Before: HEAD -> [10] -> [20] -> [30] -> NULL
+After:  HEAD -> [10] -> [30] -> NULL
+                         ↑
+                    (20 freed)
+```
+
+### Function Signature
+```c
+int delete_by_value(struct Node **head, int value);
+// Returns 1 if deleted, 0 if not found
+```
+
+### Implementation Hints
+
+```c
+int delete_by_value(struct Node **head, int value) {
+    if (*head == NULL) {
+        return 0;  // Empty list
+    }
+
+    // Special case: delete head
+    if ((*head)->data == value) {
+        struct Node *temp = *head;  // Save reference
+        // TODO: Update head to point to next node
+        free(temp);  // Now safe to free
+        return 1;
+    }
+
+    // Search for node to delete
+    struct Node *current = *head;
+    while (current->next != NULL && current->next->data != value) {
+        current = current->next;
+    }
+
+    // Check if found
+    if (current->next == NULL) {
+        return 0;  // Not found
+    }
+
+    // Delete the node
+    struct Node *temp = current->next;  // Save reference
+    // TODO: Update current->next to skip the deleted node
+    free(temp);
+    return 1;
+}
+```
+
+### Critical: The temp Variable
+
+```c
+// WRONG - use after free!
+free(current->next);
+current->next = current->next->next;  // Accessing freed memory!
+
+// CORRECT - save reference first
+struct Node *temp = current->next;
+current->next = temp->next;  // Use saved reference
+free(temp);                  // Now safe to free
+```
+
+## Delete by Position
+
+Delete the node at a specific position (0-indexed).
+
+### Algorithm
+```
+1. Check if list is empty
+2. Check if position is valid
+3. Special case: position 0 (head)
+4. Traverse to position - 1
+5. Delete the next node
+```
+
+### Visual Example
+```
+Delete position 1:
+Before: HEAD -> [10] -> [20] -> [30] -> NULL
+         0       1       2
+After:  HEAD -> [10] -> [30] -> NULL
+         0       1
+```
+
+### Implementation Hints
+
+```c
+int delete_by_position(struct Node **head, int position) {
+    if (*head == NULL || position < 0) {
+        return 0;  // Invalid
+    }
+
+    // Special case: delete head
+    if (position == 0) {
+        struct Node *temp = *head;
+        *head = (*head)->next;
+        free(temp);
+        return 1;
+    }
+
+    // Traverse to position - 1
+    struct Node *current = *head;
+    for (int i = 0; i < position - 1 && current != NULL; i++) {
+        current = current->next;
+    }
+
+    // Check if position is valid
+    if (current == NULL || current->next == NULL) {
+        return 0;  // Position out of bounds
+    }
+
+    // Delete the node at position
+    // TODO: Save reference, update pointers, free memory
+    return 1;
+}
+```
+
+## Delete All Occurrences
+
+Delete all nodes with a specific value.
+
+### Algorithm
+```
+1. Delete from head while head matches value
+2. Traverse list, deleting matching nodes
+3. Keep track of deletions
+```
+
+### Visual Example
+```
+Delete all 20s:
+Before: HEAD -> [20] -> [10] -> [20] -> [30] -> [20] -> NULL
+After:  HEAD -> [10] -> [30] -> NULL
+```
+
+### Implementation Hints
+
+```c
+int delete_all_by_value(struct Node **head, int value) {
+    int count = 0;
+
+    // Delete all matching nodes from head
+    while (*head != NULL && (*head)->data == value) {
+        struct Node *temp = *head;
+        *head = (*head)->next;
+        free(temp);
+        count++;
+    }
+
+    // If list is now empty, we're done
+    if (*head == NULL) {
+        return count;
+    }
+
+    // Delete matching nodes from rest of list
+    struct Node *current = *head;
+    while (current->next != NULL) {
+        if (current->next->data == value) {
+            // TODO: Delete current->next
+            count++;
+            // Note: Don't advance current!
+        } else {
+            current = current->next;
+        }
+    }
+
+    return count;
+}
+```
+
+### Important: Don't Skip Nodes!
+
+```c
+// WRONG - might skip consecutive matches
+if (current->next->data == value) {
+    // ... delete current->next ...
+    current = current->next;  // Skips next node!
+}
+
+// CORRECT - only advance if not deleting
+if (current->next->data == value) {
+    // ... delete current->next ...
+    // Don't advance! Check same position again
+} else {
+    current = current->next;  // Only advance when not deleting
+}
+```
+
+## Delete Entire List
+
+Free all nodes in the list.
+
+### Algorithm
+```
+1. Traverse list
+2. For each node: save reference, advance, free
+3. Set head to NULL
+```
+
+### Implementation Hints
+
+```c
+void delete_list(struct Node **head) {
+    struct Node *current = *head;
+
+    while (current != NULL) {
+        struct Node *temp = current;
+        current = current->next;
+        free(temp);
+    }
+
+    *head = NULL;  // List is now empty
+}
+```
+
+### Why This Order Works
+
+```c
+// The pattern for safe deletion while traversing:
+while (current != NULL) {
+    struct Node *temp = current;  // 1. Save
+    current = current->next;       // 2. Advance
+    free(temp);                    // 3. Free (safe now!)
+}
+```
+
+## Testing Your Deletions
+
+```c
+int main() {
+    struct Node *head = NULL;
+
+    // Build a test list: 10 -> 20 -> 30 -> 20 -> 40
+    insert_at_tail(&head, 10);
+    insert_at_tail(&head, 20);
+    insert_at_tail(&head, 30);
+    insert_at_tail(&head, 20);
+    insert_at_tail(&head, 40);
+
+    printf("Original list: ");
+    print_list(head);  // You'll implement this in next step
+
+    // Test delete by value
+    printf("Deleting first 20: %d\n", delete_by_value(&head, 20));
+    print_list(head);  // Should be: 10 -> 30 -> 20 -> 40
+
+    // Test delete by position
+    printf("Deleting position 2: %d\n", delete_by_position(&head, 2));
+    print_list(head);  // Should be: 10 -> 30 -> 40
+
+    // Test delete all
+    insert_at_tail(&head, 30);
+    insert_at_tail(&head, 30);
+    printf("Deleting all 30s: %d\n", delete_all_by_value(&head, 30));
+    print_list(head);  // Should be: 10 -> 40
+
+    // Clean up
+    delete_list(&head);
+
+    return 0;
+}
+```
+
+## Exercises
+
+### Exercise 1: Implement delete_by_value
+Complete the function to delete the first occurrence. Handle:
+- Empty list
+- Deleting the head
+- Deleting from middle
+- Value not found
+
+### Exercise 2: Implement delete_by_position
+Complete the function with proper bounds checking. Test:
+- Position 0
+- Middle positions
+- Last position
+- Invalid positions (negative, out of bounds)
+
+### Exercise 3: Implement delete_all_by_value
+Delete all occurrences of a value. Test with:
+- No matches
+- All nodes match
+- Consecutive matches
+- Scattered matches
+
+### Exercise 4: Implement delete_list
+Free all memory. Verify with valgrind that no leaks remain.
+
+### Exercise 5: Edge Case Testing
+For each delete function, test:
+- Empty list
+- Single node (match and no match)
+- Deleting all nodes
+
+## Common Pitfalls
+
+### 1. Use After Free
+```c
+// WRONG
+free(current);
+printf("%d\n", current->data);  // Accessing freed memory!
+```
+
+### 2. Losing Head Reference
+```c
+// WRONG - doesn't update caller's head
+void delete_head(struct Node *head) {  // Single pointer!
+    struct Node *temp = head;
+    head = head->next;  // Only updates local copy
+    free(temp);
+}
+
+// CORRECT - updates caller's head
+void delete_head(struct Node **head) {  // Double pointer!
+    struct Node *temp = *head;
+    *head = (*head)->next;  // Updates caller's variable
+    free(temp);
+}
+```
+
+### 3. Dangling Pointers
+```c
+// After deletion, set pointers to NULL
+struct Node *node = /* ... */;
+free(node);
+node = NULL;  // Prevent accidental reuse
+```
+
+### 4. Memory Leaks
+```c
+// WRONG - node is orphaned but not freed!
+current->next = current->next->next;  // Skips a node
+
+// CORRECT - free before skipping
+struct Node *temp = current->next;
+current->next = temp->next;
+free(temp);
+```
+
+## Key Concepts
+
+- **Safe deletion pattern**: Save, advance, free
+- **Memory leaks**: Occur when you lose reference to allocated memory
+- **Use after free**: Undefined behavior, often causes crashes
+- **Dangling pointers**: Pointers to freed memory
+- **Double pointer necessity**: Required to update caller's head pointer
+
+## Debugging Tips
+
+### Check with valgrind
+```bash
+valgrind --leak-check=full --show-leak-kinds=all ./linked_list
+```
+
+Look for:
+- "definitely lost" - memory leaks
+- "invalid read/write" - use after free
+
+### Add Deletion Logging
+```c
+void safe_free(struct Node *node) {
+    if (node != NULL) {
+        printf("Freeing node with data %d at %p\n",
+               node->data, (void*)node);
+        free(node);
+    }
+}
+```
+
+### Track Allocations
+Keep a count:
+```c
+static int allocations = 0;
+static int deallocations = 0;
+
+// In create_node:
+allocations++;
+
+// In free operations:
+deallocations++;
+
+// At end of program:
+printf("Allocations: %d, Deallocations: %d\n",
+       allocations, deallocations);
+```
+
+## Next Step
+
+You can now build and tear down lists! In **Step 5: Traversal & Search**, you'll implement functions to navigate and query your list.

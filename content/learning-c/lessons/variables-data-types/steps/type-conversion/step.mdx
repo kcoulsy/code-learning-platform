@@ -1,0 +1,272 @@
+---
+id: type-conversion
+title: "Type Conversion and Casting"
+order: 5
+---
+
+# Type Conversion and Casting
+
+In C, you often need to convert values from one data type to another. This conversion can happen automatically (implicit) or through explicit instructions (casting). Understanding when and how these conversions occur is crucial for writing correct and predictable code.
+
+## Implicit Type Conversion
+
+Implicit conversion (also called coercion) happens automatically when you mix different data types in expressions. C follows specific rules to determine how to convert values.
+
+When operations involve mixed types, C promotes smaller types to larger ones to preserve information. The general hierarchy is: `char` < `short` < `int` < `long` < `float` < `double`.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int i = 10;
+    float f = 3.5;
+    double d = 2.5;
+
+    // Integer promoted to float for the operation
+    float result1 = i + f;           // 10 promoted to 10.0, then 10.0 + 3.5
+    printf("int + float = %f\n", result1);     // 13.500000
+
+    // Float promoted to double
+    double result2 = f + d;          // 3.5f promoted to 3.5, then 3.5 + 2.5
+    printf("float + double = %lf\n", result2); // 6.000000
+
+    // Assignment conversion: double to int (loses decimal)
+    int result3 = d;                 // 2.5 truncated to 2
+    printf("double to int = %d\n", result3);   // 2 (not rounded!)
+
+    return 0;
+}
+```
+
+## Explicit Type Conversion (Casting)
+
+Casting allows you to explicitly convert one type to another. Use casting when you want to control the conversion or make your intentions clear to other programmers.
+
+The syntax is `(target_type) expression`. This tells the compiler exactly what conversion you want to perform.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int a = 5;
+    int b = 2;
+
+    // Without casting: integer division
+    printf("5 / 2 = %d\n", a / b);              // 2 (truncated)
+
+    // With casting: floating-point division
+    printf("5 / 2 = %f\n", (double)a / b);      // 2.500000
+    // Only one operand needs casting; the other is promoted
+
+    // Casting both operands
+    printf("5 / 2 = %f\n", (double)a / (double)b);  // 2.500000
+
+    // Different approach: multiply first
+    printf("5 / 2 = %f\n", a * 1.0 / b);        // 2.500000
+
+    return 0;
+}
+```
+
+## Integer Promotion Rules
+
+When performing arithmetic operations, C automatically promotes small integer types to `int`. This is called "integer promotion."
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    char c1 = 100;
+    char c2 = 50;
+
+    // Both chars promoted to int for addition
+    int sum = c1 + c2;               // Promoted before addition
+    printf("Sum: %d\n", sum);        // 150
+
+    // Watch out for overflow before promotion
+    char c3 = 200;                   // Likely signed: -56 on most systems
+    char c4 = 100;
+    printf("Char values: c3=%d, c4=%d\n", c3, c4);
+
+    // Promoted to int, then added
+    int sum2 = c3 + c4;
+    printf("Sum of signed chars: %d\n", sum2);
+
+    // Using unsigned char avoids sign issues
+    unsigned char uc1 = 200;
+    unsigned char uc2 = 100;
+    printf("Unsigned sum: %u\n", uc1 + uc2);  // 300
+
+    return 0;
+}
+```
+
+## Precision Loss Warnings
+
+Converting from larger to smaller types or from floating-point to integer can lose information. Be aware of these dangers.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Float to int: loses decimal part
+    float price = 19.99;
+    int dollars = (int)price;        // Truncates to 19, doesn't round
+    printf("$%.2f -> $%d\n", price, dollars);
+
+    // Proper rounding requires explicit calculation
+    int rounded = (int)(price + 0.5); // Add 0.5 then truncate
+    printf("Rounded: $%d\n", rounded);  // 20
+
+    // Large int to smaller int: overflow
+    int big = 70000;
+    short small = (short)big;        // Overflow! Wraps around
+    printf("70000 as short: %d\n", small);  // Likely -27232 or similar
+
+    // Double to float: loss of precision
+    double precise = 1.23456789012345;
+    float approx = (float)precise;
+    printf("Double: %.15lf\n", precise);
+    printf("Float:  %.15f\n", approx);  // Loses precision after ~6 digits
+
+    // Unsigned to signed: can become negative
+    unsigned int u = 4294967295;     // Max unsigned int (32-bit)
+    int s = (int)u;                  // Becomes -1
+    printf("Unsigned %u as signed: %d\n", u, s);
+
+    return 0;
+}
+```
+
+## Mixing Signed and Unsigned
+
+Mixing signed and unsigned integers in expressions can lead to unexpected results because signed values are converted to unsigned.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int signed_num = -1;
+    unsigned int unsigned_num = 1;
+
+    // Comparison: -1 converted to unsigned (becomes very large)
+    if (signed_num < unsigned_num) {
+        printf("-1 < 1 (as expected)\n");
+    } else {
+        printf("-1 >= 1 (UNEXPECTED!)\n");  // This executes!
+    }
+
+    // What happened: -1 as unsigned is 4294967295
+    printf("Signed -1 as unsigned: %u\n", (unsigned int)signed_num);
+
+    // Safe comparison: cast both to same signed type
+    if (signed_num < (int)unsigned_num) {
+        printf("Safe comparison: -1 < 1\n");  // This executes
+    }
+
+    return 0;
+}
+```
+
+## Practical Casting Examples
+
+Here are real-world scenarios where casting is necessary or helpful.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Example 1: Calculate percentage
+    int correct = 17;
+    int total = 20;
+    double percentage = (double)correct / total * 100;
+    printf("Score: %.1f%%\n", percentage);  // 85.0%
+
+    // Example 2: Average of integers
+    int scores[] = {85, 92, 78, 90, 88};
+    int count = sizeof(scores) / sizeof(scores[0]);
+    int sum = 0;
+
+    for (int i = 0; i < count; i++) {
+        sum += scores[i];
+    }
+
+    double average = (double)sum / count;
+    printf("Average: %.2f\n", average);     // 86.60
+
+    // Example 3: Pointer arithmetic
+    int value = 42;
+    void *ptr = &value;
+    // Must cast void pointer before dereferencing
+    printf("Value: %d\n", *(int*)ptr);
+
+    // Example 4: Character-integer conversion
+    char digit = '5';
+    int number = digit - '0';               // '5' - '0' = 5
+    printf("Char '%c' as int: %d\n", digit, number);
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+**Integer Division Surprise**
+Forgetting that dividing two integers always produces an integer result.
+
+```c
+int a = 5, b = 2;
+double result = a / b;           // Result is 2.0, not 2.5!
+// Fix: double result = (double)a / b;
+```
+
+**Overflow in Intermediate Results**
+Overflow can occur during calculation even if the final type is large enough.
+
+```c
+int a = 50000;
+int b = 50000;
+long long result = a * b;        // Overflow! a*b calculated as int first
+// Fix: long long result = (long long)a * b;
+```
+
+**Truncation Instead of Rounding**
+Casting float to int truncates toward zero, it doesn't round.
+
+```c
+float f = 2.9;
+int i = (int)f;                  // i = 2, not 3
+// To round: int i = (int)(f + 0.5);
+```
+
+**Comparing Signed and Unsigned**
+Unexpected conversions when mixing signed and unsigned values.
+
+```c
+if (-1 < 1u) { /* ... */ }       // FALSE! -1 converted to large unsigned
+// Fix: if (-1 < (int)1u) { /* ... */ }  // TRUE
+```
+
+## Practice Exercises
+
+1. Write a program that reads two integers and displays their division result as both an integer and a floating-point number, showing the difference.
+
+2. Create a temperature converter that reads Celsius as an integer and displays Fahrenheit with one decimal place. Formula: F = (C × 9/5) + 32
+
+3. Write a program that demonstrates precision loss by converting a double with 15 significant digits to a float and displaying both values.
+
+4. Create a program that calculates the average of 5 test scores (integers) and displays the result with 2 decimal places, showing intermediate steps.
+
+## Key Takeaways
+
+- Implicit conversion automatically promotes smaller types to larger types in mixed-type expressions
+- Use explicit casting `(type)` to control conversions and clarify intent
+- Integer division truncates: `5 / 2` equals `2`, not `2.5`
+- Cast at least one operand to floating-point for decimal division: `(double)5 / 2` equals `2.5`
+- Converting float to int truncates toward zero, doesn't round
+- Be cautious mixing signed and unsigned types; signed values convert to unsigned in comparisons
+
+Compile with:
+```bash
+gcc -Wall -Wextra -std=c11 -g type_conversion.c -o type_conversion
+```

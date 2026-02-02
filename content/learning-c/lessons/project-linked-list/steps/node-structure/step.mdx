@@ -1,0 +1,215 @@
+---
+title: "Node Structure"
+order: 2
+---
+
+# Node Structure
+
+Time to write code! In this step, you'll define the node structure and implement functions to create and initialize nodes.
+
+## Define the Node Structure
+
+First, you need to define what a node looks like.
+
+### Hint: The struct Definition
+
+Create a `linked_list.h` header file. Your node structure needs:
+- A field to store integer data
+- A pointer to the next node
+
+```c
+// linked_list.h
+#ifndef LINKED_LIST_H
+#define LINKED_LIST_H
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// TODO: Define your Node structure here
+// struct Node { ... };
+
+// Function declarations will go here
+
+#endif
+```
+
+### Why `struct Node *next`?
+
+The `next` pointer must be of type `struct Node *` because each node points to another node of the same type. This self-referential structure is what creates the chain.
+
+## Creating a New Node
+
+You need a function that:
+1. Allocates memory for a new node
+2. Initializes the data field
+3. Sets the next pointer to NULL
+4. Returns a pointer to the new node
+
+### Function Signature
+
+```c
+struct Node* create_node(int data);
+```
+
+### Implementation Hints
+
+Think about these steps:
+1. Use `malloc()` to allocate memory - how much do you need?
+2. Check if `malloc()` succeeded (it returns NULL on failure)
+3. Initialize the node's fields
+4. Return the pointer
+
+### Partial Example
+
+```c
+// linked_list.c
+#include "linked_list.h"
+
+struct Node* create_node(int data) {
+    // Allocate memory for a new node
+    struct Node *new_node = malloc(???);  // How much memory?
+
+    if (new_node == NULL) {
+        // Handle allocation failure
+        fprintf(stderr, "Memory allocation failed\n");
+        return NULL;
+    }
+
+    // TODO: Initialize new_node->data
+    // TODO: Initialize new_node->next
+
+    return new_node;
+}
+```
+
+## Common Mistakes
+
+### 1. Wrong malloc Size
+```c
+// WRONG
+malloc(sizeof(int));  // Only allocates space for data, not the whole node
+
+// CORRECT
+malloc(sizeof(struct Node));  // Allocates space for entire node
+```
+
+### 2. Not Checking malloc Return Value
+```c
+// DANGEROUS
+struct Node *node = malloc(sizeof(struct Node));
+node->data = 10;  // What if malloc failed?
+
+// SAFE
+struct Node *node = malloc(sizeof(struct Node));
+if (node == NULL) {
+    // Handle error
+    return NULL;
+}
+node->data = 10;  // Safe now
+```
+
+### 3. Forgetting to Initialize next
+```c
+// WRONG
+new_node->data = data;
+// next pointer contains garbage!
+
+// CORRECT
+new_node->data = data;
+new_node->next = NULL;
+```
+
+## Testing Your Node Creation
+
+Create a simple `main.c` to test:
+
+```c
+#include "linked_list.h"
+
+int main() {
+    // Create a single node
+    struct Node *node = create_node(42);
+
+    if (node != NULL) {
+        printf("Node created with data: %d\n", node->data);
+        printf("Next pointer: %p\n", (void*)node->next);
+
+        // Clean up
+        free(node);
+    }
+
+    return 0;
+}
+```
+
+Compile and run:
+```bash
+gcc -Wall -Wextra -g linked_list.c main.c -o linked_list
+./linked_list
+```
+
+Expected output:
+```
+Node created with data: 42
+Next pointer: (nil)
+```
+
+## Exercises
+
+### Exercise 1: Complete the Node Structure
+Define the `struct Node` in your header file with appropriate fields.
+
+### Exercise 2: Implement create_node
+Complete the `create_node()` function in `linked_list.c`. Make sure to:
+- Allocate the correct amount of memory
+- Check for allocation failure
+- Initialize both data and next fields
+- Return the new node pointer
+
+### Exercise 3: Create Multiple Nodes
+In your `main.c`, create three nodes with different values. Print each node's data and next pointer. Don't forget to free them!
+
+### Exercise 4: Test Edge Cases
+What happens if you try to create a node with:
+- Zero as the data value?
+- A negative number?
+- A very large number?
+
+Should your function handle these differently?
+
+## Key Concepts
+
+- **Memory allocation**: `malloc()` requests memory from the heap
+- **sizeof operator**: Returns the size in bytes of a type
+- **NULL checking**: Always verify malloc succeeded before using the pointer
+- **Initialization**: Always initialize all fields of a struct
+- **Self-referential structures**: A struct can contain a pointer to its own type
+
+## Debugging Tips
+
+### Use valgrind
+Check for memory leaks:
+```bash
+valgrind --leak-check=full ./linked_list
+```
+
+### Use gdb
+Debug memory issues:
+```bash
+gdb ./linked_list
+(gdb) break create_node
+(gdb) run
+(gdb) print new_node
+(gdb) print *new_node
+```
+
+### Add Debug Prints
+Temporarily add prints to trace execution:
+```c
+printf("DEBUG: Allocated node at address %p\n", (void*)new_node);
+printf("DEBUG: Node data: %d, next: %p\n", new_node->data, (void*)new_node->next);
+```
+
+## Next Step
+
+Once you can successfully create and initialize nodes, you're ready for **Step 3: Insert Operations** where you'll learn to build actual lists!

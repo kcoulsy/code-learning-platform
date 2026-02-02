@@ -1,0 +1,86 @@
+---
+id: 04-undefined-behavior
+title: Undefined Behavior & the C Memory Model
+description: Master undefined behavior, strict aliasing, sequence points, signed overflow, and pointer lifetime rules.
+type: lesson
+order: 4
+---
+
+import { LearningObjectives } from '@/components/learning-objectives'
+
+# Undefined Behavior & the C Memory Model
+
+Undefined behavior (UB) is the most dangerous aspect of C. Understanding it prevents bugs that only appear in production.
+
+<LearningObjectives>
+
+- Understand undefined vs unspecified vs implementation-defined behavior
+- Master strict aliasing rules and how to avoid violations
+- Learn sequence points and evaluation order
+- Recognize signed integer overflow and its dangers
+- Understand pointer lifetime and dangling references
+- Apply alignment requirements correctly
+- Identify UB in seemingly correct code
+- Use sanitizers and tools to detect UB
+
+</LearningObjectives>
+
+## Why This Matters
+
+Undefined behavior means:
+
+- The compiler assumes it never happens
+- Anything can occur: crashes, wrong results, or看似 correct code
+- Optimizations can break code that "works"
+- Different behavior with different compilers or optimization levels
+
+**Real example**: Linux kernel CVE from signed integer overflow.
+
+## Behavior Categories
+
+### Undefined Behavior
+
+Compiler can do anything:
+
+- Crash
+- Produce wrong results
+- Appear to work correctly
+- Delete your hard drive (theoretically)
+
+```c
+int x = INT_MAX;
+int y = x + 1;  // UB: signed overflow
+```
+
+### Unspecified Behavior
+
+Implementation chooses from several valid options, but must be consistent:
+
+```c
+int x = f() + g();  // f() or g() called first?
+```
+
+### Implementation-Defined Behavior
+
+Documented choice by implementation:
+
+```c
+int x = -1 >> 1;  // Right shift of negative number
+```
+
+## What You'll Learn
+
+1. **UB vs unspecified vs implementation-defined** — Know the difference
+2. **Strict aliasing** — Pointer type rules
+3. **Sequence points** — Order of evaluation
+4. **Signed overflow** — Why it's dangerous
+5. **Pointer lifetime** — When pointers become invalid
+6. **Alignment** — Hardware requirements
+7. **Identifying UB** — Spotting it in code
+8. **Tools** — UBSan, compiler warnings
+9. **Defensive programming** — Avoiding UB
+10. **Real-world cases** — Famous bugs from UB
+
+---
+
+Let's start with the behavior categories.

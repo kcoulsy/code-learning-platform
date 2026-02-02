@@ -1,0 +1,243 @@
+---
+title: "File I/O Basics"
+description: "Learn the fundamentals of file operations in C with fopen, fclose, and FILE pointers"
+order: 1
+---
+
+# File I/O Basics
+
+File input/output is one of the most fundamental operations in systems programming. C provides a rich set of functions through the standard library to interact with files. At the heart of file I/O is the `FILE` pointer, which represents an open file stream.
+
+## The FILE Pointer
+
+The `FILE` type is a structure defined in `<stdio.h>` that contains information about an open file. You never access its members directly; instead, you use library functions to manipulate it.
+
+## Opening Files with fopen
+
+The `fopen` function opens a file and returns a pointer to a `FILE` structure:
+
+```c
+FILE *fopen(const char *filename, const char *mode);
+```
+
+**Common file modes:**
+- `"r"` - Read mode (file must exist)
+- `"w"` - Write mode (creates new file or truncates existing)
+- `"a"` - Append mode (writes at end of file)
+- `"r+"` - Read and write (file must exist)
+- `"w+"` - Read and write (creates or truncates)
+- `"a+"` - Read and append
+
+## Example 1: Basic File Opening with Error Checking
+
+Always check if `fopen` succeeds. It returns `NULL` on failure.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    FILE *file = fopen("example.txt", "r");
+
+    if (file == NULL) {
+        perror("Error opening file");
+        return EXIT_FAILURE;
+    }
+
+    printf("File opened successfully!\n");
+
+    // Close the file when done
+    if (fclose(file) != 0) {
+        perror("Error closing file");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+```
+
+**Key points:**
+- Always check if `file` is `NULL`
+- Use `perror()` to print descriptive error messages
+- Always close files with `fclose()` when done
+
+## Example 2: Creating and Writing a Simple File
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    FILE *file = fopen("output.txt", "w");
+
+    if (file == NULL) {
+        perror("Failed to create file");
+        return EXIT_FAILURE;
+    }
+
+    fprintf(file, "Hello, File I/O!\n");
+    fprintf(file, "This is line 2.\n");
+    fprintf(file, "Number: %d\n", 42);
+
+    if (fclose(file) != 0) {
+        perror("Error closing file");
+        return EXIT_FAILURE;
+    }
+
+    printf("File written successfully.\n");
+    return EXIT_SUCCESS;
+}
+```
+
+## Example 3: File Mode Demonstrations
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void demonstrate_modes(void) {
+    FILE *file;
+
+    // Write mode - creates new or truncates existing
+    file = fopen("test.txt", "w");
+    if (file) {
+        fprintf(file, "First line\n");
+        fclose(file);
+    }
+
+    // Append mode - adds to end without truncating
+    file = fopen("test.txt", "a");
+    if (file) {
+        fprintf(file, "Second line\n");
+        fclose(file);
+    }
+
+    // Read mode - for reading existing files
+    file = fopen("test.txt", "r");
+    if (file) {
+        char buffer[100];
+        while (fgets(buffer, sizeof(buffer), file) != NULL) {
+            printf("%s", buffer);
+        }
+        fclose(file);
+    }
+}
+
+int main(void) {
+    demonstrate_modes();
+    return EXIT_SUCCESS;
+}
+```
+
+**Output:**
+```
+First line
+Second line
+```
+
+## Example 4: Comprehensive Error Handling Pattern
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+
+int safe_file_operation(const char *filename) {
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL) {
+        fprintf(stderr, "Error opening '%s': %s\n",
+                filename, strerror(errno));
+
+        switch (errno) {
+            case ENOENT:
+                fprintf(stderr, "File does not exist.\n");
+                break;
+            case EACCES:
+                fprintf(stderr, "Permission denied.\n");
+                break;
+            default:
+                fprintf(stderr, "Error code: %d\n", errno);
+        }
+
+        return -1;
+    }
+
+    printf("Successfully opened: %s\n", filename);
+    fclose(file);
+    return 0;
+}
+
+int main(void) {
+    // Try to open a non-existent file
+    safe_file_operation("nonexistent.txt");
+
+    // Try to open this source file
+    safe_file_operation("file_io_basics.c");
+
+    return EXIT_SUCCESS;
+}
+```
+
+## Error Handling Best Practices
+
+1. **Always check return values**: `fopen` returns `NULL` on failure
+2. **Use perror() or strerror()**: Get descriptive error messages
+3. **Check fclose() too**: Even closing can fail (e.g., disk full)
+4. **Set errno before checking**: Some functions don't clear it
+5. **Clean up on error**: Close any files opened before the error
+
+## Common Pitfalls
+
+- **Forgetting to close files**: Leads to resource leaks
+- **Not checking for NULL**: Causes segmentation faults
+- **Using wrong mode**: "r" on non-existent file fails
+- **Truncating accidentally**: "w" destroys existing file contents
+- **Path issues**: Relative paths depend on current directory
+
+## Exercises
+
+### Exercise 1: File Existence Checker
+Write a program that checks if a file exists and prints its status.
+
+```c
+// TODO: Implement check_file_exists(const char *filename)
+// Should return 1 if file exists and can be opened, 0 otherwise
+// Print appropriate messages for each case
+```
+
+### Exercise 2: Safe File Creator
+Create a function that opens a file for writing but asks for confirmation if the file already exists.
+
+```c
+// TODO: Implement safe_create_file(const char *filename)
+// Check if file exists first using "r" mode
+// If exists, print warning and return NULL
+// Otherwise, open in "w" mode and return FILE*
+```
+
+### Exercise 3: Mode Experiment
+Write a program that demonstrates the difference between "w", "a", and "r+" modes by:
+1. Creating a file with "w" and writing some content
+2. Appending more content with "a"
+3. Opening with "r+" and modifying existing content
+
+### Exercise 4: Error Reporter
+Create a robust error reporting function that:
+- Takes a filename and operation type (read/write/append)
+- Attempts the operation
+- Reports detailed error information if it fails
+- Cleans up properly in all cases
+
+## Key Takeaways
+
+- `FILE*` is an opaque pointer representing an open file stream
+- `fopen()` opens files and returns NULL on failure - always check this
+- File modes determine what operations are allowed and file behavior
+- `fclose()` releases resources - never forget to close files
+- `perror()` and `strerror(errno)` provide detailed error messages
+- Error handling is not optional in production file I/O code
+- Different modes ("r", "w", "a") have significantly different behaviors
+
+Understanding these basics is essential before moving on to reading and writing operations. Proper error handling now will save you countless hours of debugging later.

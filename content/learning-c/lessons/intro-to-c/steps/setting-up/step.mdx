@@ -1,0 +1,153 @@
+---
+id: setting-up
+title: Setting Up Your Environment
+order: 2
+---
+
+# Setting Up Your C Development Environment
+
+Before you can start writing C programs, you need to set up your development environment with the right tools for compilation, debugging, and code formatting.
+
+## What You Need
+
+1. **A C Compiler** - Converts your code to machine-executable programs
+2. **A Debugger** - Helps you find and fix bugs
+3. **A Code Formatter** - Maintains consistent code style
+4. **A Text Editor or IDE** - Where you write your code
+5. **Terminal/Command Line** - To compile and run programs
+
+## Installing GCC (GNU Compiler Collection)
+
+GCC is the most widely used C compiler and is the standard for this course.
+
+### On Linux
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install build-essential
+
+# Fedora
+sudo dnf install gcc gcc-c++ make
+
+# Verify installation
+gcc --version
+```
+
+### On macOS
+```bash
+# Install Command Line Tools
+xcode-select --install
+
+# Or install via Homebrew
+brew install gcc
+
+# Verify installation
+gcc --version
+```
+
+### On Windows
+```bash
+# Option 1: MinGW-w64
+# Download from mingw-w64.org and add to PATH
+
+# Option 2: WSL (Windows Subsystem for Linux)
+# Install Ubuntu from Microsoft Store
+# Then follow Linux instructions
+
+# Verify installation
+gcc --version
+```
+
+## Installing GDB (GNU Debugger)
+
+GDB is essential for debugging C programs.
+
+```bash
+# Linux
+sudo apt install gdb  # Ubuntu/Debian
+sudo dnf install gdb  # Fedora
+
+# macOS
+brew install gdb
+
+# Windows (MinGW)
+# Included with MinGW-w64
+
+# Verify installation
+gdb --version
+```
+
+## Installing clang-format
+
+clang-format automatically formats your C code to maintain consistency.
+
+```bash
+# Linux
+sudo apt install clang-format  # Ubuntu/Debian
+
+# macOS
+brew install clang-format
+
+# Windows
+# Download from LLVM releases or use chocolatey
+choco install llvm
+
+# Verify installation
+clang-format --version
+```
+
+## Your First C Program
+
+Let's verify everything works by compiling and running a simple program.
+
+Create a file called `hello.c`:
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    printf("Hello, C Programming!\n");
+    return 0;
+}
+```
+
+Compile and run:
+
+```bash
+# Compile
+gcc -o hello hello.c
+
+# Run (Linux/macOS)
+./hello
+
+# Run (Windows)
+hello.exe
+```
+
+Expected output:
+```
+Hello, C Programming!
+```
+
+## Recommended IDEs and Editors
+
+- **VS Code** with C/C++ extension - Most popular, excellent tooling
+- **CLion** (JetBrains) - Professional IDE with great debugging
+- **Code::Blocks** - Free, beginner-friendly
+- **Vim/Neovim** - Lightweight, for experienced users
+- **Emacs** - Highly customizable
+
+## Key Takeaways
+
+- GCC is the standard C compiler we'll use throughout this course
+- GDB is your debugging companion for finding bugs
+- clang-format keeps your code clean and consistent
+- The compilation workflow is: write code → compile with gcc → run executable
+- Always verify your tools are installed correctly before proceeding
+
+## Practice Exercise
+
+1. Install GCC, GDB, and clang-format on your system
+2. Create and compile the "Hello, C Programming!" program
+3. Verify the output matches expectations
+4. Try running `gcc --version`, `gdb --version`, and `clang-format --version` to confirm all tools are ready

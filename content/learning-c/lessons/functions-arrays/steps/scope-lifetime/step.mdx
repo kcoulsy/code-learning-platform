@@ -1,0 +1,395 @@
+---
+title: "Scope and Lifetime"
+description: "Master variable visibility, storage duration, and static variables"
+order: 3
+---
+
+# Scope and Lifetime
+
+Understanding scope and lifetime is crucial for writing correct C programs. Scope determines where a variable is visible, while lifetime determines how long it exists in memory.
+
+## Introduction
+
+Every variable in C has two important properties:
+- **Scope**: Where in your code the variable can be accessed
+- **Lifetime**: How long the variable exists during program execution
+
+These concepts affect memory usage, function behavior, and program correctness. Misunderstanding them leads to common bugs like accessing uninitialized memory or unexpected variable values.
+
+## Types of Scope and Storage
+
+1. **Local (Block) Scope**: Variables declared inside a function or block
+2. **Global Scope**: Variables declared outside all functions
+3. **Static Variables**: Special behavior for lifetime and scope
+4. **Function Parameters**: Local scope with automatic lifetime
+
+## Code Examples
+
+### Example 1: Local vs Global Scope
+
+```c
+#include <stdio.h>
+
+// Global variable - visible everywhere
+int globalCounter = 0;
+
+void incrementGlobal() {
+    globalCounter++;  // Can access global variable
+    printf("Global counter in function: %d\n", globalCounter);
+}
+
+void demonstrateLocal() {
+    // Local variable - only visible in this function
+    int localCounter = 0;
+    localCounter++;
+    printf("Local counter: %d\n", localCounter);
+}
+
+int main() {
+    printf("Initial global counter: %d\n", globalCounter);
+
+    incrementGlobal();
+    incrementGlobal();
+    incrementGlobal();
+
+    printf("Final global counter: %d\n", globalCounter);
+
+    // Calling demonstrateLocal multiple times
+    demonstrateLocal();  // Always prints 1
+    demonstrateLocal();  // Always prints 1
+    demonstrateLocal();  // Always prints 1
+
+    // printf("%d", localCounter);  // ERROR: localCounter not visible here!
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Initial global counter: 0
+Global counter in function: 1
+Global counter in function: 2
+Global counter in function: 3
+Final global counter: 3
+Local counter: 1
+Local counter: 1
+Local counter: 1
+```
+
+**Key points:**
+- Global variables persist for entire program lifetime
+- Local variables are recreated each time function is called
+- Local variables are destroyed when function returns
+
+### Example 2: Block Scope
+
+```c
+#include <stdio.h>
+
+int main() {
+    int x = 10;
+    printf("Outer x: %d\n", x);
+
+    // Inner block creates new scope
+    {
+        int x = 20;  // Different variable, shadows outer x
+        printf("Inner x: %d\n", x);
+
+        int y = 30;  // Only exists in this block
+        printf("Inner y: %d\n", y);
+    }
+    // y is destroyed here
+
+    printf("Outer x again: %d\n", x);  // Original x is 10
+    // printf("%d", y);  // ERROR: y doesn't exist here!
+
+    // Loop variables have block scope
+    for (int i = 0; i < 3; i++) {
+        printf("Loop i: %d\n", i);
+    }
+    // i doesn't exist here
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Outer x: 10
+Inner x: 20
+Inner y: 30
+Outer x again: 10
+Loop i: 0
+Loop i: 1
+Loop i: 2
+```
+
+### Example 3: Static Variables - The Game Changer
+
+```c
+#include <stdio.h>
+
+void countCalls() {
+    // Static variable - initialized only once, persists between calls
+    static int callCount = 0;
+    callCount++;
+    printf("This function has been called %d time(s)\n", callCount);
+}
+
+void compareStaticAndLocal() {
+    static int staticVar = 0;  // Initialized once, persists
+    int localVar = 0;          // Recreated each call
+
+    staticVar++;
+    localVar++;
+
+    printf("Static: %d, Local: %d\n", staticVar, localVar);
+}
+
+int main() {
+    printf("Demonstrating static variables:\n");
+    countCalls();
+    countCalls();
+    countCalls();
+
+    printf("\nComparing static and local:\n");
+    compareStaticAndLocal();
+    compareStaticAndLocal();
+    compareStaticAndLocal();
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Demonstrating static variables:
+This function has been called 1 time(s)
+This function has been called 2 time(s)
+This function has been called 3 time(s)
+
+Comparing static and local:
+Static: 1, Local: 1
+Static: 2, Local: 1
+Static: 3, Local: 1
+```
+
+**Key points:**
+- Static variables retain their value between function calls
+- Initialized only once (not every time function is called)
+- Still have local scope (can't be accessed outside the function)
+
+### Example 4: Practical Use of Static - Unique ID Generator
+
+```c
+#include <stdio.h>
+
+int generateUniqueID() {
+    static int nextID = 1000;  // Starts at 1000, increments each call
+    return nextID++;
+}
+
+void createUser(char name[]) {
+    int userID = generateUniqueID();
+    printf("Created user '%s' with ID: %d\n", name, userID);
+}
+
+int main() {
+    createUser("Alice");
+    createUser("Bob");
+    createUser("Charlie");
+    createUser("Diana");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Created user 'Alice' with ID: 1000
+Created user 'Bob' with ID: 1001
+Created user 'Charlie' with ID: 1002
+Created user 'Diana' with ID: 1003
+```
+
+### Example 5: Global vs Static Global (File Scope)
+
+**file1.c:**
+```c
+#include <stdio.h>
+
+// Global variable - visible to other files (external linkage)
+int sharedValue = 100;
+
+// Static global - only visible in this file (internal linkage)
+static int privateValue = 200;
+
+void file1Function() {
+    printf("File1 - Shared: %d, Private: %d\n", sharedValue, privateValue);
+}
+```
+
+**file2.c:**
+```c
+#include <stdio.h>
+
+// Declare that sharedValue exists in another file
+extern int sharedValue;
+
+// Can't access privateValue from file1.c!
+// extern int privateValue;  // Would cause linker error
+
+void file2Function() {
+    printf("File2 - Shared: %d\n", sharedValue);
+    sharedValue = 150;  // Can modify it
+}
+```
+
+**main.c:**
+```c
+#include <stdio.h>
+
+// Prototypes
+void file1Function();
+void file2Function();
+
+int main() {
+    file1Function();
+    file2Function();
+    file1Function();
+
+    return 0;
+}
+```
+
+**Output:**
+```
+File1 - Shared: 100, Private: 200
+File2 - Shared: 100
+File1 - Shared: 150, Private: 200
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Returning Pointer to Local Variable
+
+```c
+// WRONG: Dangerous!
+int* createNumber() {
+    int num = 42;
+    return &num;  // num is destroyed when function returns!
+}
+
+int main() {
+    int* ptr = createNumber();
+    printf("%d\n", *ptr);  // Undefined behavior - accessing freed memory!
+    return 0;
+}
+
+// CORRECT: Use static or dynamic allocation
+int* createNumber() {
+    static int num = 42;  // Persists after function returns
+    return &num;
+}
+```
+
+### Pitfall 2: Uninitialized Static vs Local
+
+```c
+void testInitialization() {
+    static int staticVar;  // Automatically initialized to 0
+    int localVar;          // Uninitialized - contains garbage!
+
+    printf("Static: %d\n", staticVar);  // Prints 0
+    printf("Local: %d\n", localVar);    // Undefined - could be anything!
+}
+```
+
+**Key difference**: Static variables are automatically initialized to 0, local variables are not.
+
+### Pitfall 3: Shadowing Variables
+
+```c
+int x = 10;  // Global
+
+void confusingFunction() {
+    int x = 20;  // Shadows global x
+    printf("%d\n", x);  // Prints 20, not 10
+
+    // Can't access global x without tricks
+}
+```
+
+**Problem**: Shadowing can cause confusion. Avoid using the same name for local and global variables.
+
+### Pitfall 4: Static Variable Initialization
+
+```c
+// WRONG: Can't use non-constant initializer
+void badFunction(int start) {
+    static int counter = start;  // ERROR: initializer must be constant!
+}
+
+// CORRECT:
+void goodFunction(int start) {
+    static int counter = 0;  // Constant initializer
+    if (counter == 0) {
+        counter = start;  // Set on first call
+    }
+}
+```
+
+## Exercises
+
+### Exercise 1: Function Call Counter
+Write a function `printMessage(char msg[])` that prints the message along with how many times the function has been called in total. Use a static variable.
+
+Example:
+```
+printMessage("Hello");  // Call #1: Hello
+printMessage("World");  // Call #2: World
+```
+
+### Exercise 2: Running Average
+Write a function `addToAverage(int value)` that maintains a running average using static variables. It should print the current average each time it's called.
+
+### Exercise 3: Scope Quiz
+What does this program print? Try to figure it out before running it:
+```c
+int x = 5;
+
+void func() {
+    int x = 10;
+    {
+        int x = 15;
+        printf("%d ", x);
+    }
+    printf("%d ", x);
+}
+
+int main() {
+    printf("%d ", x);
+    func();
+    printf("%d\n", x);
+    return 0;
+}
+```
+
+### Exercise 4: State Machine
+Create a function `nextState()` that cycles through states: "START" -> "RUNNING" -> "PAUSED" -> "STOPPED" -> "START" (repeats). Use a static variable to track the current state.
+
+## Key Takeaways
+
+1. **Local Variables**: Created when function is called, destroyed when it returns
+2. **Global Variables**: Exist for entire program lifetime, visible everywhere
+3. **Static Local Variables**: Local scope but global lifetime - persist between calls
+4. **Static Global Variables**: File scope only - not visible to other files
+5. **Block Scope**: Variables declared in `{}` only exist within that block
+6. **Initialization**: Static variables auto-initialize to 0; local variables don't
+7. **Shadowing**: Inner scope variables can hide outer scope variables with same name
+8. **Storage Duration**: Automatic (local) vs Static vs Dynamic
+9. **Best Practice**: Minimize global variables; use static locals for state that persists
+10. **Danger Zone**: Never return pointers to local (non-static) variables
+
+Understanding scope and lifetime prevents memory bugs and enables powerful programming patterns like state retention and encapsulation.

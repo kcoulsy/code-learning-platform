@@ -1,0 +1,207 @@
+---
+title: "Pointer Basics"
+order: 1
+---
+
+# Pointer Basics
+
+A **pointer** is a variable that stores the memory address of another variable. Instead of holding a value directly, a pointer "points to" where the value lives in memory.
+
+## Core Concepts
+
+Every variable in your program occupies a location in memory. Each memory location has an **address** (like a house number). Pointers let you work with these addresses directly.
+
+### The Two Essential Operators
+
+1. **`&` (address-of)**: Gets the memory address of a variable
+2. **`*` (dereference)**: Accesses the value at a memory address
+
+## Declaring Pointers
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int x = 42;           // Regular integer variable
+    int *ptr;             // Pointer to an integer (uninitialized - dangerous!)
+
+    ptr = &x;             // ptr now holds the address of x
+
+    printf("Value of x: %d\n", x);              // 42
+    printf("Address of x: %p\n", (void*)&x);    // Memory address (e.g., 0x7fff5fbff8bc)
+    printf("Value of ptr: %p\n", (void*)ptr);   // Same address
+    printf("Value at ptr: %d\n", *ptr);         // 42 (dereference to get value)
+
+    return 0;
+}
+```
+
+**Key points:**
+- `int *ptr` declares a pointer to an integer
+- The `*` in the declaration means "pointer to"
+- The `*` when using the pointer means "value at"
+- `%p` is the format specifier for printing addresses
+
+## Using Pointers to Modify Values
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int value = 10;
+    int *ptr = &value;     // Initialize pointer with address of value
+
+    printf("Before: value = %d\n", value);     // 10
+
+    *ptr = 20;             // Modify value through pointer
+
+    printf("After: value = %d\n", value);      // 20 (changed!)
+
+    // Both refer to the same memory location
+    printf("value is at: %p\n", (void*)&value);
+    printf("ptr points to: %p\n", (void*)ptr);
+
+    return 0;
+}
+```
+
+When you dereference a pointer on the left side of an assignment (`*ptr = 20`), you're changing the value at that memory address.
+
+## Pointer Declaration Styles
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int x = 1, y = 2, z = 3;
+
+    // Style 1: * next to type (can be misleading)
+    int* p1, p2;       // p1 is a pointer, p2 is NOT! (Common mistake)
+
+    // Style 2: * next to variable name (clearer)
+    int *p3, *p4;      // Both are pointers
+
+    // Style 3: One declaration per line (safest)
+    int *p5;
+    int *p6;
+
+    p1 = &x;
+    p2 = y;            // p2 is just an int, not a pointer
+    p3 = &y;
+    p4 = &z;
+    p5 = &x;
+    p6 = &z;
+
+    printf("p1 points to: %d\n", *p1);   // 1
+    printf("p2 is: %d\n", p2);           // 2 (not a pointer!)
+    printf("p3 points to: %d\n", *p3);   // 2
+
+    return 0;
+}
+```
+
+**Best practice:** Declare one pointer per line to avoid confusion, and place the `*` next to the variable name.
+
+## Multiple Pointers to Same Location
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int target = 100;
+    int *ptr1 = &target;
+    int *ptr2 = &target;
+    int *ptr3 = ptr1;      // Copy pointer value (not the target value)
+
+    printf("Initial: target = %d\n", target);    // 100
+
+    *ptr1 = 200;
+    printf("After *ptr1 = 200: target = %d\n", target);    // 200
+
+    *ptr2 = 300;
+    printf("After *ptr2 = 300: target = %d\n", target);    // 300
+
+    *ptr3 = 400;
+    printf("After *ptr3 = 400: target = %d\n", target);    // 400
+
+    // All pointers point to the same memory
+    printf("All three pointers: %p, %p, %p\n",
+           (void*)ptr1, (void*)ptr2, (void*)ptr3);
+
+    return 0;
+}
+```
+
+Multiple pointers can point to the same variable. Changes through any pointer affect the same memory location.
+
+## Common Pitfalls
+
+### Pitfall 1: Uninitialized Pointers (Wild Pointers)
+
+```c
+int *ptr;              // Uninitialized - contains garbage address
+*ptr = 42;             // CRASH! Writing to random memory
+```
+
+**Never use a pointer before initializing it!** An uninitialized pointer contains a random memory address.
+
+### Pitfall 2: Confusing & and *
+
+```c
+int x = 5;
+int *ptr = &x;
+
+printf("%d", *x);      // ERROR: x is not a pointer
+printf("%d", &ptr);    // ERROR: prints address of pointer variable, not what it points to
+printf("%d", *ptr);    // CORRECT: prints 5
+```
+
+### Pitfall 3: Declaration vs. Dereference Context
+
+```c
+int *ptr;              // * means "pointer to" (declaration)
+*ptr = 10;             // * means "value at" (dereference)
+```
+
+The `*` symbol has different meanings in different contexts. Learn to recognize which is which.
+
+### Pitfall 4: Type Mismatch
+
+```c
+int x = 42;
+float *ptr = &x;       // ERROR: type mismatch
+                       // Pointer type must match variable type
+```
+
+A pointer's type must match what it points to. You can't assign an `int*` to a `float*` without explicit casting (and that's usually wrong).
+
+## Safety Checklist
+
+Before dereferencing any pointer, ask yourself:
+
+1. **Is it initialized?** Never dereference an uninitialized pointer
+2. **Is it NULL?** Check before dereferencing (we'll cover NULL in the next step)
+3. **Does it point to valid memory?** Don't point to freed or out-of-scope memory
+4. **Is the type correct?** Pointer type should match the variable type
+
+## Key Takeaways
+
+- A pointer stores a memory address
+- `&variable` gets the address of a variable
+- `*pointer` accesses the value at an address
+- Always initialize pointers before use
+- Pointer type must match the pointed-to type
+- Multiple pointers can point to the same location
+- The `*` symbol means different things in declaration vs. usage
+
+## Exercises
+
+1. **Address Explorer**: Write a program that declares three different types of variables (int, float, char) and prints both their values and addresses. Observe the address patterns.
+
+2. **Pointer Chain**: Create a variable, then create two pointers that both point to it. Modify the variable through the first pointer and verify the change is visible through the second pointer.
+
+3. **Swap Attempt**: Try to write a function that swaps two integers. First attempt: pass the integers directly (it won't work). Why not? We'll solve this properly in a later step.
+
+4. **Pointer Arithmetic Preview**: Create an integer and a pointer to it. Print the pointer's value, then print `ptr + 1` (don't dereference it). What do you notice about the difference? (We'll explore this in detail soon.)
+
+5. **Type Safety**: Experiment with assigning pointers of different types. What compiler warnings or errors do you get? Try with `-Wall` flag to see all warnings.

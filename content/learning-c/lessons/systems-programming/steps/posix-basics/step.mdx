@@ -1,0 +1,443 @@
+---
+title: "POSIX Basics: Process Management"
+description: "Learn Unix/Linux process creation and management with fork, exec, and wait"
+order: 6
+---
+
+# POSIX Basics: Process Management
+
+POSIX (Portable Operating System Interface) defines a standard API for Unix-like systems. One of the most powerful aspects of POSIX is process management - the ability to create and control multiple processes. This is fundamental to how Unix/Linux systems work.
+
+**Note:** The examples in this step are specific to Unix/Linux/macOS systems. They will not work on Windows without a POSIX compatibility layer like WSL or Cygwin.
+
+## Process Concepts
+
+- **Process**: A running instance of a program
+- **PID**: Process ID, a unique identifier for each process
+- **Parent/Child**: Processes can create new processes
+- **Fork**: Creating a copy of the current process
+- **Exec**: Replacing a process with a new program
+- **Wait**: Parent waiting for child to complete
+
+## Example 1: Creating a Process with fork()
+
+The `fork()` system call creates a new process by duplicating the calling process.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+
+int main(void) {
+    printf("Before fork - PID: %d\n", getpid());
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        // Fork failed
+        perror("fork failed");
+        return EXIT_FAILURE;
+    }
+    else if (pid == 0) {
+        // Child process
+        printf("CHILD: My PID is %d\n", getpid());
+        printf("CHILD: My parent's PID is %d\n", getppid());
+        printf("CHILD: fork() returned %d\n", pid);
+    }
+    else {
+        // Parent process
+        printf("PARENT: My PID is %d\n", getpid());
+        printf("PARENT: My child's PID is %d\n", pid);
+        printf("PARENT: fork() returned %d\n", pid);
+    }
+
+    printf("Process %d finishing\n", getpid());
+
+    return EXIT_SUCCESS;
+}
+```
+
+**Output (PIDs will vary):**
+```
+Before fork - PID: 1234
+PARENT: My PID is 1234
+PARENT: My child's PID is 1235
+PARENT: fork() returned 1235
+Process 1234 finishing
+CHILD: My PID is 1235
+CHILD: My parent's PID is 1234
+CHILD: fork() returned 0
+Process 1235 finishing
+```
+
+**Key points about fork():**
+- Creates an exact copy of the calling process
+- Returns 0 to the child process
+- Returns the child's PID to the parent
+- Returns -1 on failure
+- Both processes continue from the same point
+
+## Example 2: Parent Waiting for Child with wait()
+
+The `wait()` system call makes the parent process wait until a child terminates.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(void) {
+    printf("Parent: Creating child process...\n");
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("fork failed");
+        return EXIT_FAILURE;
+    }
+    else if (pid == 0) {
+        // Child process
+        printf("Child: I'm running (PID: %d)\n", getpid());
+        printf("Child: Doing some work...\n");
+
+        sleep(2);  // Simulate work
+
+        printf("Child: Work complete, exiting\n");
+        exit(42);  // Exit with status code 42
+    }
+    else {
+        // Parent process
+        printf("Parent: Child created (PID: %d)\n", pid);
+        printf("Parent: Waiting for child to finish...\n");
+
+        int status;
+        pid_t finished_pid = wait(&status);
+
+        printf("Parent: Child %d finished\n", finished_pid);
+
+        if (WIFEXITED(status)) {
+            int exit_status = WEXITSTATUS(status);
+            printf("Parent: Child exited with status %d\n", exit_status);
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+```
+
+**Status macros:**
+- `WIFEXITED(status)`: True if child exited normally
+- `WEXITSTATUS(status)`: Extract exit code
+- `WIFSIGNALED(status)`: True if child was terminated by signal
+- `WTERMSIG(status)`: Extract signal number
+
+## Example 3: Executing a New Program with exec()
+
+The `exec()` family of functions replaces the current process with a new program.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(void) {
+    printf("Parent: Creating child to run 'ls' command\n");
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("fork failed");
+        return EXIT_FAILURE;
+    }
+    else if (pid == 0) {
+        // Child process - execute 'ls -l'
+        printf("Child: About to exec 'ls -l'\n");
+
+        // This replaces the child process with 'ls'
+        execlp("ls", "ls", "-l", NULL);
+
+        // If exec returns, it failed
+        perror("exec failed");
+        exit(EXIT_FAILURE);
+    }
+    else {
+        // Parent process
+        printf("Parent: Waiting for child to complete 'ls'\n");
+
+        int status;
+        wait(&status);
+
+        printf("Parent: Child finished\n");
+    }
+
+    return EXIT_SUCCESS;
+}
+```
+
+**exec() family:**
+- `execl()` - List arguments
+- `execlp()` - List arguments, search PATH
+- `execle()` - List arguments, specify environment
+- `execv()` - Array of arguments
+- `execvp()` - Array of arguments, search PATH
+- `execve()` - Array of arguments, specify environment
+
+## Example 4: Creating a Simple Shell
+
+Here's a minimal shell that demonstrates fork, exec, and wait together:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+#define MAX_LINE 1024
+#define MAX_ARGS 64
+
+void parse_command(char *line, char **argv) {
+    int i = 0;
+    char *token = strtok(line, " \t\n");
+
+    while (token != NULL && i < MAX_ARGS - 1) {
+        argv[i++] = token;
+        token = strtok(NULL, " \t\n");
+    }
+
+    argv[i] = NULL;
+}
+
+int execute_command(char **argv) {
+    if (argv[0] == NULL) {
+        return 1;  // Empty command
+    }
+
+    // Built-in commands
+    if (strcmp(argv[0], "exit") == 0) {
+        return 0;  // Signal to exit shell
+    }
+
+    if (strcmp(argv[0], "cd") == 0) {
+        if (argv[1] == NULL) {
+            fprintf(stderr, "cd: missing argument\n");
+        } else {
+            if (chdir(argv[1]) != 0) {
+                perror("cd");
+            }
+        }
+        return 1;
+    }
+
+    // External commands - fork and exec
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("fork failed");
+        return 1;
+    }
+    else if (pid == 0) {
+        // Child process
+        if (execvp(argv[0], argv) < 0) {
+            fprintf(stderr, "%s: command not found\n", argv[0]);
+            exit(EXIT_FAILURE);
+        }
+    }
+    else {
+        // Parent process - wait for child
+        int status;
+        waitpid(pid, &status, 0);
+    }
+
+    return 1;
+}
+
+int main(void) {
+    char line[MAX_LINE];
+    char *argv[MAX_ARGS];
+
+    printf("Simple Shell - Type 'exit' to quit\n");
+
+    while (1) {
+        printf("shell> ");
+        fflush(stdout);
+
+        // Read command
+        if (fgets(line, sizeof(line), stdin) == NULL) {
+            break;  // EOF (Ctrl+D)
+        }
+
+        // Parse command
+        parse_command(line, argv);
+
+        // Execute command
+        if (!execute_command(argv)) {
+            break;  // exit command
+        }
+    }
+
+    printf("Goodbye!\n");
+    return EXIT_SUCCESS;
+}
+```
+
+**Try these commands:**
+```
+shell> ls
+shell> pwd
+shell> echo Hello World
+shell> cd /tmp
+shell> pwd
+shell> exit
+```
+
+## Example 5: Multiple Child Processes
+
+Creating and managing multiple child processes:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+#define NUM_CHILDREN 5
+
+int main(void) {
+    printf("Parent: Creating %d child processes\n", NUM_CHILDREN);
+
+    for (int i = 0; i < NUM_CHILDREN; i++) {
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            perror("fork failed");
+            exit(EXIT_FAILURE);
+        }
+        else if (pid == 0) {
+            // Child process
+            printf("Child %d: PID = %d, starting work\n", i, getpid());
+
+            // Each child does different amount of work
+            sleep(i + 1);
+
+            printf("Child %d: Work complete\n", i);
+            exit(i);  // Exit with child number as status
+        }
+    }
+
+    // Parent waits for all children
+    printf("Parent: All children created, waiting for them...\n");
+
+    int children_finished = 0;
+    while (children_finished < NUM_CHILDREN) {
+        int status;
+        pid_t finished_pid = wait(&status);
+
+        if (finished_pid > 0) {
+            children_finished++;
+            printf("Parent: Child %d finished (%d/%d complete)\n",
+                   finished_pid, children_finished, NUM_CHILDREN);
+
+            if (WIFEXITED(status)) {
+                printf("        Exit status: %d\n", WEXITSTATUS(status));
+            }
+        }
+    }
+
+    printf("Parent: All children finished, exiting\n");
+    return EXIT_SUCCESS;
+}
+```
+
+## Process vs Thread
+
+**Processes:**
+- Separate memory spaces
+- Heavier weight (more resources)
+- More secure isolation
+- Communicate via IPC (pipes, sockets, shared memory)
+- Created with `fork()`
+
+**Threads:**
+- Share memory space
+- Lighter weight
+- Less isolation
+- Communicate via shared variables
+- Created with `pthread_create()` (not covered here)
+
+## Common Pitfalls
+
+1. **Forgetting to check fork() return value**:
+   ```c
+   // WRONG: No error checking
+   fork();
+   // Both parent and child execute the same code
+   ```
+
+2. **Not waiting for children (zombie processes)**:
+   ```c
+   // WRONG: Creates zombie
+   if (fork() == 0) {
+       exit(0);
+   }
+   // Parent doesn't wait - child becomes zombie
+   ```
+
+3. **Forgetting exec() doesn't return on success**:
+   ```c
+   execvp(argv[0], argv);
+   printf("Still running\n");  // Only prints if exec failed
+   ```
+
+## Exercises
+
+### Exercise 1: Process Tree
+Write a program that creates a tree of processes:
+- Parent creates 2 children
+- Each child creates 2 more children (4 grandchildren total)
+- Display the family tree with PIDs
+
+### Exercise 2: Parallel File Processing
+Create a program that:
+- Takes a list of files as arguments
+- Forks a child process for each file
+- Each child counts lines in its file
+- Parent collects and displays results
+
+```c
+// TODO: Implement parallel_line_counter(int argc, char *argv[])
+// Usage: ./program file1.txt file2.txt file3.txt
+```
+
+### Exercise 3: Command Pipeline
+Implement a simplified version of shell pipelines:
+- Parse command: "ls -l | grep txt | wc -l"
+- Fork processes for each command
+- Connect them with pipes (you'll learn pipes next)
+- Wait for all to complete
+
+### Exercise 4: Process Monitor
+Build a tool that:
+- Forks a child to run a command
+- Parent monitors the child
+- Reports how long the child ran
+- Reports the exit status
+- Use `time()` or `clock()` for timing
+
+## Key Takeaways
+
+- `fork()` creates a new process by copying the current process
+- `fork()` returns 0 to child, child's PID to parent, -1 on error
+- After `fork()`, both processes run independently with separate memory
+- `wait()` makes parent wait for any child to terminate
+- `waitpid()` waits for a specific child process
+- `exec()` family replaces current process with a new program
+- `exec()` only returns if it fails
+- Common pattern: fork() + exec() + wait() to run external programs
+- Zombie processes occur when children exit but parent doesn't wait()
+- Process IDs are obtained with `getpid()` and `getppid()`
+
+Process management is a cornerstone of Unix systems programming. Combined with inter-process communication (which we'll cover next), it enables building complex multi-process applications. Next, we'll explore pipes for communication between processes.

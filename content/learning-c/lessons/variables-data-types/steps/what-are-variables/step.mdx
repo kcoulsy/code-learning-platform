@@ -1,0 +1,50 @@
+---
+id: what-are-variables
+title: What are Variables?
+order: 1
+---
+
+# What are Variables?
+
+A **variable** is a named storage location in memory that holds a value. Think of it as a labeled box where you can store data.
+
+## Declaring Variables
+
+In C, you must declare a variable before using it:
+
+```c
+// Syntax: type name;
+int age;
+float price;
+char letter;
+```
+
+## Initializing Variables
+
+You can give a variable an initial value:
+
+```c
+// Declaration with initialization
+int age = 25;
+float price = 19.99;
+char grade = 'A';
+```
+
+## Variable Naming Rules
+
+- Must start with a letter or underscore
+- Can contain letters, digits, and underscores
+- Cannot use reserved keywords (`int`, `return`, etc.)
+- Case-sensitive (`Age` and `age` are different)
+
+```c
+// Good variable names
+int studentCount;
+float total_price;
+char _initial;
+
+// Bad variable names
+// int 2ndPlace;    // Can't start with number
+// float my-price;  // Can't use hyphens
+// int return;      // Can't use keywords
+```

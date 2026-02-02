@@ -1,0 +1,399 @@
+---
+id: 06-static-analysis
+title: Static Analysis Tools
+order: 6
+---
+
+# Static Analysis Tools
+
+Static analysis tools examine your code without running it, finding bugs that compilers miss.
+
+## What Static Analysis Finds
+
+- Memory leaks (potential)
+- Uninitialized variables
+- Dead code
+- Buffer overflows (potential)
+- Resource leaks
+- API misuse
+- Null pointer dereferences (potential)
+- Logic errors
+- Code smells
+
+## cppcheck
+
+**Purpose**: Static analysis for C/C++
+
+### Installation
+
+```bash
+# Linux
+sudo apt install cppcheck
+
+# macOS
+brew install cppcheck
+
+# Windows
+# Download from cppcheck.sourceforge.io
+```
+
+### Basic Usage
+
+```bash
+# Check all files
+cppcheck program.c
+
+# Check with all checks enabled
+cppcheck --enable=all program.c
+
+# Check multiple files
+cppcheck *.c
+
+# Check recursively
+cppcheck -R src/
+
+# Generate HTML report
+cppcheck --enable=all --html-report=report program.c
+```
+
+### Enable Specific Checks
+
+```bash
+# Enable all checks
+cppcheck --enable=all program.c
+
+# Enable warning checks
+cppcheck --enable=warning program.c
+
+# Enable performance checks
+cppcheck --enable=performance program.c
+
+# Enable portability checks
+cppcheck --enable=portability program.c
+
+# Enable information checks
+cppcheck --enable=information program.c
+
+# Enable unused function checks
+cppcheck --enable=unusedFunction program.c
+```
+
+### Common Checks
+
+```bash
+# Check for missing includes
+cppcheck --enable=all --inconclusive program.c
+
+# Suppress specific warnings
+cppcheck --suppress=missingIncludeSystem program.c
+
+# Check specific coding standard
+cppcheck --std=c11 program.c
+
+# Force defining external symbols
+cppcheck -DDEBUG=1 program.c
+```
+
+### Example Output
+
+```
+Checking program.c ...
+[program.c:10]: (error) Memory allocated with malloc() not freed.
+[program.c:25]: (warning) Array index 5 is out of bounds.
+[program.c:30]: (style) Variable 'x' is assigned a value that is never used.
+[program.c:45]: (performance) Passing 'result' by value.
+```
+
+### Integration with Makefiles
+
+```makefile
+check:
+	cppcheck --enable=all --error-exitcode=1 --inline-suppr src/
+```
+
+## clang-tidy
+
+**Purpose**: Clang-based linter with modern checks
+
+### Installation
+
+```bash
+# Linux
+sudo apt install clang-tidy
+
+# macOS
+brew install clang-tidy
+
+# Part of LLVM
+```
+
+### Basic Usage
+
+```bash
+# Check a file
+clang-tidy program.c
+
+# Check with specific compiler flags
+clang-tidy program.c -- -I/usr/include -std=c11
+
+# Fix issues automatically
+clang-tidy program.c -fix
+
+# Use specific checks
+clang-tidy -checks='-* ,modernize-*' program.c
+```
+
+### Common Checks
+
+```bash
+# All checks
+clang-tidy -checks='*' program.c
+
+# Modern C++/C11 checks
+clang-tidy -checks='modernize-*' program.c
+
+# Performance checks
+clang-tidy -checks='performance-*' program.c
+
+# Readability checks
+clang-tidy -checks='readability-*' program.c
+
+# Bug-prone checks
+clang-tidy -checks='bugprone-*' program.c
+
+# Disable specific checks
+clang-tidy -checks='-*,clang-analyzer-*' program.c
+```
+
+### Configuration File
+
+Create `.clang-tidy`:
+
+```yaml
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -readability-magic-numbers
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+AnalyzeTemporaryDtors: false
+FormatStyle: none
+```
+
+Then run:
+
+```bash
+clang-tidy program.c
+```
+
+### Example Output
+
+```
+program.c:10:5: warning: Potential memory leak [clang-analyzer-unix.Malloc]
+    malloc(100);
+    ^~~~~~~~
+program.c:25:10: warning: Array access out of bounds [clang-diagnostic-array-bounds]
+    return arr[5];
+           ^~~~~
+program.c:30:9: warning: Assigned value is never used [clang-diagnostic-unused-variable]
+    int x = 5;
+        ^
+```
+
+## scan-build / clang-static-analyzer
+
+**Purpose**: Deep static analysis using Clang
+
+### Basic Usage
+
+```bash
+# Analyze during compilation
+scan-build gcc program.c
+
+# Use specific compiler
+scan-build --use-cc=clang program.c
+
+# Enable all checkers
+scan-build --status-bugs gcc program.c
+
+# View HTML report
+scan-build -o html-report gcc program.c
+```
+
+### Checkers
+
+```bash
+# List available checkers
+scan-build -h
+
+# Enable specific checker
+scan-build -checker-option alpha.security.ArrayBoundV2: true gcc program.c
+```
+
+## splint (Formerly LCLint)
+
+**Purpose**: Lightweight static checker
+
+```bash
+# Basic check
+splint program.c
+
+# Suppress warnings
+splint -supplements program.c
+
+# Check with weak warnings
+splint -weak program.c
+
+# Standard strict checking
+splint +strictlib program.c
+```
+
+## flawfinder
+
+**Purpose**: Find security vulnerabilities
+
+```bash
+# Find security issues
+flawfinder program.c
+
+# Minimum severity level
+flawfinder -m 3 program.c
+
+# HTML output
+flawfinder -F HTML -o report.html program.c
+
+# Context lines
+flawfinder -C 5 program.c
+```
+
+### Example Output
+
+```
+program.c:10:  [4] (buffer) strcpy:
+  Does not check for buffer overflows when copying to destination.
+  Consider using strncpy or strlcpy.
+program.c:25:  [2] (buffer) char:
+  Statically-sized arrays can be improperly restricted.
+```
+
+## Static Analysis Best Practices
+
+### 1. Integrate into CI/CD
+
+```yaml
+# .github/workflows/analyze.yml
+- name: Run cppcheck
+  run: cppcheck --enable=all --error-exitcode=1 src/
+
+- name: Run clang-tidy
+  run: clang-tidy src/*.c -- -Iinclude/
+```
+
+### 2. Use Multiple Tools
+
+Different tools catch different issues:
+
+- cppcheck: General bugs, memory leaks
+- clang-tidy: Modern idioms, readability
+- scan-build: Deep analysis
+- flawfinder: Security issues
+
+### 3. False Positives
+
+Static analysis tools have false positives:
+
+```c
+// cppcheck false positive
+char *ptr = malloc(100);
+free(ptr);
+ptr = NULL;  // cppcheck still thinks ptr leaks
+```
+
+Suppress carefully:
+
+```c
+// cppcheck suppression
+// cppcheck-suppress memleak
+char *ptr = malloc(100);
+free(ptr);
+```
+
+### 4. Gradual Adoption
+
+Start with warning-only mode, then enable errors:
+
+```bash
+# Warning only
+cppcheck --enable=all src/
+
+# Treat warnings as errors
+cppcheck --enable=all --error-exitcode=1 src/
+```
+
+### 5. Custom Rules
+
+Write custom checks for your codebase:
+
+```cpp
+// clang-tidy custom check example
+// .clang-tidy
+Checks: >
+  -*,misc-custom-*
+```
+
+## Comparison
+
+| Tool       | Language | Focus          | Integration |
+| ---------- | -------- | -------------- | ----------- |
+| cppcheck   | C/C++    | General bugs   | Easy        |
+| clang-tidy | C/C++    | Modern style   | Easy        |
+| scan-build | C/C++    | Deep analysis  | Moderate    |
+| splint     | C        | Specifications | Easy        |
+| flawfinder | C/C++    | Security       | Easy        |
+
+## Practice Exercise
+
+Run static analysis on this code:
+
+```c
+// analyze.c
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) {
+    char *src = "Hello, World!";
+    char *dst = malloc(10);
+    strcpy(dst, src);
+
+    int x = 5;
+    int y = 10;
+
+    int arr[5];
+    arr[5] = 42;
+
+    return 0;
+}
+```
+
+Run:
+
+```bash
+cppcheck --enable=all analyze.c
+clang-tidy analyze.c --
+```
+
+**Issues found**:
+
+1. Buffer overflow (10 bytes allocated, 14 bytes copied)
+2. Unused variables (x, y)
+3. Out-of-bounds array access (arr[5])
+4. Memory leak (dst never freed)
+
+---
+
+**Next**: Compiler optimization levels and effects.

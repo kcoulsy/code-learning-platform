@@ -1,0 +1,803 @@
+---
+title: "Advanced Practice"
+description: "Apply advanced C concepts by building state machines, implementing callback systems, and solving bit manipulation challenges."
+order: 8
+---
+
+# Advanced Practice
+
+Congratulations on making it to the final step! Now it's time to put everything together. This step provides comprehensive challenges that combine const correctness, static variables, bitwise operations, function pointers, callbacks, and error handling into real-world applications.
+
+These exercises will help you master the advanced concepts you've learned and prepare you for professional C development. Each challenge builds a complete, production-quality component using multiple advanced techniques.
+
+## Challenge 1: TCP State Machine
+
+Implement a TCP connection state machine using callbacks and proper error handling.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// TCP States
+typedef enum {
+    TCP_CLOSED,
+    TCP_LISTEN,
+    TCP_SYN_SENT,
+    TCP_SYN_RECEIVED,
+    TCP_ESTABLISHED,
+    TCP_FIN_WAIT_1,
+    TCP_FIN_WAIT_2,
+    TCP_CLOSE_WAIT,
+    TCP_CLOSING,
+    TCP_LAST_ACK,
+    TCP_TIME_WAIT
+} TCPState;
+
+// TCP Events
+typedef enum {
+    EVENT_PASSIVE_OPEN,
+    EVENT_ACTIVE_OPEN,
+    EVENT_SYN,
+    EVENT_SYN_ACK,
+    EVENT_ACK,
+    EVENT_FIN,
+    EVENT_CLOSE,
+    EVENT_TIMEOUT
+} TCPEvent;
+
+// Forward declaration
+typedef struct TCPConnection TCPConnection;
+
+// State transition callback
+typedef void (*StateTransitionCallback)(TCPConnection *conn,
+                                       TCPState old_state,
+                                       TCPState new_state);
+
+// TCP Connection structure
+struct TCPConnection {
+    TCPState state;
+    StateTransitionCallback on_transition;
+    unsigned int flags;
+    int error_count;
+    char remote_addr[50];
+};
+
+// TCP Flags
+#define TCP_FLAG_NONE           0x00
+#define TCP_FLAG_SYN            0x01
+#define TCP_FLAG_ACK            0x02
+#define TCP_FLAG_FIN            0x04
+#define TCP_FLAG_RST            0x08
+#define TCP_FLAG_PSH            0x10
+#define TCP_FLAG_URG            0x20
+
+// State names
+const char* state_name(TCPState state) {
+    static const char *names[] = {
+        "CLOSED", "LISTEN", "SYN_SENT", "SYN_RECEIVED",
+        "ESTABLISHED", "FIN_WAIT_1", "FIN_WAIT_2",
+        "CLOSE_WAIT", "CLOSING", "LAST_ACK", "TIME_WAIT"
+    };
+    return (state >= 0 && state <= TCP_TIME_WAIT) ? names[state] : "UNKNOWN";
+}
+
+// Event names
+const char* event_name(TCPEvent event) {
+    static const char *names[] = {
+        "PASSIVE_OPEN", "ACTIVE_OPEN", "SYN", "SYN_ACK",
+        "ACK", "FIN", "CLOSE", "TIMEOUT"
+    };
+    return (event >= 0 && event <= EVENT_TIMEOUT) ? names[event] : "UNKNOWN";
+}
+
+// Initialize TCP connection
+void tcp_init(TCPConnection *conn, StateTransitionCallback callback) {
+    conn->state = TCP_CLOSED;
+    conn->on_transition = callback;
+    conn->flags = TCP_FLAG_NONE;
+    conn->error_count = 0;
+    strcpy(conn->remote_addr, "0.0.0.0");
+}
+
+// Transition to new state
+static void transition_to(TCPConnection *conn, TCPState new_state) {
+    TCPState old_state = conn->state;
+    conn->state = new_state;
+
+    if (conn->on_transition) {
+        conn->on_transition(conn, old_state, new_state);
+    }
+}
+
+// Process event based on current state
+int tcp_process_event(TCPConnection *conn, TCPEvent event) {
+    printf("  [%s] Processing event: %s\n",
+           state_name(conn->state), event_name(event));
+
+    switch (conn->state) {
+        case TCP_CLOSED:
+            if (event == EVENT_PASSIVE_OPEN) {
+                transition_to(conn, TCP_LISTEN);
+                return 0;
+            } else if (event == EVENT_ACTIVE_OPEN) {
+                conn->flags |= TCP_FLAG_SYN;
+                transition_to(conn, TCP_SYN_SENT);
+                return 0;
+            }
+            break;
+
+        case TCP_LISTEN:
+            if (event == EVENT_SYN) {
+                conn->flags |= (TCP_FLAG_SYN | TCP_FLAG_ACK);
+                transition_to(conn, TCP_SYN_RECEIVED);
+                return 0;
+            }
+            break;
+
+        case TCP_SYN_SENT:
+            if (event == EVENT_SYN_ACK) {
+                conn->flags |= TCP_FLAG_ACK;
+                transition_to(conn, TCP_ESTABLISHED);
+                return 0;
+            }
+            break;
+
+        case TCP_SYN_RECEIVED:
+            if (event == EVENT_ACK) {
+                conn->flags &= ~TCP_FLAG_SYN;  // Clear SYN
+                transition_to(conn, TCP_ESTABLISHED);
+                return 0;
+            }
+            break;
+
+        case TCP_ESTABLISHED:
+            if (event == EVENT_FIN) {
+                conn->flags |= TCP_FLAG_ACK;
+                transition_to(conn, TCP_CLOSE_WAIT);
+                return 0;
+            } else if (event == EVENT_CLOSE) {
+                conn->flags |= TCP_FLAG_FIN;
+                transition_to(conn, TCP_FIN_WAIT_1);
+                return 0;
+            }
+            break;
+
+        case TCP_FIN_WAIT_1:
+            if (event == EVENT_ACK) {
+                transition_to(conn, TCP_FIN_WAIT_2);
+                return 0;
+            } else if (event == EVENT_FIN) {
+                conn->flags |= TCP_FLAG_ACK;
+                transition_to(conn, TCP_CLOSING);
+                return 0;
+            }
+            break;
+
+        case TCP_FIN_WAIT_2:
+            if (event == EVENT_FIN) {
+                conn->flags |= TCP_FLAG_ACK;
+                transition_to(conn, TCP_TIME_WAIT);
+                return 0;
+            }
+            break;
+
+        case TCP_CLOSE_WAIT:
+            if (event == EVENT_CLOSE) {
+                conn->flags |= TCP_FLAG_FIN;
+                transition_to(conn, TCP_LAST_ACK);
+                return 0;
+            }
+            break;
+
+        case TCP_CLOSING:
+            if (event == EVENT_ACK) {
+                transition_to(conn, TCP_TIME_WAIT);
+                return 0;
+            }
+            break;
+
+        case TCP_LAST_ACK:
+            if (event == EVENT_ACK) {
+                transition_to(conn, TCP_CLOSED);
+                return 0;
+            }
+            break;
+
+        case TCP_TIME_WAIT:
+            if (event == EVENT_TIMEOUT) {
+                transition_to(conn, TCP_CLOSED);
+                return 0;
+            }
+            break;
+    }
+
+    printf("  -> Invalid transition!\n");
+    conn->error_count++;
+    return -1;
+}
+
+// Callback for state transitions
+void on_state_change(TCPConnection *conn, TCPState old_state, TCPState new_state) {
+    printf("    State: %s -> %s\n", state_name(old_state), state_name(new_state));
+
+    // Show active flags
+    if (conn->flags != TCP_FLAG_NONE) {
+        printf("    Flags: ");
+        if (conn->flags & TCP_FLAG_SYN) printf("SYN ");
+        if (conn->flags & TCP_FLAG_ACK) printf("ACK ");
+        if (conn->flags & TCP_FLAG_FIN) printf("FIN ");
+        if (conn->flags & TCP_FLAG_RST) printf("RST ");
+        if (conn->flags & TCP_FLAG_PSH) printf("PSH ");
+        if (conn->flags & TCP_FLAG_URG) printf("URG ");
+        printf("\n");
+    }
+}
+
+int main(void) {
+    TCPConnection conn;
+    tcp_init(&conn, on_state_change);
+
+    printf("=== Scenario 1: Client Connection (3-way handshake) ===\n");
+    tcp_process_event(&conn, EVENT_ACTIVE_OPEN);
+    tcp_process_event(&conn, EVENT_SYN_ACK);
+    printf("Connection established!\n\n");
+
+    printf("=== Scenario 2: Normal Close ===\n");
+    tcp_process_event(&conn, EVENT_CLOSE);
+    tcp_process_event(&conn, EVENT_ACK);
+    tcp_process_event(&conn, EVENT_FIN);
+    tcp_process_event(&conn, EVENT_TIMEOUT);
+    printf("\n");
+
+    printf("=== Scenario 3: Server Accepting Connection ===\n");
+    tcp_init(&conn, on_state_change);
+    tcp_process_event(&conn, EVENT_PASSIVE_OPEN);
+    tcp_process_event(&conn, EVENT_SYN);
+    tcp_process_event(&conn, EVENT_ACK);
+    printf("Connection established!\n\n");
+
+    printf("=== Scenario 4: Server-Initiated Close ===\n");
+    tcp_process_event(&conn, EVENT_FIN);
+    tcp_process_event(&conn, EVENT_CLOSE);
+    tcp_process_event(&conn, EVENT_ACK);
+    printf("\n");
+
+    printf("Total errors: %d\n", conn.error_count);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=== Scenario 1: Client Connection (3-way handshake) ===
+  [CLOSED] Processing event: ACTIVE_OPEN
+    State: CLOSED -> SYN_SENT
+    Flags: SYN
+  [SYN_SENT] Processing event: SYN_ACK
+    State: SYN_SENT -> ESTABLISHED
+    Flags: SYN ACK
+Connection established!
+
+=== Scenario 2: Normal Close ===
+  [ESTABLISHED] Processing event: CLOSE
+    State: ESTABLISHED -> FIN_WAIT_1
+    Flags: SYN ACK FIN
+  [FIN_WAIT_1] Processing event: ACK
+    State: FIN_WAIT_1 -> FIN_WAIT_2
+    Flags: SYN ACK FIN
+  [FIN_WAIT_2] Processing event: FIN
+    State: FIN_WAIT_2 -> TIME_WAIT
+    Flags: SYN ACK FIN
+  [TIME_WAIT] Processing event: TIMEOUT
+    State: TIME_WAIT -> CLOSED
+    Flags: SYN ACK FIN
+
+=== Scenario 3: Server Accepting Connection ===
+  [CLOSED] Processing event: PASSIVE_OPEN
+    State: CLOSED -> LISTEN
+  [LISTEN] Processing event: SYN
+    State: LISTEN -> SYN_RECEIVED
+    Flags: SYN ACK
+  [SYN_RECEIVED] Processing event: ACK
+    State: SYN_RECEIVED -> ESTABLISHED
+    Flags: ACK
+Connection established!
+
+=== Scenario 4: Server-Initiated Close ===
+  [ESTABLISHED] Processing event: FIN
+    State: ESTABLISHED -> CLOSE_WAIT
+    Flags: ACK
+  [CLOSE_WAIT] Processing event: CLOSE
+    State: CLOSE_WAIT -> LAST_ACK
+    Flags: ACK FIN
+  [LAST_ACK] Processing event: ACK
+    State: LAST_ACK -> CLOSED
+    Flags: ACK FIN
+
+Total errors: 0
+```
+
+## Challenge 2: Generic Data Structure with Callbacks
+
+Implement a generic binary search tree with function pointers for comparison and iteration.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Generic BST node
+typedef struct BSTNode {
+    void *data;
+    struct BSTNode *left;
+    struct BSTNode *right;
+} BSTNode;
+
+// Comparison function type (-1: less, 0: equal, 1: greater)
+typedef int (*CompareFn)(const void *a, const void *b);
+
+// Iterator function type
+typedef void (*IteratorFn)(void *data, void *user_data);
+
+// Destructor function type
+typedef void (*DestructorFn)(void *data);
+
+// BST structure
+typedef struct {
+    BSTNode *root;
+    CompareFn compare;
+    DestructorFn destructor;
+    size_t size;
+} BST;
+
+// Create new BST
+BST* bst_create(CompareFn compare, DestructorFn destructor) {
+    BST *tree = malloc(sizeof(BST));
+    if (tree == NULL) return NULL;
+
+    tree->root = NULL;
+    tree->compare = compare;
+    tree->destructor = destructor;
+    tree->size = 0;
+    return tree;
+}
+
+// Helper: Create node
+static BSTNode* create_node(void *data) {
+    BSTNode *node = malloc(sizeof(BSTNode));
+    if (node == NULL) return NULL;
+
+    node->data = data;
+    node->left = NULL;
+    node->right = NULL;
+    return node;
+}
+
+// Helper: Insert recursively
+static BSTNode* insert_recursive(BSTNode *node, void *data, CompareFn compare) {
+    if (node == NULL) {
+        return create_node(data);
+    }
+
+    int cmp = compare(data, node->data);
+    if (cmp < 0) {
+        node->left = insert_recursive(node->left, data, compare);
+    } else if (cmp > 0) {
+        node->right = insert_recursive(node->right, data, compare);
+    }
+    // If equal, don't insert (no duplicates)
+
+    return node;
+}
+
+// Insert data into BST
+int bst_insert(BST *tree, void *data) {
+    if (tree == NULL || data == NULL) return -1;
+
+    size_t old_size = tree->size;
+    tree->root = insert_recursive(tree->root, data, tree->compare);
+
+    // Check if insertion happened (size increased)
+    if (tree->root != NULL) {
+        tree->size++;
+        return (tree->size > old_size) ? 0 : -1;
+    }
+
+    return -1;
+}
+
+// Helper: In-order traversal
+static void inorder_traverse(BSTNode *node, IteratorFn iterator, void *user_data) {
+    if (node == NULL) return;
+
+    inorder_traverse(node->left, iterator, user_data);
+    iterator(node->data, user_data);
+    inorder_traverse(node->right, iterator, user_data);
+}
+
+// Iterate over BST in sorted order
+void bst_foreach(BST *tree, IteratorFn iterator, void *user_data) {
+    if (tree == NULL || iterator == NULL) return;
+    inorder_traverse(tree->root, iterator, user_data);
+}
+
+// Helper: Destroy tree recursively
+static void destroy_recursive(BSTNode *node, DestructorFn destructor) {
+    if (node == NULL) return;
+
+    destroy_recursive(node->left, destructor);
+    destroy_recursive(node->right, destructor);
+
+    if (destructor) {
+        destructor(node->data);
+    }
+    free(node);
+}
+
+// Destroy BST
+void bst_destroy(BST *tree) {
+    if (tree == NULL) return;
+
+    destroy_recursive(tree->root, tree->destructor);
+    free(tree);
+}
+
+// Example: Integer comparison
+int compare_ints(const void *a, const void *b) {
+    int ia = *(const int*)a;
+    int ib = *(const int*)b;
+    return (ia > ib) - (ia < ib);
+}
+
+// Example: String comparison
+int compare_strings(const void *a, const void *b) {
+    return strcmp(*(const char**)a, *(const char**)b);
+}
+
+// Example: Print integer
+void print_int(void *data, void *user_data) {
+    printf("%d ", *(int*)data);
+}
+
+// Example: Print string
+void print_string(void *data, void *user_data) {
+    printf("%s ", *(char**)data);
+}
+
+// Example: Sum integers
+void sum_ints(void *data, void *user_data) {
+    int *total = (int*)user_data;
+    *total += *(int*)data;
+}
+
+// Example: Count items
+void count_items(void *data, void *user_data) {
+    int *count = (int*)user_data;
+    (*count)++;
+}
+
+// Example: Free string data
+void free_string(void *data) {
+    char **str = (char**)data;
+    free(*str);
+    free(str);
+}
+
+int main(void) {
+    printf("=== Integer BST ===\n");
+
+    BST *int_tree = bst_create(compare_ints, NULL);
+
+    // Insert integers
+    int values[] = {50, 30, 70, 20, 40, 60, 80};
+    int *data_ptrs[7];
+
+    for (size_t i = 0; i < 7; i++) {
+        data_ptrs[i] = malloc(sizeof(int));
+        *data_ptrs[i] = values[i];
+        bst_insert(int_tree, data_ptrs[i]);
+    }
+
+    printf("In-order traversal: ");
+    bst_foreach(int_tree, print_int, NULL);
+    printf("\n");
+
+    // Calculate sum using callback
+    int sum = 0;
+    bst_foreach(int_tree, sum_ints, &sum);
+    printf("Sum of all values: %d\n", sum);
+
+    // Count items
+    int count = 0;
+    bst_foreach(int_tree, count_items, &count);
+    printf("Number of items: %d\n\n", count);
+
+    // Free data manually (no destructor provided)
+    for (size_t i = 0; i < 7; i++) {
+        free(data_ptrs[i]);
+    }
+    bst_destroy(int_tree);
+
+    printf("=== String BST ===\n");
+
+    BST *string_tree = bst_create(compare_strings, free_string);
+
+    // Insert strings
+    const char *words[] = {"dog", "cat", "elephant", "ant", "bear"};
+
+    for (size_t i = 0; i < 5; i++) {
+        char **str_ptr = malloc(sizeof(char*));
+        *str_ptr = strdup(words[i]);
+        bst_insert(string_tree, str_ptr);
+    }
+
+    printf("In-order traversal: ");
+    bst_foreach(string_tree, print_string, NULL);
+    printf("\n");
+
+    bst_destroy(string_tree);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=== Integer BST ===
+In-order traversal: 20 30 40 50 60 70 80
+Sum of all values: 350
+Number of items: 7
+
+=== String BST ===
+In-order traversal: ant bear cat dog elephant
+```
+
+## Challenge 3: Bit Vector for Large Sets
+
+Implement an efficient bit vector for storing large sets of integers.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define BITS_PER_WORD 32
+
+typedef struct {
+    unsigned int *bits;
+    size_t num_bits;
+    size_t num_words;
+} BitVector;
+
+// Create bit vector
+BitVector* bitvec_create(size_t num_bits) {
+    BitVector *vec = malloc(sizeof(BitVector));
+    if (vec == NULL) return NULL;
+
+    vec->num_bits = num_bits;
+    vec->num_words = (num_bits + BITS_PER_WORD - 1) / BITS_PER_WORD;
+    vec->bits = calloc(vec->num_words, sizeof(unsigned int));
+
+    if (vec->bits == NULL) {
+        free(vec);
+        return NULL;
+    }
+
+    return vec;
+}
+
+// Destroy bit vector
+void bitvec_destroy(BitVector *vec) {
+    if (vec == NULL) return;
+    free(vec->bits);
+    free(vec);
+}
+
+// Set bit
+int bitvec_set(BitVector *vec, size_t bit) {
+    if (vec == NULL || bit >= vec->num_bits) return -1;
+
+    size_t word = bit / BITS_PER_WORD;
+    size_t offset = bit % BITS_PER_WORD;
+
+    vec->bits[word] |= (1U << offset);
+    return 0;
+}
+
+// Clear bit
+int bitvec_clear(BitVector *vec, size_t bit) {
+    if (vec == NULL || bit >= vec->num_bits) return -1;
+
+    size_t word = bit / BITS_PER_WORD;
+    size_t offset = bit % BITS_PER_WORD;
+
+    vec->bits[word] &= ~(1U << offset);
+    return 0;
+}
+
+// Test bit
+int bitvec_test(const BitVector *vec, size_t bit) {
+    if (vec == NULL || bit >= vec->num_bits) return -1;
+
+    size_t word = bit / BITS_PER_WORD;
+    size_t offset = bit % BITS_PER_WORD;
+
+    return (vec->bits[word] & (1U << offset)) != 0;
+}
+
+// Count set bits
+size_t bitvec_count(const BitVector *vec) {
+    if (vec == NULL) return 0;
+
+    size_t count = 0;
+    for (size_t i = 0; i < vec->num_words; i++) {
+        unsigned int word = vec->bits[i];
+        // Brian Kernighan's algorithm
+        while (word) {
+            word &= word - 1;
+            count++;
+        }
+    }
+    return count;
+}
+
+// Set operations
+void bitvec_union(BitVector *result, const BitVector *a, const BitVector *b) {
+    size_t min_words = (a->num_words < b->num_words) ? a->num_words : b->num_words;
+    for (size_t i = 0; i < min_words; i++) {
+        result->bits[i] = a->bits[i] | b->bits[i];
+    }
+}
+
+void bitvec_intersection(BitVector *result, const BitVector *a, const BitVector *b) {
+    size_t min_words = (a->num_words < b->num_words) ? a->num_words : b->num_words;
+    for (size_t i = 0; i < min_words; i++) {
+        result->bits[i] = a->bits[i] & b->bits[i];
+    }
+}
+
+// Print bit vector
+void bitvec_print(const BitVector *vec, const char *label) {
+    printf("%s: {", label);
+    int first = 1;
+    for (size_t i = 0; i < vec->num_bits; i++) {
+        if (bitvec_test(vec, i)) {
+            if (!first) printf(", ");
+            printf("%zu", i);
+            first = 0;
+        }
+    }
+    printf("}\n");
+}
+
+int main(void) {
+    printf("=== Bit Vector Demo ===\n\n");
+
+    // Create sets
+    BitVector *primes = bitvec_create(100);
+    BitVector *evens = bitvec_create(100);
+    BitVector *result = bitvec_create(100);
+
+    // Set some prime numbers
+    int prime_numbers[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47};
+    for (size_t i = 0; i < sizeof(prime_numbers) / sizeof(prime_numbers[0]); i++) {
+        bitvec_set(primes, prime_numbers[i]);
+    }
+
+    // Set even numbers
+    for (int i = 0; i < 50; i += 2) {
+        bitvec_set(evens, i);
+    }
+
+    bitvec_print(primes, "Primes");
+    printf("Count: %zu\n\n", bitvec_count(primes));
+
+    bitvec_print(evens, "Evens (0-48)");
+    printf("Count: %zu\n\n", bitvec_count(evens));
+
+    // Union
+    bitvec_union(result, primes, evens);
+    bitvec_print(result, "Primes ∪ Evens");
+    printf("Count: %zu\n\n", bitvec_count(result));
+
+    // Intersection
+    memset(result->bits, 0, result->num_words * sizeof(unsigned int));
+    bitvec_intersection(result, primes, evens);
+    bitvec_print(result, "Primes ∩ Evens");
+    printf("Count: %zu\n", bitvec_count(result));
+
+    // Cleanup
+    bitvec_destroy(primes);
+    bitvec_destroy(evens);
+    bitvec_destroy(result);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=== Bit Vector Demo ===
+
+Primes: {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47}
+Count: 15
+
+Evens (0-48): {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48}
+Count: 25
+
+Primes ∪ Evens: {0, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 22, 23, 24, 26, 28, 29, 30, 31, 32, 34, 36, 37, 38, 40, 41, 42, 43, 44, 46, 47, 48}
+Count: 39
+
+Primes ∩ Evens: {2}
+Count: 1
+```
+
+## Additional Exercises
+
+### Exercise 1: Protocol Parser State Machine
+
+Build a parser for a simple text protocol (like HTTP headers or email) using:
+- State machine with function pointers for state handlers
+- Callbacks for parsed fields
+- Proper error handling with detailed error messages
+- Const correctness for read-only data
+
+### Exercise 2: Plugin System
+
+Create a plugin architecture:
+- Function pointers for plugin API
+- Registration system with callbacks
+- Plugin metadata using bit flags
+- Error handling for plugin loading failures
+- Static variables for plugin registry
+
+### Exercise 3: Memory Pool Allocator
+
+Implement a memory pool with:
+- Bit vector to track free blocks
+- Callbacks for allocation/deallocation hooks
+- Proper error handling
+- Static internal state
+- Const correctness for query functions
+
+### Exercise 4: Event-Driven Scheduler
+
+Build a simple event scheduler:
+- Callbacks for scheduled events
+- Priority queue using function pointer comparisons
+- Bit flags for event states
+- Error propagation through callback chain
+- State machine for scheduler states
+
+## Key Takeaways
+
+You've now mastered advanced C concepts:
+
+- **Const correctness** protects data and documents intent
+- **Static variables** enable encapsulation and persistent state
+- **Bitwise operations** provide efficient low-level control
+- **Bit flags** pack multiple boolean states efficiently
+- **Function pointers** enable flexible, callback-based APIs
+- **Callbacks** implement event-driven and asynchronous patterns
+- **Error handling** with return codes, errno, and goto cleanup
+- **Combining techniques** creates robust, professional code
+
+## Next Steps
+
+To continue your C mastery:
+
+1. **Study real codebases**: Linux kernel, SQLite, Redis, Git
+2. **Learn systems programming**: File I/O, processes, threads, sockets
+3. **Understand memory deeply**: Virtual memory, caching, alignment
+4. **Master debugging**: gdb, valgrind, sanitizers
+5. **Write your own**: Shell, allocator, database, web server
+6. **Read the standards**: ISO C standard, POSIX specifications
+7. **Contribute to projects**: Open source C projects need contributors
+
+## Congratulations!
+
+You've completed the Advanced C Concepts lesson. You now have the skills to write professional, production-quality C code. These techniques are used daily by systems programmers, embedded developers, and kernel engineers worldwide.
+
+Keep practicing, keep building, and keep learning. The journey from beginner to master is continuous, but you now have the foundation to tackle any C programming challenge!

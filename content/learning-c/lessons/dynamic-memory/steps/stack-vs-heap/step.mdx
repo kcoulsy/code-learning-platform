@@ -1,0 +1,206 @@
+---
+title: "Stack vs Heap Memory"
+order: 1
+---
+
+# Stack vs Heap Memory
+
+Before we dive into dynamic memory allocation, you need to understand the two primary memory regions where your program's data lives: the **stack** and the **heap**.
+
+## The Stack
+
+The stack is a region of memory that automatically manages local variables and function call information. It's called a "stack" because it follows Last-In-First-Out (LIFO) behavior.
+
+### Stack Characteristics
+
+- **Automatic Management**: Variables are automatically allocated when declared and deallocated when they go out of scope
+- **Fast**: Stack allocation is extremely fast (just moving a pointer)
+- **Limited Size**: Typically 1-8 MB (system dependent)
+- **Predictable Lifetime**: Variables live until the end of their scope
+- **LIFO Order**: Last allocated is first deallocated
+
+```c
+#include <stdio.h>
+
+void function() {
+    int x = 10;  // Allocated on stack
+    char arr[100];  // Allocated on stack
+    // When function returns, x and arr are automatically cleaned up
+}
+
+int main() {
+    int a = 5;  // Stack variable
+    function();
+    // x and arr from function() are already gone
+    printf("a = %d\n", a);
+    return 0;
+}
+```
+
+## The Heap
+
+The heap is a larger region of memory used for dynamic allocation. Unlike the stack, you have complete control over when memory is allocated and freed.
+
+### Heap Characteristics
+
+- **Manual Management**: You must explicitly allocate and free memory
+- **Slower**: Heap allocation involves more complex bookkeeping
+- **Large Size**: Typically limited only by available RAM
+- **Flexible Lifetime**: Memory persists until you explicitly free it
+- **Fragmentation**: Can become fragmented over time
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void function() {
+    int *ptr = malloc(sizeof(int));  // Allocated on heap
+    if (ptr == NULL) {
+        printf("Allocation failed!\n");
+        return;
+    }
+    *ptr = 10;
+    printf("Value: %d\n", *ptr);
+    // ptr variable is on stack, but memory it points to is on heap
+    // Heap memory persists even after function returns (unless freed)
+    free(ptr);  // Must explicitly free
+}
+
+int main() {
+    function();
+    return 0;
+}
+```
+
+## Stack vs Heap Comparison
+
+Let's see both in action and understand their differences:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// This function demonstrates the danger of returning stack memory
+char *bad_function() {
+    char message[50] = "This is a stack variable";
+    return message;  // DANGER! Returning pointer to stack memory
+    // message is destroyed when function returns
+}
+
+// This function correctly returns heap memory
+char *good_function() {
+    char *message = malloc(50 * sizeof(char));
+    if (message == NULL) {
+        return NULL;
+    }
+    strcpy(message, "This is a heap variable");
+    return message;  // OK! Caller is responsible for freeing
+}
+
+int main() {
+    // Stack allocation - fast, automatic cleanup
+    int stack_array[5] = {1, 2, 3, 4, 5};
+    printf("Stack array: ");
+    for (int i = 0; i < 5; i++) {
+        printf("%d ", stack_array[i]);
+    }
+    printf("\n");
+
+    // Heap allocation - manual, flexible size
+    int size = 5;
+    int *heap_array = malloc(size * sizeof(int));
+    if (heap_array == NULL) {
+        printf("Allocation failed!\n");
+        return 1;
+    }
+
+    for (int i = 0; i < size; i++) {
+        heap_array[i] = i + 1;
+    }
+
+    printf("Heap array: ");
+    for (int i = 0; i < size; i++) {
+        printf("%d ", heap_array[i]);
+    }
+    printf("\n");
+
+    free(heap_array);  // Must free!
+
+    // Using our functions
+    char *msg = good_function();
+    if (msg != NULL) {
+        printf("Message: %s\n", msg);
+        free(msg);  // Caller must free
+    }
+
+    return 0;
+}
+```
+
+## When to Use Stack vs Heap
+
+### Use Stack When:
+
+- Size is known at compile time
+- Size is small (typically < 1 KB)
+- Lifetime matches scope
+- Speed is critical
+- You want automatic cleanup
+
+### Use Heap When:
+
+- Size is determined at runtime
+- Size is large (> 1 KB)
+- Needs to persist beyond scope
+- Building dynamic data structures
+- Size might need to change
+
+## Visualizing Memory Layout
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int global_var = 100;  // Global/static data segment
+
+int main() {
+    int local = 42;  // Stack
+    int *heap_ptr = malloc(sizeof(int));  // Pointer on stack, data on heap
+
+    if (heap_ptr != NULL) {
+        *heap_ptr = 99;
+
+        printf("Addresses:\n");
+        printf("Global variable: %p\n", (void*)&global_var);
+        printf("Stack variable:  %p\n", (void*)&local);
+        printf("Stack pointer:   %p\n", (void*)&heap_ptr);
+        printf("Heap memory:     %p\n", (void*)heap_ptr);
+
+        // Notice: heap addresses are typically far from stack addresses
+
+        free(heap_ptr);
+    }
+
+    return 0;
+}
+```
+
+## Key Takeaways
+
+1. **Stack**: Fast, automatic, limited size, scope-based lifetime
+2. **Heap**: Flexible, manual management, large size, explicit lifetime
+3. **Never return pointers to stack variables** - they're destroyed when the function returns
+4. **Always free heap memory** - it doesn't clean itself up
+5. **Stack overflow**: Occurs when stack size limit is exceeded (deep recursion, large arrays)
+6. **The pointer itself** can be on the stack while pointing to heap memory
+
+## Exercises
+
+1. Write a function that allocates an array on the heap and returns it
+2. Demonstrate what happens when you try to return a pointer to a stack variable
+3. Create a program that shows the address difference between stack and heap memory
+4. Calculate how many integers you can allocate on a typical 1 MB stack
+5. Write a function that allocates memory on the heap and intentionally doesn't free it - can you see the memory leak?
+
+In the next step, we'll learn how to use `malloc()` to allocate memory on the heap safely and effectively.

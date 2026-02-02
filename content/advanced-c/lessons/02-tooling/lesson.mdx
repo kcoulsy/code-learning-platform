@@ -1,0 +1,67 @@
+---
+id: 02-tooling
+title: Debugging, Tooling & Inspection
+description: Master essential C development tools: gdb, sanitizers, compiler warnings, static analysis, and binary inspection.
+type: lesson
+order: 2
+---
+
+import { LearningObjectives } from '@/components/learning-objectives'
+
+# Debugging, Tooling & Inspection
+
+Professional C programmers rely on tools, not guesswork. This phase teaches you to debug, analyze, and understand your code at a deep level.
+
+<LearningObjectives>
+
+- Use GDB to debug segfaults and logic errors
+- Apply compiler warnings effectively (-Wall -Wextra -Werror)
+- Use sanitizers to catch memory errors and undefined behavior
+- Inspect binaries with objdump, nm, and strings
+- Understand compiler optimization effects
+- Profile code to find bottlenecks
+- Use static analysis tools proactively
+
+</LearningObjectives>
+
+## Why Tooling Comes Early
+
+We placed this phase early so you can use these tools throughout the rest of the course. As you learn about undefined behavior, memory models, and real-world code, you'll have the tools to:
+
+- Verify your code is correct
+- Understand what the compiler actually generates
+- Catch bugs before they reach production
+- Optimize intelligently based on measurements
+
+## The Tooling Philosophy
+
+```
+"Don't guess. Measure."
+— Kent Beck
+```
+
+C programming requires precision. Tools reveal:
+
+- What your code actually does (not what you think it does)
+- Where bugs hide (memory corruption, UB, race conditions)
+- How to optimize (profiling, not assumptions)
+- When you're wrong (compiler warnings, sanitizers)
+
+## What You'll Learn
+
+We'll cover a complete toolchain:
+
+1. **GDB Fundamentals** — breakpoints, watchpoints, backtraces, examining memory
+2. **Compiler Warnings** — -Wall, -Wextra, -Werror, -pedantic
+3. **Sanitizers** — AddressSanitizer, UndefinedBehaviorSanitizer, ThreadSanitizer
+4. **Binary Inspection** — objdump, nm, strings, readelf
+5. **Static Analysis** — cppcheck, clang-tidy, scan-build
+6. **Optimization Levels** - -O0 vs -O2 vs -O3 effects
+7. **Profiling** — gprof, perf, valgrind/cachegrind
+8. **Memory Debugging** — Valgrind memcheck advanced usage
+9. **Debug Symbols** — -g, strip, symbol tables
+10. **Build Tools** — Make, CMake, compiler flags
+
+By the end of this phase, you'll debug C code with confidence and understand what's happening at the machine level.
+
+Let's start with the most important tool: GDB.

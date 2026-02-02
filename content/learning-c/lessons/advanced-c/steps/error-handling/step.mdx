@@ -1,0 +1,710 @@
+---
+title: "Error Handling in C"
+description: "Learn proper error handling techniques including return codes, errno, perror, error propagation, and cleanup patterns."
+order: 7
+---
+
+# Error Handling in C
+
+Error handling is one of the most important aspects of writing robust C programs. Unlike languages with exceptions, C requires explicit error checking and handling. Proper error handling prevents crashes, data corruption, and security vulnerabilities.
+
+Professional C code spends significant effort on error handling. Learning these patterns will help you write reliable, production-quality software that handles failures gracefully and provides useful diagnostic information.
+
+## C's Error Handling Approaches
+
+C provides several mechanisms for error handling:
+
+1. **Return codes**: Functions return status (success/failure)
+2. **errno**: Global error variable set by system calls
+3. **NULL pointers**: Indicate allocation or operation failure
+4. **Out parameters**: Pass pointers to receive error information
+5. **goto for cleanup**: Structured cleanup without resource leaks
+
+## Example 1: Return Codes and Error Checking
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Error codes
+typedef enum {
+    ERR_OK = 0,
+    ERR_NULL_POINTER,
+    ERR_INVALID_ARGUMENT,
+    ERR_OUT_OF_MEMORY,
+    ERR_FILE_NOT_FOUND,
+    ERR_PERMISSION_DENIED,
+    ERR_BUFFER_OVERFLOW
+} ErrorCode;
+
+// Convert error code to string
+const char* error_string(ErrorCode code) {
+    switch (code) {
+        case ERR_OK: return "Success";
+        case ERR_NULL_POINTER: return "Null pointer error";
+        case ERR_INVALID_ARGUMENT: return "Invalid argument";
+        case ERR_OUT_OF_MEMORY: return "Out of memory";
+        case ERR_FILE_NOT_FOUND: return "File not found";
+        case ERR_PERMISSION_DENIED: return "Permission denied";
+        case ERR_BUFFER_OVERFLOW: return "Buffer overflow";
+        default: return "Unknown error";
+    }
+}
+
+// Function with error checking
+ErrorCode safe_copy(char *dest, size_t dest_size, const char *src) {
+    // Check for NULL pointers
+    if (dest == NULL || src == NULL) {
+        return ERR_NULL_POINTER;
+    }
+
+    // Check for invalid size
+    if (dest_size == 0) {
+        return ERR_INVALID_ARGUMENT;
+    }
+
+    // Check if source fits in destination
+    size_t src_len = strlen(src);
+    if (src_len >= dest_size) {
+        return ERR_BUFFER_OVERFLOW;
+    }
+
+    // Perform the copy
+    strcpy(dest, src);
+    return ERR_OK;
+}
+
+// Function that allocates memory
+ErrorCode create_buffer(char **buffer, size_t size) {
+    if (buffer == NULL) {
+        return ERR_NULL_POINTER;
+    }
+
+    if (size == 0) {
+        return ERR_INVALID_ARGUMENT;
+    }
+
+    *buffer = malloc(size);
+    if (*buffer == NULL) {
+        return ERR_OUT_OF_MEMORY;
+    }
+
+    return ERR_OK;
+}
+
+// Process data with multiple error checks
+ErrorCode process_data(const char *input, char **output) {
+    ErrorCode err;
+
+    // Allocate output buffer
+    err = create_buffer(output, 100);
+    if (err != ERR_OK) {
+        fprintf(stderr, "Failed to allocate buffer: %s\n", error_string(err));
+        return err;
+    }
+
+    // Copy data
+    err = safe_copy(*output, 100, input);
+    if (err != ERR_OK) {
+        fprintf(stderr, "Failed to copy data: %s\n", error_string(err));
+        free(*output);
+        *output = NULL;
+        return err;
+    }
+
+    return ERR_OK;
+}
+
+int main(void) {
+    char dest[20];
+    ErrorCode result;
+
+    // Test 1: Successful copy
+    printf("Test 1: Normal copy\n");
+    result = safe_copy(dest, sizeof(dest), "Hello");
+    if (result == ERR_OK) {
+        printf("  Success: '%s'\n", dest);
+    } else {
+        printf("  Error: %s\n", error_string(result));
+    }
+    printf("\n");
+
+    // Test 2: Buffer overflow
+    printf("Test 2: Buffer overflow\n");
+    result = safe_copy(dest, sizeof(dest), "This string is too long for the destination buffer");
+    if (result == ERR_OK) {
+        printf("  Success: '%s'\n", dest);
+    } else {
+        printf("  Error: %s\n", error_string(result));
+    }
+    printf("\n");
+
+    // Test 3: NULL pointer
+    printf("Test 3: NULL pointer\n");
+    result = safe_copy(NULL, sizeof(dest), "Hello");
+    if (result == ERR_OK) {
+        printf("  Success\n");
+    } else {
+        printf("  Error: %s\n", error_string(result));
+    }
+    printf("\n");
+
+    // Test 4: Process data
+    printf("Test 4: Process data\n");
+    char *output = NULL;
+    result = process_data("Test data", &output);
+    if (result == ERR_OK) {
+        printf("  Success: '%s'\n", output);
+        free(output);
+    } else {
+        printf("  Error: %s\n", error_string(result));
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Test 1: Normal copy
+  Success: 'Hello'
+
+Test 2: Buffer overflow
+  Error: Buffer overflow
+
+Test 3: NULL pointer
+  Error: Null pointer error
+
+Test 4: Process data
+  Success: 'Test data'
+```
+
+**Key Points:**
+- Define error codes as enum for type safety
+- Check return value of every function that can fail
+- Provide error messages for diagnostics
+- Clean up resources on error paths
+- Return specific error codes, not just -1
+
+## Example 2: errno and System Call Errors
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+// Attempt to open and read a file
+int read_file_content(const char *filename, char *buffer, size_t buffer_size) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        // errno is automatically set by fopen
+        fprintf(stderr, "Error opening file '%s': %s\n",
+                filename, strerror(errno));
+        return -1;
+    }
+
+    // Clear any previous error
+    errno = 0;
+
+    // Read content
+    size_t bytes_read = fread(buffer, 1, buffer_size - 1, file);
+    buffer[bytes_read] = '\0';
+
+    // Check for read error
+    if (ferror(file)) {
+        fprintf(stderr, "Error reading file '%s': %s\n",
+                filename, strerror(errno));
+        fclose(file);
+        return -1;
+    }
+
+    fclose(file);
+    return bytes_read;
+}
+
+// Demonstrate perror
+void demonstrate_perror(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        // perror automatically includes errno message
+        perror("fopen failed");
+        return;
+    }
+    fclose(file);
+}
+
+// Allocate memory with error checking
+void* safe_malloc(size_t size, const char *context) {
+    void *ptr = malloc(size);
+    if (ptr == NULL) {
+        fprintf(stderr, "Memory allocation failed for %s: %s\n",
+                context, strerror(errno));
+        return NULL;
+    }
+    return ptr;
+}
+
+int main(void) {
+    char buffer[256];
+
+    printf("=== Reading Existing File ===\n");
+    // Create a test file first
+    FILE *test_file = fopen("test.txt", "w");
+    if (test_file) {
+        fprintf(test_file, "Hello, World!\n");
+        fclose(test_file);
+    }
+
+    int result = read_file_content("test.txt", buffer, sizeof(buffer));
+    if (result >= 0) {
+        printf("Read %d bytes: %s\n", result, buffer);
+    }
+    printf("\n");
+
+    printf("=== Reading Non-existent File ===\n");
+    result = read_file_content("nonexistent.txt", buffer, sizeof(buffer));
+    printf("\n");
+
+    printf("=== Using perror ===\n");
+    demonstrate_perror("another_missing_file.txt");
+    printf("\n");
+
+    printf("=== Memory Allocation ===\n");
+    void *ptr = safe_malloc(1024, "test buffer");
+    if (ptr != NULL) {
+        printf("Successfully allocated 1024 bytes\n");
+        free(ptr);
+    }
+
+    // Clean up
+    remove("test.txt");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=== Reading Existing File ===
+Read 14 bytes: Hello, World!
+
+=== Reading Non-existent File ===
+Error opening file 'nonexistent.txt': No such file or directory
+
+=== Using perror ===
+fopen failed: No such file or directory
+
+=== Memory Allocation ===
+Successfully allocated 1024 bytes
+```
+
+**Key Points:**
+- `errno` is set by system calls and standard library functions
+- Use `strerror(errno)` to get human-readable error message
+- Use `perror()` for quick error printing
+- Always check return values of system calls
+- `errno` is only meaningful when a function indicates an error
+
+## Example 3: goto for Cleanup (Error Handling Pattern)
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char *buffer1;
+    char *buffer2;
+    FILE *file;
+    int *data;
+} Resources;
+
+// Bad: Manual cleanup in each error path (error-prone)
+int process_bad(const char *filename) {
+    char *buffer1 = malloc(100);
+    if (buffer1 == NULL) {
+        return -1;
+    }
+
+    char *buffer2 = malloc(200);
+    if (buffer2 == NULL) {
+        free(buffer1);  // Easy to forget!
+        return -1;
+    }
+
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        free(buffer2);  // Order matters!
+        free(buffer1);
+        return -1;
+    }
+
+    // More allocations...
+    // Each error needs all previous cleanups!
+
+    fclose(file);
+    free(buffer2);
+    free(buffer1);
+    return 0;
+}
+
+// Good: Using goto for centralized cleanup
+int process_good(const char *filename) {
+    char *buffer1 = NULL;
+    char *buffer2 = NULL;
+    FILE *file = NULL;
+    int *data = NULL;
+    int result = -1;
+
+    // Allocate resources
+    buffer1 = malloc(100);
+    if (buffer1 == NULL) {
+        fprintf(stderr, "Failed to allocate buffer1\n");
+        goto cleanup;
+    }
+
+    buffer2 = malloc(200);
+    if (buffer2 == NULL) {
+        fprintf(stderr, "Failed to allocate buffer2\n");
+        goto cleanup;
+    }
+
+    file = fopen(filename, "r");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open file: %s\n", strerror(errno));
+        goto cleanup;
+    }
+
+    data = malloc(sizeof(int) * 10);
+    if (data == NULL) {
+        fprintf(stderr, "Failed to allocate data\n");
+        goto cleanup;
+    }
+
+    // Do work...
+    printf("Processing file: %s\n", filename);
+
+    // Success!
+    result = 0;
+
+cleanup:
+    // Clean up in reverse order of allocation
+    free(data);
+    if (file != NULL) fclose(file);
+    free(buffer2);
+    free(buffer1);
+
+    return result;
+}
+
+// Complex example: Multiple cleanup paths
+int initialize_system(void) {
+    FILE *config_file = NULL;
+    char *config_buffer = NULL;
+    void *system_state = NULL;
+    int socket = -1;
+    int result = -1;
+
+    printf("Initializing system...\n");
+
+    // Step 1: Load configuration
+    config_file = fopen("config.txt", "r");
+    if (config_file == NULL) {
+        // Create default config for demo
+        config_file = fopen("config.txt", "w");
+        if (config_file) {
+            fprintf(config_file, "default config\n");
+            fclose(config_file);
+        }
+        config_file = fopen("config.txt", "r");
+        if (config_file == NULL) {
+            fprintf(stderr, "Failed to create config file\n");
+            goto cleanup;
+        }
+    }
+    printf("  Config file opened\n");
+
+    // Step 2: Allocate config buffer
+    config_buffer = malloc(1024);
+    if (config_buffer == NULL) {
+        fprintf(stderr, "Failed to allocate config buffer\n");
+        goto cleanup;
+    }
+    printf("  Config buffer allocated\n");
+
+    // Step 3: Initialize system state
+    system_state = malloc(2048);
+    if (system_state == NULL) {
+        fprintf(stderr, "Failed to allocate system state\n");
+        goto cleanup;
+    }
+    printf("  System state allocated\n");
+
+    // Step 4: Open network socket (simulated)
+    socket = 1;  // Simulated success
+    if (socket < 0) {
+        fprintf(stderr, "Failed to open socket\n");
+        goto cleanup;
+    }
+    printf("  Network socket opened\n");
+
+    printf("System initialized successfully!\n");
+    result = 0;
+
+cleanup:
+    // Cleanup in reverse order
+    if (socket >= 0) {
+        printf("  Closing socket\n");
+        // close(socket);
+    }
+    if (system_state != NULL) {
+        printf("  Freeing system state\n");
+        free(system_state);
+    }
+    if (config_buffer != NULL) {
+        printf("  Freeing config buffer\n");
+        free(config_buffer);
+    }
+    if (config_file != NULL) {
+        printf("  Closing config file\n");
+        fclose(config_file);
+    }
+
+    if (result != 0) {
+        printf("System initialization FAILED\n");
+    }
+
+    return result;
+}
+
+int main(void) {
+    printf("=== Bad Pattern (commented out to avoid leaks) ===\n");
+    // process_bad("test.txt");  // Would leak memory on error
+    printf("(See source code for anti-pattern)\n\n");
+
+    printf("=== Good Pattern with goto cleanup ===\n");
+    FILE *test = fopen("test.txt", "w");
+    if (test) {
+        fprintf(test, "test content\n");
+        fclose(test);
+    }
+    process_good("test.txt");
+    printf("\n");
+
+    printf("=== Complex Initialization ===\n");
+    initialize_system();
+
+    // Cleanup
+    remove("test.txt");
+    remove("config.txt");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=== Bad Pattern (commented out to avoid leaks) ===
+(See source code for anti-pattern)
+
+=== Good Pattern with goto cleanup ===
+Processing file: test.txt
+
+=== Complex Initialization ===
+Initializing system...
+  Config file opened
+  Config buffer allocated
+  System state allocated
+  Network socket opened
+System initialized successfully!
+  Closing socket
+  Freeing system state
+  Freeing config buffer
+  Closing config file
+```
+
+**Key Points:**
+- `goto` is acceptable for error cleanup in C
+- Initialize pointers to NULL before allocation
+- Use single cleanup path at end of function
+- Clean up in reverse order of acquisition
+- Check if resource was acquired before freeing
+
+## Example 4: Error Propagation
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+// Error context for better diagnostics
+typedef struct {
+    int code;
+    char message[256];
+    const char *function;
+    int line;
+} ErrorContext;
+
+// Macro to set error context
+#define SET_ERROR(ctx, err_code, fmt, ...) do { \
+    (ctx)->code = (err_code); \
+    snprintf((ctx)->message, sizeof((ctx)->message), fmt, ##__VA_ARGS__); \
+    (ctx)->function = __func__; \
+    (ctx)->line = __LINE__; \
+} while(0)
+
+// Print error context
+void print_error(const ErrorContext *ctx) {
+    fprintf(stderr, "Error in %s (line %d): [%d] %s\n",
+            ctx->function, ctx->line, ctx->code, ctx->message);
+}
+
+// Low-level function
+int read_data(const char *filename, char *buffer, size_t size, ErrorContext *err) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        SET_ERROR(err, errno, "Failed to open file '%s': %s",
+                  filename, strerror(errno));
+        return -1;
+    }
+
+    size_t bytes = fread(buffer, 1, size - 1, file);
+    if (ferror(file)) {
+        SET_ERROR(err, errno, "Failed to read from file '%s': %s",
+                  filename, strerror(errno));
+        fclose(file);
+        return -1;
+    }
+
+    buffer[bytes] = '\0';
+    fclose(file);
+    return bytes;
+}
+
+// Mid-level function
+int process_file(const char *filename, ErrorContext *err) {
+    char buffer[256];
+
+    int result = read_data(filename, buffer, sizeof(buffer), err);
+    if (result < 0) {
+        // Error context already set by read_data
+        return -1;
+    }
+
+    // Process data
+    printf("Read %d bytes from %s\n", result, filename);
+    return 0;
+}
+
+// High-level function
+int process_multiple_files(const char **filenames, int count) {
+    ErrorContext err;
+    int success_count = 0;
+
+    for (int i = 0; i < count; i++) {
+        if (process_file(filenames[i], &err) == 0) {
+            success_count++;
+        } else {
+            // Print error and continue with next file
+            print_error(&err);
+        }
+    }
+
+    printf("\nProcessed %d out of %d files successfully\n",
+           success_count, count);
+
+    return (success_count == count) ? 0 : -1;
+}
+
+int main(void) {
+    // Create test files
+    FILE *f1 = fopen("file1.txt", "w");
+    if (f1) {
+        fprintf(f1, "Content of file 1\n");
+        fclose(f1);
+    }
+
+    FILE *f2 = fopen("file2.txt", "w");
+    if (f2) {
+        fprintf(f2, "Content of file 2\n");
+        fclose(f2);
+    }
+
+    // Process files (including non-existent one)
+    const char *files[] = {
+        "file1.txt",
+        "nonexistent.txt",
+        "file2.txt"
+    };
+
+    process_multiple_files(files, 3);
+
+    // Cleanup
+    remove("file1.txt");
+    remove("file2.txt");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Read 19 bytes from file1.txt
+Error in read_data (line 27): [2] Failed to open file 'nonexistent.txt': No such file or directory
+Read 19 bytes from file2.txt
+
+Processed 2 out of 3 files successfully
+```
+
+**Key Points:**
+- Propagate errors up the call stack
+- Include context about where error occurred
+- Use error structures for detailed diagnostics
+- Document which functions set errno
+- Consider continuing vs. aborting on errors
+
+## Best Practices
+
+1. **Always check return values**: Never ignore function results
+2. **Check system call returns**: `malloc`, `fopen`, `read`, etc.
+3. **Use goto for cleanup**: Prevents resource leaks
+4. **Initialize to NULL/invalid**: Makes cleanup safe
+5. **Provide error context**: Help users diagnose problems
+6. **Document error behavior**: Specify what errors functions can return
+7. **Clean up on error paths**: Prevent resource leaks
+8. **Use errno correctly**: Only after function indicates error
+
+## Common Pitfalls
+
+1. **Ignoring return values**: Leads to undefined behavior
+2. **Not checking malloc**: Dereferencing NULL pointer crashes
+3. **Forgetting cleanup**: Resource leaks accumulate
+4. **Using errno without checking**: May not be set
+5. **Not clearing errno**: Checking stale error values
+6. **Inconsistent error codes**: Makes error handling confusing
+
+## Exercises
+
+1. **File Copy with Error Handling**: Write a robust file copy function that handles all possible errors (open failures, read/write errors, disk full, etc.) and provides detailed error messages.
+
+2. **Configuration Parser**: Create a configuration file parser that validates input and reports errors with line numbers and context.
+
+3. **Resource Manager**: Build a system that manages multiple resources (files, memory, connections) and ensures proper cleanup even when errors occur.
+
+4. **Retry Logic**: Implement a function that retries operations on transient errors (like network timeouts) with exponential backoff.
+
+## Key Takeaways
+
+- **C has no exceptions** - use return codes and errno
+- **Always check return values** - ignoring errors causes bugs
+- **Use goto for cleanup** - centralized cleanup prevents leaks
+- **errno provides system error details** - use `strerror()` and `perror()`
+- **Propagate errors upward** - let caller decide how to handle
+- **Initialize pointers to NULL** - makes cleanup safe
+- **Clean up in reverse order** - mirror acquisition order
+- **Provide error context** - help users diagnose problems
+
+In the next step, you'll put everything together with advanced practice problems combining state machines, callbacks, and bit manipulation.

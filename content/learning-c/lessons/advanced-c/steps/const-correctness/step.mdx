@@ -1,0 +1,417 @@
+---
+title: "Const Correctness"
+description: "Learn how to use const with pointers and function parameters to write safer, more maintainable code."
+order: 1
+---
+
+# Const Correctness
+
+The `const` keyword in C is a powerful tool for writing safer code by declaring that certain values should not be modified. When used correctly, `const` helps catch bugs at compile time, documents your intent to other programmers, and can enable compiler optimizations.
+
+Const correctness becomes especially important with pointers, where there are multiple levels of indirection to consider. Understanding the difference between "pointer to const" and "const pointer" is crucial for professional C programming.
+
+## Understanding Const with Pointers
+
+There are three main ways to use `const` with pointers:
+
+1. **Pointer to const data**: The data cannot be modified through the pointer
+2. **Const pointer**: The pointer itself cannot be changed to point elsewhere
+3. **Const pointer to const data**: Neither the pointer nor the data can be modified
+
+The trick to reading const declarations is to read them right-to-left.
+
+## Example 1: Pointer to Const vs Const Pointer
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int value1 = 10;
+    int value2 = 20;
+
+    // Pointer to const int - data cannot be modified
+    const int *ptr_to_const = &value1;
+    printf("Value: %d\n", *ptr_to_const);
+
+    // ptr_to_const can point to different addresses
+    ptr_to_const = &value2;  // OK
+    printf("New value: %d\n", *ptr_to_const);
+
+    // But we cannot modify the data through this pointer
+    // *ptr_to_const = 30;  // ERROR: assignment of read-only location
+
+    // Const pointer to int - pointer cannot be changed
+    int *const const_ptr = &value1;
+    *const_ptr = 30;  // OK - can modify the data
+    printf("Modified value: %d\n", *const_ptr);
+
+    // But cannot point to different address
+    // const_ptr = &value2;  // ERROR: assignment of read-only variable
+
+    // Const pointer to const int - neither can be modified
+    const int *const const_ptr_to_const = &value1;
+    // *const_ptr_to_const = 40;  // ERROR
+    // const_ptr_to_const = &value2;  // ERROR
+
+    printf("Const value: %d\n", *const_ptr_to_const);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Value: 10
+New value: 20
+Modified value: 30
+Const value: 30
+```
+
+**Key Points:**
+- `const int *ptr` = pointer to const int (data is const, pointer is not)
+- `int *const ptr` = const pointer to int (pointer is const, data is not)
+- `const int *const ptr` = const pointer to const int (both are const)
+- Read right-to-left: `const int *` means "pointer to const int"
+
+## Example 2: Const in Function Parameters
+
+Using `const` in function parameters documents your intent and prevents accidental modifications:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Function that reads but doesn't modify the string
+size_t count_vowels(const char *str) {
+    size_t count = 0;
+
+    // We can read the string
+    for (size_t i = 0; str[i] != '\0'; i++) {
+        char c = str[i] | 32;  // Convert to lowercase using bitwise OR
+        if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u') {
+            count++;
+        }
+    }
+
+    // But cannot modify it
+    // str[0] = 'X';  // ERROR: assignment of read-only location
+
+    return count;
+}
+
+// Function that modifies the string
+void to_uppercase(char *str) {
+    for (size_t i = 0; str[i] != '\0'; i++) {
+        if (str[i] >= 'a' && str[i] <= 'z') {
+            str[i] -= 32;
+        }
+    }
+}
+
+// Function that doesn't modify the array or its elements
+int find_max(const int *arr, size_t size) {
+    if (size == 0) return 0;
+
+    int max = arr[0];
+    for (size_t i = 1; i < size; i++) {
+        if (arr[i] > max) {
+            max = arr[i];
+        }
+    }
+    return max;
+}
+
+int main(void) {
+    char text[] = "Hello World";
+
+    printf("Original: %s\n", text);
+    printf("Vowels: %zu\n", count_vowels(text));
+
+    to_uppercase(text);
+    printf("Uppercase: %s\n", text);
+    printf("Vowels: %zu\n", count_vowels(text));
+
+    int numbers[] = {42, 17, 93, 8, 56};
+    printf("\nMax value: %d\n", find_max(numbers, 5));
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Original: Hello World
+Vowels: 3
+Uppercase: HELLO WORLD
+Vowels: 3
+
+Max value: 93
+```
+
+**Key Points:**
+- Use `const` for read-only parameters - it's self-documenting
+- Prevents accidental modifications inside the function
+- Allows passing string literals: `count_vowels("test")` works because the parameter is const
+- If you forget `const`, you get warnings when passing string literals
+
+## Example 3: Const with Structures
+
+Const is particularly useful when working with structures:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+typedef struct {
+    char name[50];
+    int age;
+    float gpa;
+} Student;
+
+// Read-only access to student
+void print_student(const Student *s) {
+    printf("Name: %s\n", s->name);
+    printf("Age: %d\n", s->age);
+    printf("GPA: %.2f\n", s->gpa);
+
+    // Cannot modify through const pointer
+    // s->age = 25;  // ERROR
+}
+
+// Modify student's GPA
+void update_gpa(Student *s, float new_gpa) {
+    if (new_gpa >= 0.0 && new_gpa <= 4.0) {
+        s->gpa = new_gpa;
+    }
+}
+
+// Return const pointer to prevent external modification
+const Student* find_top_student(const Student *students, size_t count) {
+    if (count == 0) return NULL;
+
+    const Student *top = &students[0];
+    for (size_t i = 1; i < count; i++) {
+        if (students[i].gpa > top->gpa) {
+            top = &students[i];
+        }
+    }
+    return top;
+}
+
+int main(void) {
+    Student students[] = {
+        {"Alice Johnson", 20, 3.8},
+        {"Bob Smith", 21, 3.9},
+        {"Carol White", 19, 3.7}
+    };
+
+    printf("Initial students:\n");
+    for (size_t i = 0; i < 3; i++) {
+        print_student(&students[i]);
+        printf("\n");
+    }
+
+    // Update a GPA
+    update_gpa(&students[0], 4.0);
+    printf("After updating Alice's GPA:\n");
+    print_student(&students[0]);
+    printf("\n");
+
+    // Find top student
+    const Student *top = find_top_student(students, 3);
+    if (top != NULL) {
+        printf("Top student:\n");
+        print_student(top);
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Initial students:
+Name: Alice Johnson
+Age: 20
+GPA: 3.80
+
+Name: Bob Smith
+Age: 21
+GPA: 3.90
+
+Name: Carol White
+Age: 19
+GPA: 3.70
+
+After updating Alice's GPA:
+Name: Alice Johnson
+Age: 20
+GPA: 4.00
+
+Top student:
+Name: Alice Johnson
+Age: 20
+GPA: 4.00
+```
+
+**Key Points:**
+- Use `const Student *` for functions that only read the structure
+- Returning `const` pointers prevents callers from modifying internal data
+- Pass structures by const pointer to avoid copying and prevent modification
+
+## Example 4: Const Correctness in Practice
+
+Here's a complete example showing const correctness in a mini-library:
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+#define MAX_BOOKS 100
+
+typedef struct {
+    char title[100];
+    char author[50];
+    int year;
+    int available;
+} Book;
+
+typedef struct {
+    Book books[MAX_BOOKS];
+    size_t count;
+} Library;
+
+// Initialize library - modifies library
+void init_library(Library *lib) {
+    lib->count = 0;
+}
+
+// Add book - modifies library, reads book data
+int add_book(Library *lib, const char *title, const char *author, int year) {
+    if (lib->count >= MAX_BOOKS) return 0;
+
+    Book *book = &lib->books[lib->count];
+    strncpy(book->title, title, sizeof(book->title) - 1);
+    book->title[sizeof(book->title) - 1] = '\0';
+    strncpy(book->author, author, sizeof(book->author) - 1);
+    book->author[sizeof(book->author) - 1] = '\0';
+    book->year = year;
+    book->available = 1;
+
+    lib->count++;
+    return 1;
+}
+
+// Search - reads library, reads search term
+const Book* search_by_title(const Library *lib, const char *title) {
+    for (size_t i = 0; i < lib->count; i++) {
+        if (strcmp(lib->books[i].title, title) == 0) {
+            return &lib->books[i];
+        }
+    }
+    return NULL;
+}
+
+// Print book - reads book
+void print_book(const Book *book) {
+    printf("Title: %s\n", book->title);
+    printf("Author: %s\n", book->author);
+    printf("Year: %d\n", book->year);
+    printf("Status: %s\n", book->available ? "Available" : "Checked out");
+}
+
+// List all books - reads library
+void list_books(const Library *lib) {
+    printf("Library contains %zu books:\n\n", lib->count);
+    for (size_t i = 0; i < lib->count; i++) {
+        print_book(&lib->books[i]);
+        printf("\n");
+    }
+}
+
+int main(void) {
+    Library lib;
+    init_library(&lib);
+
+    add_book(&lib, "The C Programming Language", "Kernighan & Ritchie", 1978);
+    add_book(&lib, "Expert C Programming", "Peter van der Linden", 1994);
+    add_book(&lib, "C: A Reference Manual", "Harbison & Steele", 2002);
+
+    list_books(&lib);
+
+    const char *search_title = "Expert C Programming";
+    const Book *found = search_by_title(&lib, search_title);
+
+    if (found != NULL) {
+        printf("Found book:\n");
+        print_book(found);
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Library contains 3 books:
+
+Title: The C Programming Language
+Author: Kernighan & Ritchie
+Year: 1978
+Status: Available
+
+Title: Expert C Programming
+Author: Peter van der Linden
+Year: 1994
+Status: Available
+
+Title: C: A Reference Manual
+Author: Harbison & Steele
+Year: 2002
+Status: Available
+
+Found book:
+Title: Expert C Programming
+Author: Peter van der Linden
+Year: 1994
+Status: Available
+```
+
+## Best Practices
+
+1. **Use const for read-only parameters**: If a function doesn't modify a parameter, declare it const
+2. **Return const pointers**: When returning pointers to internal data, use const to prevent modification
+3. **Const correctness propagates**: If a function calls const functions, it should also be const
+4. **Prefer const references**: For large structures, use `const struct_type *` instead of passing by value
+5. **Document intent**: Const tells readers (and the compiler) that data won't change
+6. **Enable optimizations**: Compilers can optimize const data more aggressively
+
+## Common Pitfalls
+
+1. **Const casting away**: Avoid using type casts to remove const - it defeats the purpose
+2. **Forgetting const in function declarations**: Const in definition but not declaration causes warnings
+3. **Confusing pointer types**: Remember to read right-to-left
+4. **String literals**: They're `const char *`, so functions accepting strings should use const
+
+## Exercises
+
+1. **Safe String Library**: Write functions `safe_strlen()`, `safe_strcmp()`, and `safe_strchr()` that take `const char *` parameters. Ensure they don't modify the input strings.
+
+2. **Matrix Operations**: Create a matrix struct and write functions to add matrices, multiply matrices, and transpose a matrix. Use const appropriately for read-only operations.
+
+3. **Configuration Manager**: Build a configuration system with getter functions that return const pointers and setter functions that modify values. Ensure external code cannot modify the configuration through getters.
+
+4. **Const Violation Finder**: Take any of your previous programs and add const to all function parameters that aren't modified. Fix any compilation errors that arise.
+
+## Key Takeaways
+
+- **Const prevents modification** of data, making code safer and more predictable
+- **Three forms with pointers**: pointer to const, const pointer, and const pointer to const
+- **Read right-to-left**: `const int *` means "pointer to const int"
+- **Use const for read-only parameters** to document intent and catch errors
+- **Return const pointers** to prevent modification of internal data
+- **Const correctness propagates** through your codebase
+- **Enables optimizations** and prevents entire classes of bugs
+
+In the next step, you'll learn about the `static` keyword and how to control variable and function scope in C programs.

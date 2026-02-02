@@ -1,0 +1,710 @@
+---
+title: "Memory Allocator Design"
+order: 5
+---
+
+# Memory Allocator Design
+
+## Introduction
+
+You've chosen to build a custom memory allocator - excellent choice! In this step, we'll design the architecture of your allocator, understanding how `malloc()` and `free()` work at a fundamental level.
+
+A memory allocator manages a heap: a large region of memory that programs can dynamically request pieces of. Your allocator will maintain metadata about which blocks are free and which are in use.
+
+## How Memory Allocation Works
+
+### The Heap
+
+The heap is a contiguous region of memory that grows upward:
+
+```
+Low Memory
+    ↓
+┌────────────────┐
+│  Text (.text)  │  ← Program code
+├────────────────┤
+│  Data (.data)  │  ← Global variables
+├────────────────┤
+│  BSS (.bss)    │  ← Uninitialized globals
+├────────────────┤
+│                │
+│  Heap ↓        │  ← Grows upward
+│                │
+│   ...          │
+│                │
+│  Stack ↑       │  ← Grows downward
+│                │
+└────────────────┘
+    ↑
+High Memory
+```
+
+### System Calls for Heap Management
+
+**sbrk()**: Moves the program break (end of heap)
+```c
+void *sbrk(intptr_t increment);
+// Returns old break on success, (void*)-1 on error
+// increment > 0: increase heap by increment bytes
+// increment < 0: decrease heap by increment bytes
+// increment = 0: returns current break
+```
+
+**mmap()**: Maps memory directly (alternative to sbrk)
+```c
+void *mmap(void *addr, size_t length, int prot, int flags,
+           int fd, off_t offset);
+// More flexible but more complex
+// Use MAP_ANONYMOUS for allocator
+```
+
+For simplicity, we'll use `sbrk()`.
+
+## Core Concepts
+
+### 1. Block Metadata
+
+Each allocated block needs metadata:
+- Size of the block
+- Whether it's free or allocated
+- Pointer to next block (for free list)
+
+**Challenge**: Store metadata without wasting space
+
+**Solution**: Store metadata in a header before each block
+
+```
+┌─────────────────┬──────────────────────┐
+│  Header         │  User Data           │
+│  (size, status) │  (returned to user)  │
+└─────────────────┴──────────────────────┘
+ ^                 ^
+ |                 |
+ Actual block      Pointer returned to user
+```
+
+### 2. Free List
+
+Track free blocks in a linked list:
+
+```
+Free List Head
+    ↓
+┌────────┐      ┌────────┐      ┌────────┐
+│ Block1 │ →    │ Block2 │ →    │ Block3 │ → NULL
+│ 64B    │      │ 128B   │      │ 32B    │
+└────────┘      └────────┘      └────────┘
+```
+
+### 3. Allocation Strategies
+
+**First Fit**: Use first free block that's large enough
+- Fast: O(n) in worst case
+- Can cause fragmentation
+
+**Best Fit**: Use smallest free block that's large enough
+- Slower: O(n) always (must check all)
+- Better space utilization
+- Can create tiny unusable fragments
+
+**Worst Fit**: Use largest free block
+- O(n) always
+- Reduces small fragments
+- Can waste space
+
+### 4. Splitting
+
+When allocated block is larger than needed, split it:
+
+```
+Before: Request 32B from 128B block
+┌──────────────────────────────────┐
+│        128 bytes free            │
+└──────────────────────────────────┘
+
+After: Split into used + free
+┌─────────────┬────────────────────┐
+│  32B used   │   96B free         │
+└─────────────┴────────────────────┘
+```
+
+### 5. Coalescing
+
+When freeing a block adjacent to other free blocks, merge them:
+
+```
+Before: Three separate blocks
+┌──────┬──────┬──────┐
+│ Free │ Used │ Free │
+│ 32B  │ 64B  │ 32B  │
+└──────┴──────┴──────┘
+
+After: Middle block freed and coalesced
+┌────────────────────┐
+│     128B Free      │
+└────────────────────┘
+```
+
+Without coalescing, heap becomes fragmented.
+
+### 6. Alignment
+
+Addresses must be aligned for efficient access:
+- 32-bit systems: 4-byte alignment
+- 64-bit systems: 8-byte alignment
+
+Unaligned access can be slow or cause crashes on some architectures.
+
+## Data Structure Design
+
+### Block Header
+
+```c
+typedef struct block_header {
+    size_t size;           // Size of data portion (not including header)
+    int is_free;           // 1 if free, 0 if allocated
+    struct block_header *next;  // Next block in free list
+} block_header_t;
+```
+
+**Size**: Typically 16-24 bytes per block (overhead)
+
+### Alternative: Compact Header
+
+Store status in size field using low bits:
+```c
+typedef struct block_header {
+    size_t size;           // Low bit = is_free flag
+    struct block_header *next;
+} block_header_t;
+
+// Macros to manipulate
+#define SIZE(header) ((header)->size & ~0x1)
+#define IS_FREE(header) ((header)->size & 0x1)
+#define SET_FREE(header) ((header)->size |= 0x1)
+#define SET_USED(header) ((header)->size &= ~0x1)
+```
+
+This works because sizes are aligned (low bits always 0).
+
+### Alternative: Boundary Tags
+
+Store size at both ends for easier coalescing:
+
+```
+┌──────────┬──────────────┬──────────┐
+│  Header  │     Data     │  Footer  │
+│  size=N  │   (N bytes)  │  size=N  │
+└──────────┴──────────────┴──────────┘
+```
+
+Allows backward traversal to check if previous block is free.
+
+### Global State
+
+```c
+// Head of free list
+static block_header_t *free_list_head = NULL;
+
+// Start of heap
+static void *heap_start = NULL;
+
+// Current break
+static void *program_break = NULL;
+
+// Statistics (optional)
+static size_t total_allocated = 0;
+static size_t total_freed = 0;
+static size_t num_allocations = 0;
+```
+
+## Algorithm Design
+
+### my_malloc(size_t size)
+
+**High-Level Algorithm**:
+1. Align requested size
+2. Search free list for suitable block
+3. If found:
+   - Remove from free list
+   - Split if too large
+   - Mark as allocated
+   - Return pointer to data portion
+4. If not found:
+   - Request more memory from OS with sbrk()
+   - Create new block
+   - Return pointer to data portion
+
+**Pseudocode**:
+```
+function my_malloc(size):
+    // Align size
+    aligned_size = align_to_8(size)
+
+    // Search free list
+    block = find_free_block(aligned_size)
+
+    if block found:
+        remove_from_free_list(block)
+
+        if block.size >= aligned_size + MIN_SPLIT_SIZE:
+            split_block(block, aligned_size)
+
+        block.is_free = 0
+        return (void*)block + sizeof(header)
+
+    // No suitable block, request from OS
+    block = expand_heap(aligned_size)
+
+    if block is NULL:
+        return NULL  // Out of memory
+
+    block.is_free = 0
+    return (void*)block + sizeof(header)
+```
+
+### my_free(void *ptr)
+
+**High-Level Algorithm**:
+1. Validate pointer
+2. Get block header from pointer
+3. Mark block as free
+4. Coalesce with adjacent free blocks
+5. Add to free list
+
+**Pseudocode**:
+```
+function my_free(ptr):
+    if ptr is NULL:
+        return
+
+    // Get header
+    block = ptr - sizeof(header)
+
+    // Validate (optional)
+    if not valid_block(block):
+        error("Invalid pointer")
+        return
+
+    // Mark as free
+    block.is_free = 1
+
+    // Coalesce with neighbors
+    coalesce(block)
+
+    // Add to free list
+    add_to_free_list(block)
+```
+
+### Coalescing
+
+**Algorithm**:
+1. Check if next block is free → merge
+2. Check if previous block is free → merge
+3. Update size and free list
+
+**Challenge**: How to find previous block?
+
+**Solution 1**: Traverse from heap start (slow)
+**Solution 2**: Use boundary tags (footer with size)
+**Solution 3**: Only coalesce forward (simpler)
+
+### Splitting
+
+**Algorithm**:
+1. Check if remaining space is large enough for a new block
+2. Create new header in remaining space
+3. Update sizes
+4. Add new block to free list
+
+**Minimum Split Size**:
+```c
+#define MIN_SPLIT_SIZE (sizeof(block_header_t) + 8)
+// Must be enough for header + some data
+```
+
+## Alignment Handling
+
+### Why Alignment Matters
+
+Modern processors access aligned memory faster:
+- Reading 4 bytes from address 0x1000 ✓ (aligned)
+- Reading 4 bytes from address 0x1001 ✗ (unaligned, slower)
+
+### Alignment Macro
+
+```c
+#define ALIGN 8  // 8-byte alignment
+
+#define ALIGN_SIZE(size) \
+    (((size) + (ALIGN - 1)) & ~(ALIGN - 1))
+```
+
+**Example**:
+- Request 13 bytes → allocate 16 bytes
+- Request 16 bytes → allocate 16 bytes
+- Request 17 bytes → allocate 24 bytes
+
+## Design Decisions
+
+### Decision 1: Allocation Strategy
+
+**First Fit (Recommended for Start)**:
+- Pros: Fast, simple to implement
+- Cons: Fragmentation
+
+**Best Fit**:
+- Pros: Better space utilization
+- Cons: Slower, creates small fragments
+
+**Start with**: First Fit
+**Optimize later**: Add Best Fit as option
+
+### Decision 2: Free List Organization
+
+**Single Linked List**:
+- Simple to implement
+- Insertion: O(1)
+- Search: O(n)
+
+**Sorted by Address**:
+- Makes coalescing easier
+- Insertion: O(n)
+- Search: O(n)
+
+**Segregated Free Lists** (Advanced):
+- Multiple lists for different size ranges
+- Fast allocation for common sizes
+- More complex
+
+**Start with**: Single unsorted list
+**Optimize later**: Sorted or segregated
+
+### Decision 3: Metadata Size
+
+**Minimal**:
+```c
+struct block_header {
+    size_t size;  // 8 bytes
+};
+```
+Only 8 bytes, but can't free without scanning
+
+**Standard**:
+```c
+struct block_header {
+    size_t size;     // 8 bytes
+    int is_free;     // 4 bytes
+    void *next;      // 8 bytes
+};
+```
+20-24 bytes (with padding), efficient free()
+
+**Start with**: Standard
+**Optimize later**: Compact representation
+
+### Decision 4: Coalescing Strategy
+
+**Immediate Coalescing**:
+- Coalesce on every free()
+- Prevents fragmentation
+- Can be slow if many free()/malloc() calls
+
+**Deferred Coalescing**:
+- Only coalesce when needed (out of memory)
+- Faster individual operations
+- More fragmentation
+
+**Start with**: Immediate coalescing
+
+## Module Organization
+
+### Recommended Structure
+
+```
+allocator/
+├── Makefile
+├── src/
+│   ├── allocator.c      # Main malloc/free implementation
+│   ├── free_list.c      # Free list management
+│   ├── coalesce.c       # Coalescing logic
+│   └── debug.c          # Debugging utilities
+├── include/
+│   ├── allocator.h      # Public API
+│   └── internal.h       # Internal definitions
+├── tests/
+│   ├── test_basic.c
+│   ├── test_stress.c
+│   └── test_coalesce.c
+└── README.md
+```
+
+### Interface Design
+
+**allocator.h** (Public API):
+```c
+void *my_malloc(size_t size);
+void my_free(void *ptr);
+void *my_realloc(void *ptr, size_t size);
+void *my_calloc(size_t nmemb, size_t size);
+
+// Initialization (optional)
+void allocator_init(void);
+
+// Debugging utilities
+void allocator_print_stats(void);
+void allocator_print_heap(void);
+int allocator_check_integrity(void);
+```
+
+**internal.h** (Internal):
+```c
+// Block structure
+typedef struct block_header block_header_t;
+
+// Internal functions
+block_header_t *find_free_block(size_t size);
+void split_block(block_header_t *block, size_t size);
+void coalesce_block(block_header_t *block);
+void *expand_heap(size_t size);
+```
+
+## Error Handling
+
+### Categories of Errors
+
+**1. Out of Memory**:
+- sbrk() fails
+- Return NULL (standard behavior)
+
+**2. Invalid Free**:
+- Freeing NULL (allowed, no-op)
+- Freeing invalid pointer (undefined behavior)
+- Double free (undefined behavior)
+
+**3. Corruption**:
+- Overwriting metadata
+- Buffer overflow into next block
+
+### Validation Strategy
+
+**Basic** (Production):
+```c
+void my_free(void *ptr) {
+    if (ptr == NULL) return;  // Allow NULL
+
+    // Basic validation
+    if (ptr < heap_start || ptr > program_break) {
+        fprintf(stderr, "free: invalid pointer\n");
+        return;
+    }
+
+    // ... rest of free logic
+}
+```
+
+**Advanced** (Debug Mode):
+```c
+#ifdef DEBUG_ALLOCATOR
+    // Add magic numbers to headers
+    #define MAGIC 0xDEADBEEF
+
+    struct block_header {
+        size_t size;
+        int is_free;
+        struct block_header *next;
+        uint32_t magic;  // Detect corruption
+    };
+
+    // Validate on every operation
+    void validate_block(block_header_t *block) {
+        if (block->magic != MAGIC) {
+            fprintf(stderr, "Corruption detected!\n");
+            abort();
+        }
+    }
+#endif
+```
+
+## Testing Strategy
+
+### Unit Tests
+
+**Test 1**: Basic Allocation
+```c
+void *p = my_malloc(100);
+assert(p != NULL);
+my_free(p);
+```
+
+**Test 2**: Multiple Allocations
+```c
+void *p1 = my_malloc(100);
+void *p2 = my_malloc(200);
+void *p3 = my_malloc(50);
+assert(p1 && p2 && p3);
+my_free(p1);
+my_free(p2);
+my_free(p3);
+```
+
+**Test 3**: Coalescing
+```c
+void *p1 = my_malloc(100);
+void *p2 = my_malloc(100);
+void *p3 = my_malloc(100);
+my_free(p1);
+my_free(p3);
+my_free(p2);  // Should coalesce all three
+// Check that free list has one large block
+```
+
+**Test 4**: Splitting
+```c
+void *p1 = my_malloc(1000);
+my_free(p1);
+void *p2 = my_malloc(100);  // Should split large block
+void *p3 = my_malloc(100);  // Should use remainder
+assert(p2 && p3);
+```
+
+### Stress Tests
+
+**Test 5**: Random Operations
+```c
+for (int i = 0; i < 1000; i++) {
+    if (rand() % 2) {
+        ptrs[i] = my_malloc(rand() % 1000);
+    } else if (ptrs[i]) {
+        my_free(ptrs[i]);
+        ptrs[i] = NULL;
+    }
+}
+```
+
+**Test 6**: Fragmentation
+```c
+// Allocate many small blocks
+// Free every other block
+// Try to allocate large block (should fail or require expansion)
+```
+
+### Integration Tests
+
+**Test 7**: Real Programs
+Replace system malloc:
+```c
+#define malloc my_malloc
+#define free my_free
+// Include normal program
+```
+
+Use `LD_PRELOAD` on Linux:
+```bash
+LD_PRELOAD=./liballocator.so ./some_program
+```
+
+## Design Exercises
+
+### Exercise 1: Memory Layout
+
+Draw the memory layout after this sequence:
+```c
+void *p1 = my_malloc(32);
+void *p2 = my_malloc(64);
+void *p3 = my_malloc(32);
+my_free(p2);
+void *p4 = my_malloc(16);
+```
+
+Show headers, sizes, and free list.
+
+### Exercise 2: Coalescing Cases
+
+Identify when coalescing happens:
+```
+Case 1: [Free 64] [Free 64] → ?
+Case 2: [Free 64] [Used 64] [Free 64] → ?
+Case 3: [Used 64] [Free 64] [Free 64] → ?
+```
+
+### Exercise 3: Worst Case Fragmentation
+
+Design an allocation/free sequence that creates worst-case fragmentation. How would you mitigate it?
+
+### Exercise 4: Alignment Calculation
+
+Calculate aligned sizes:
+- Align 5 to 8: ?
+- Align 16 to 8: ?
+- Align 17 to 8: ?
+- Align 1 to 16: ?
+
+## Implementation Roadmap
+
+### Phase 1: Basic Allocator (Week 1, Part 1)
+- Define block_header structure
+- Implement my_malloc() with sbrk()
+- Implement my_free() (no coalescing yet)
+- Simple free list management
+
+**Milestone**: Can allocate and free single blocks
+
+### Phase 2: Free List & First Fit (Week 1, Part 2)
+- Implement free list traversal
+- Find first suitable block
+- Reuse freed blocks
+- Handle out-of-memory
+
+**Milestone**: Reuses freed memory efficiently
+
+### Phase 3: Splitting & Coalescing (Week 2, Part 1)
+- Split large blocks when possible
+- Coalesce adjacent free blocks
+- Test with complex patterns
+
+**Milestone**: No fragmentation from simple patterns
+
+### Phase 4: Advanced Features (Week 2, Part 2)
+- Implement my_realloc()
+- Implement my_calloc()
+- Add alignment handling
+- Optimize allocation strategy
+
+**Milestone**: Feature-complete allocator
+
+### Phase 5: Testing & Debugging (Week 3)
+- Comprehensive test suite
+- Debugging utilities (heap dump, stats)
+- Memory corruption detection
+- Performance optimization
+
+**Milestone**: Production-ready allocator
+
+## Performance Considerations
+
+### Time Complexity
+
+| Operation | First Fit | Best Fit |
+|-----------|-----------|----------|
+| malloc    | O(n)      | O(n)     |
+| free      | O(1)*     | O(1)*    |
+
+*With immediate coalescing, O(n) in worst case
+
+### Space Overhead
+
+- Header per block: 16-24 bytes
+- For small allocations, overhead is significant
+- Example: Allocating 8 bytes requires 24+ bytes total
+
+### Optimization Ideas
+
+1. **Segregated Free Lists**: Separate lists for different sizes
+2. **Binning**: Group similar sizes together
+3. **Caching**: Keep recent frees in cache
+4. **Lazy Coalescing**: Defer until necessary
+
+## Next Step
+
+Once you understand the design, proceed to the Allocator Implementation step where you'll write the code!

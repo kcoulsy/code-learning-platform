@@ -1,0 +1,603 @@
+---
+title: "Header Files"
+description: "Learn to separate interface from implementation using header files, the foundation of modular C programming."
+order: 5
+---
+
+# Header Files
+
+As programs grow, keeping everything in one file becomes unmanageable. **Header files** (.h) allow you to separate the interface (what functions and types are available) from the implementation (how they work), enabling modular design and code reuse.
+
+Think of a header file as a contract or API specification. It declares what's available without revealing how it works, just like a restaurant menu shows what you can order without explaining the recipes.
+
+## What Goes in a Header File?
+
+Header files typically contain:
+- Function declarations (prototypes)
+- Type definitions (struct, typedef, enum)
+- Macro definitions (#define)
+- Global variable declarations (extern)
+
+Header files should **not** contain:
+- Function definitions (implementations)
+- Global variable definitions
+- Executable code
+
+## Header Guards
+
+Every header file needs **header guards** to prevent multiple inclusion:
+
+```c
+#ifndef FILENAME_H
+#define FILENAME_H
+
+// Header contents go here
+
+#endif // FILENAME_H
+```
+
+Without guards, including the same header twice causes redefinition errors.
+
+## Example 1: Basic Header File Structure
+
+Let's create a simple geometry module:
+
+**geometry.h** (the header file):
+```c
+#ifndef GEOMETRY_H
+#define GEOMETRY_H
+
+// Type definitions
+typedef struct {
+    double x;
+    double y;
+} Point;
+
+typedef struct {
+    Point center;
+    double radius;
+} Circle;
+
+// Function declarations (prototypes)
+Point createPoint(double x, double y);
+double distance(Point p1, Point p2);
+Circle createCircle(Point center, double radius);
+double circleArea(Circle c);
+double circleCircumference(Circle c);
+int pointInCircle(Point p, Circle c);
+
+#endif // GEOMETRY_H
+```
+
+**geometry.c** (the implementation file):
+```c
+#include "geometry.h"
+#include <math.h>
+
+// Function definitions (implementations)
+Point createPoint(double x, double y) {
+    Point p = {x, y};
+    return p;
+}
+
+double distance(Point p1, Point p2) {
+    double dx = p2.x - p1.x;
+    double dy = p2.y - p1.y;
+    return sqrt(dx * dx + dy * dy);
+}
+
+Circle createCircle(Point center, double radius) {
+    Circle c = {center, radius};
+    return c;
+}
+
+double circleArea(Circle c) {
+    return M_PI * c.radius * c.radius;
+}
+
+double circleCircumference(Circle c) {
+    return 2 * M_PI * c.radius;
+}
+
+int pointInCircle(Point p, Circle c) {
+    return distance(p, c.center) <= c.radius;
+}
+```
+
+**main.c** (using the module):
+```c
+#include <stdio.h>
+#include "geometry.h"
+
+int main(void) {
+    Point p1 = createPoint(0, 0);
+    Point p2 = createPoint(3, 4);
+
+    printf("Distance between points: %.2f\n", distance(p1, p2));
+
+    Circle circle = createCircle(p1, 5.0);
+    printf("Circle area: %.2f\n", circleArea(circle));
+    printf("Circle circumference: %.2f\n", circleCircumference(circle));
+
+    if (pointInCircle(p2, circle)) {
+        printf("Point (3, 4) is inside the circle\n");
+    } else {
+        printf("Point (3, 4) is outside the circle\n");
+    }
+
+    return 0;
+}
+```
+
+**Compilation:**
+```bash
+gcc -o program main.c geometry.c -lm
+```
+
+**Output:**
+```
+Distance between points: 5.00
+Circle area: 78.54
+Circle circumference: 31.42
+Point (3, 4) is inside the circle
+```
+
+**Key Points:**
+- Header declares the interface (what's available)
+- Implementation file provides the actual code
+- Users include the header to access the module
+- Compile all .c files together
+
+## Example 2: Complete Module with Constants
+
+Let's build a string utility module:
+
+**strutil.h**:
+```c
+#ifndef STRUTIL_H
+#define STRUTIL_H
+
+#include <stddef.h>  // for size_t
+
+// Constants
+#define MAX_STRING_LENGTH 1024
+
+// Function declarations
+char* strTrim(char *str);
+char* strToUpper(char *str);
+char* strToLower(char *str);
+int strContains(const char *str, const char *substr);
+char** strSplit(const char *str, char delimiter, int *count);
+void freeSplit(char **parts, int count);
+
+#endif // STRUTIL_H
+```
+
+**strutil.c**:
+```c
+#include "strutil.h"
+#include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+// Remove leading and trailing whitespace
+char* strTrim(char *str) {
+    if (str == NULL) return NULL;
+
+    // Trim leading whitespace
+    char *start = str;
+    while (isspace((unsigned char)*start)) start++;
+
+    // Trim trailing whitespace
+    char *end = str + strlen(str) - 1;
+    while (end > start && isspace((unsigned char)*end)) end--;
+
+    // Write new null terminator
+    *(end + 1) = '\0';
+
+    // Move trimmed string to beginning
+    if (start > str) {
+        memmove(str, start, end - start + 2);
+    }
+
+    return str;
+}
+
+// Convert string to uppercase
+char* strToUpper(char *str) {
+    if (str == NULL) return NULL;
+
+    for (char *p = str; *p; p++) {
+        *p = toupper((unsigned char)*p);
+    }
+    return str;
+}
+
+// Convert string to lowercase
+char* strToLower(char *str) {
+    if (str == NULL) return NULL;
+
+    for (char *p = str; *p; p++) {
+        *p = tolower((unsigned char)*p);
+    }
+    return str;
+}
+
+// Check if string contains substring
+int strContains(const char *str, const char *substr) {
+    if (str == NULL || substr == NULL) return 0;
+    return strstr(str, substr) != NULL;
+}
+
+// Split string by delimiter
+char** strSplit(const char *str, char delimiter, int *count) {
+    if (str == NULL || count == NULL) return NULL;
+
+    // Count delimiters
+    *count = 1;
+    for (const char *p = str; *p; p++) {
+        if (*p == delimiter) (*count)++;
+    }
+
+    // Allocate array of pointers
+    char **parts = malloc(*count * sizeof(char*));
+    if (parts == NULL) return NULL;
+
+    // Copy and split
+    char *copy = strdup(str);
+    char *token = strtok(copy, &delimiter);
+    int i = 0;
+
+    while (token != NULL && i < *count) {
+        parts[i] = strdup(token);
+        token = strtok(NULL, &delimiter);
+        i++;
+    }
+
+    free(copy);
+    *count = i;  // Actual count
+    return parts;
+}
+
+// Free split result
+void freeSplit(char **parts, int count) {
+    if (parts == NULL) return;
+
+    for (int i = 0; i < count; i++) {
+        free(parts[i]);
+    }
+    free(parts);
+}
+```
+
+**main.c**:
+```c
+#include <stdio.h>
+#include <string.h>
+#include "strutil.h"
+
+int main(void) {
+    // Test trim
+    char str1[100] = "   Hello, World!   ";
+    printf("Original: '%s'\n", str1);
+    printf("Trimmed:  '%s'\n", strTrim(str1));
+
+    // Test case conversion
+    char str2[100] = "Hello, World!";
+    printf("\nOriginal: %s\n", str2);
+    printf("Upper:    %s\n", strToUpper(str2));
+
+    char str3[100] = "TESTING";
+    printf("Lower:    %s\n", strToLower(str3));
+
+    // Test contains
+    const char *text = "The quick brown fox";
+    printf("\n'%s' contains 'fox': %s\n", text,
+           strContains(text, "fox") ? "yes" : "no");
+    printf("'%s' contains 'cat': %s\n", text,
+           strContains(text, "cat") ? "yes" : "no");
+
+    // Test split
+    const char *csv = "apple,banana,orange,grape";
+    int count;
+    char **parts = strSplit(csv, ',', &count);
+
+    printf("\nSplit '%s':\n", csv);
+    for (int i = 0; i < count; i++) {
+        printf("  [%d] %s\n", i, parts[i]);
+    }
+
+    freeSplit(parts, count);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Original: '   Hello, World!   '
+Trimmed:  'Hello, World!'
+
+Original: Hello, World!
+Upper:    HELLO, WORLD!
+Lower:    testing
+
+'The quick brown fox' contains 'fox': yes
+'The quick brown fox' contains 'cat': no
+
+Split 'apple,banana,orange,grape':
+  [0] apple
+  [1] banana
+  [2] orange
+  [3] grape
+```
+
+## Example 3: Multiple Headers with Dependencies
+
+**types.h** (shared types):
+```c
+#ifndef TYPES_H
+#define TYPES_H
+
+typedef struct {
+    char name[50];
+    int age;
+    double salary;
+} Employee;
+
+typedef enum {
+    DEPT_ENGINEERING,
+    DEPT_SALES,
+    DEPT_MARKETING,
+    DEPT_HR
+} Department;
+
+#endif // TYPES_H
+```
+
+**employee.h** (employee operations):
+```c
+#ifndef EMPLOYEE_H
+#define EMPLOYEE_H
+
+#include "types.h"  // Include dependency
+
+Employee createEmployee(const char *name, int age, double salary);
+void printEmployee(const Employee *emp);
+int compareByName(const void *a, const void *b);
+int compareBySalary(const void *a, const void *b);
+
+#endif // EMPLOYEE_H
+```
+
+**employee.c**:
+```c
+#include "employee.h"
+#include <stdio.h>
+#include <string.h>
+
+Employee createEmployee(const char *name, int age, double salary) {
+    Employee emp = {0};
+    strncpy(emp.name, name, sizeof(emp.name) - 1);
+    emp.age = age;
+    emp.salary = salary;
+    return emp;
+}
+
+void printEmployee(const Employee *emp) {
+    printf("%-20s Age: %3d  Salary: $%10.2f\n",
+           emp->name, emp->age, emp->salary);
+}
+
+int compareByName(const void *a, const void *b) {
+    const Employee *ea = (const Employee *)a;
+    const Employee *eb = (const Employee *)b;
+    return strcmp(ea->name, eb->name);
+}
+
+int compareBySalary(const void *a, const void *b) {
+    const Employee *ea = (const Employee *)a;
+    const Employee *eb = (const Employee *)b;
+    if (ea->salary < eb->salary) return -1;
+    if (ea->salary > eb->salary) return 1;
+    return 0;
+}
+```
+
+**department.h**:
+```c
+#ifndef DEPARTMENT_H
+#define DEPARTMENT_H
+
+#include "types.h"
+
+typedef struct {
+    Department dept;
+    Employee *employees;
+    int count;
+    int capacity;
+} DepartmentInfo;
+
+DepartmentInfo createDepartment(Department dept, int capacity);
+void addEmployeeToDept(DepartmentInfo *dept, Employee emp);
+double getDepartmentAverageSalary(const DepartmentInfo *dept);
+void printDepartment(const DepartmentInfo *dept);
+void freeDepartment(DepartmentInfo *dept);
+const char* getDepartmentName(Department dept);
+
+#endif // DEPARTMENT_H
+```
+
+**department.c**:
+```c
+#include "department.h"
+#include "employee.h"
+#include <stdlib.h>
+#include <stdio.h>
+
+const char* getDepartmentName(Department dept) {
+    switch (dept) {
+        case DEPT_ENGINEERING: return "Engineering";
+        case DEPT_SALES:       return "Sales";
+        case DEPT_MARKETING:   return "Marketing";
+        case DEPT_HR:          return "Human Resources";
+        default:               return "Unknown";
+    }
+}
+
+DepartmentInfo createDepartment(Department dept, int capacity) {
+    DepartmentInfo deptInfo;
+    deptInfo.dept = dept;
+    deptInfo.employees = malloc(capacity * sizeof(Employee));
+    deptInfo.count = 0;
+    deptInfo.capacity = capacity;
+    return deptInfo;
+}
+
+void addEmployeeToDept(DepartmentInfo *dept, Employee emp) {
+    if (dept->count < dept->capacity) {
+        dept->employees[dept->count++] = emp;
+    }
+}
+
+double getDepartmentAverageSalary(const DepartmentInfo *dept) {
+    if (dept->count == 0) return 0.0;
+
+    double total = 0.0;
+    for (int i = 0; i < dept->count; i++) {
+        total += dept->employees[i].salary;
+    }
+    return total / dept->count;
+}
+
+void printDepartment(const DepartmentInfo *dept) {
+    printf("\n%s Department (%d employees):\n",
+           getDepartmentName(dept->dept), dept->count);
+    printf("-----------------------------------------------------\n");
+
+    for (int i = 0; i < dept->count; i++) {
+        printf("  ");
+        printEmployee(&dept->employees[i]);
+    }
+
+    printf("Average Salary: $%.2f\n",
+           getDepartmentAverageSalary(dept));
+}
+
+void freeDepartment(DepartmentInfo *dept) {
+    free(dept->employees);
+    dept->employees = NULL;
+    dept->count = 0;
+    dept->capacity = 0;
+}
+```
+
+**main.c**:
+```c
+#include <stdio.h>
+#include "employee.h"
+#include "department.h"
+
+int main(void) {
+    DepartmentInfo engineering = createDepartment(DEPT_ENGINEERING, 10);
+
+    addEmployeeToDept(&engineering, createEmployee("Alice Smith", 30, 95000));
+    addEmployeeToDept(&engineering, createEmployee("Bob Jones", 35, 105000));
+    addEmployeeToDept(&engineering, createEmployee("Carol White", 28, 85000));
+
+    printDepartment(&engineering);
+
+    freeDepartment(&engineering);
+
+    return 0;
+}
+```
+
+**Compilation:**
+```bash
+gcc -o program main.c employee.c department.c
+```
+
+**Output:**
+```
+Engineering Department (3 employees):
+-----------------------------------------------------
+  Alice Smith          Age:  30  Salary: $  95000.00
+  Bob Jones            Age:  35  Salary: $ 105000.00
+  Carol White          Age:  28  Salary: $  85000.00
+Average Salary: $95000.00
+```
+
+## Best Practices
+
+1. **Always Use Header Guards**: Prevents multiple inclusion errors
+   ```c
+   #ifndef MYHEADER_H
+   #define MYHEADER_H
+   // ...
+   #endif
+   ```
+
+2. **Match Names**: header.h and header.c should have the same base name
+
+3. **Include Order**:
+   - System headers first: `#include <stdio.h>`
+   - Then your headers: `#include "myheader.h"`
+   - Use alphabetical order within each group
+
+4. **Minimize Dependencies**: Only include what you need
+   ```c
+   // Forward declarations reduce dependencies
+   typedef struct Employee Employee;  // Instead of #include "employee.h"
+   ```
+
+5. **Document Your API**: Add comments to header files
+   ```c
+   /**
+    * Calculate distance between two points.
+    * @param p1 First point
+    * @param p2 Second point
+    * @return Distance as a double
+    */
+   double distance(Point p1, Point p2);
+   ```
+
+6. **Use const**: Mark parameters that shouldn't be modified
+   ```c
+   void printEmployee(const Employee *emp);
+   ```
+
+7. **Include Guards Naming**: Use FILENAME_H convention
+
+## Common Pitfalls
+
+1. **Forgetting Header Guards**: Causes redefinition errors
+2. **Circular Dependencies**: Header A includes B, B includes A
+3. **Putting Implementations in Headers**: Causes multiple definition errors
+4. **Inconsistent Function Signatures**: Declaration and definition must match exactly
+5. **Global Variables in Headers**: Use `extern` in header, define in one .c file
+
+## Exercises
+
+1. **Math Library**: Create a math utility module (math_util.h/c) with functions for factorial, power, GCD, and prime checking. Write a main program that uses all functions.
+
+2. **Dynamic Array Module**: Implement a dynamic array (vector) module with functions to create, add, remove, get, and free. The array should resize automatically.
+
+3. **Linked List Module**: Create a singly-linked list module with functions for insert, delete, search, and display. Use proper memory management.
+
+4. **Configuration Parser**: Build a module to read and parse key=value configuration files. Store settings in a structure and provide functions to get values by key.
+
+## Key Takeaways
+
+- **Header files separate interface from implementation**, enabling modular design
+- **Header guards prevent multiple inclusion** errors
+- Headers contain **declarations**, implementation files contain **definitions**
+- **Include dependencies explicitly** in headers that need them
+- **Match header and implementation file names** for clarity
+- Use **forward declarations** to minimize dependencies
+- **Document your API** in header files with comments
+- Follow **consistent include order**: system headers, then local headers
+- Always use **const** for read-only parameters
+- **Compile all .c files together** to build the program
+
+In the next step, you'll learn how to compile multi-file programs efficiently using separate compilation and linking.

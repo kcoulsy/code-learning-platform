@@ -1,0 +1,65 @@
+---
+id: 03-standard-library
+title: The C Standard Library: Deep Dive
+description: Understand standard library internals, reimplement key functions, learn safer alternatives, and master errno patterns.
+type: lesson
+order: 3
+---
+
+import { LearningObjectives } from '@/components/learning-objectives'
+
+# The C Standard Library: Deep Dive
+
+The C standard library is small but powerful. Understanding its internals prevents bugs and helps you write better code.
+
+<LearningObjectives>
+
+- Understand string.h internals and reimplement key functions
+- Master stdlib.h memory utilities and conversions
+- Learn stdio.h buffering and FILE\* internals
+- Use errno.h patterns for robust error handling
+- Apply assert.h for defensive programming
+- Write safer string APIs to avoid common pitfalls
+- Understand performance tradeoffs in library functions
+
+</LearningObjectives>
+
+## Why Deep Understanding Matters
+
+The standard library has sharp edges:
+
+```c
+char src[100];
+char dst[10];
+strcpy(dst, src);  // Buffer overflow!
+```
+
+Understanding internals helps you:
+
+- Avoid buffer overflows
+- Handle errors correctly
+- Choose the right function
+- Write safer wrappers
+- Optimize performance-critical code
+
+## What You'll Learn
+
+1. **string.h internals** — How strlen, strcpy, memcpy really work
+2. **Reimplementing functions** — Build understanding from scratch
+3. **stdlib.h utilities** — malloc, free, atoi, strtol, qsort
+4. **stdio.h buffering** — Full vs line buffering, setvbuf
+5. **errno.h patterns** — Correct error checking and reporting
+6. **assert.h patterns** — Defensive programming techniques
+7. **Safer string APIs** — strlcpy, strlcat, bounded string ops
+8. **Performance considerations** — When to use what
+9. **Portability issues** — Platform differences
+
+## Key Principles
+
+1. **Know your data** — Check lengths before copying
+2. **Check errors** — Every function that can fail
+3. **Use the right tool** — strncpy vs strlcpy vs snprintf
+4. **Understand the cost** — strlen is O(n), not O(1)
+5. **Defensive programming** — Assume inputs can be malicious
+
+Let's start with string.h internals.

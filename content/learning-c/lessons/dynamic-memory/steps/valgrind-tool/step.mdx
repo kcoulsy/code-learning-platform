@@ -1,0 +1,491 @@
+---
+title: "Using Valgrind"
+order: 7
+---
+
+# Using Valgrind
+
+Valgrind is an indispensable tool for detecting memory errors in C programs. It can find memory leaks, use-after-free errors, buffer overflows, and many other issues that would be difficult or impossible to catch otherwise.
+
+## What is Valgrind?
+
+Valgrind is a dynamic analysis tool that monitors your program as it runs, tracking every memory allocation, access, and deallocation. It's like having a memory safety expert watching your code execute.
+
+### What Valgrind Detects
+
+- Memory leaks (allocated but never freed)
+- Use of uninitialized memory
+- Invalid memory access (use-after-free, buffer overflows)
+- Double frees
+- Mismatched allocation/deallocation (malloc/delete, new/free)
+- Invalid pointer operations
+
+## Installation
+
+### Linux
+```bash
+sudo apt-get install valgrind  # Debian/Ubuntu
+sudo yum install valgrind      # Red Hat/CentOS
+```
+
+### macOS
+```bash
+brew install valgrind
+```
+
+### Windows
+Valgrind doesn't run natively on Windows. Use WSL (Windows Subsystem for Linux) or a VM.
+
+## Basic Usage
+
+### Compile with Debug Symbols
+
+Always compile with `-g` flag for meaningful output:
+
+```bash
+gcc -g -o program program.c
+```
+
+### Run with Valgrind
+
+```bash
+valgrind ./program
+valgrind --leak-check=full ./program
+valgrind --leak-check=full --show-leak-kinds=all ./program
+```
+
+## Example 1: Memory Leak Detection
+
+```c
+// leak.c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Leak 1: Never freed
+    int *leak1 = malloc(100 * sizeof(int));
+    if (leak1 != NULL) {
+        leak1[0] = 42;
+    }
+
+    // Leak 2: Lost pointer
+    int *leak2 = malloc(50 * sizeof(int));
+    leak2 = NULL;  // Lost the pointer!
+
+    // Leak 3: Overwritten pointer
+    int *leak3 = malloc(20 * sizeof(int));
+    leak3 = malloc(30 * sizeof(int));  // Lost first allocation
+    free(leak3);  // Only frees second allocation
+
+    printf("Program completed\n");
+    return 0;
+}
+```
+
+Compile and run:
+```bash
+gcc -g -o leak leak.c
+valgrind --leak-check=full ./leak
+```
+
+Output will show:
+```
+HEAP SUMMARY:
+    in use at exit: 600 bytes in 3 blocks
+  total heap usage: 4 allocs, 1 frees, 1,224 bytes allocated
+
+LEAK SUMMARY:
+   definitely lost: 600 bytes in 3 blocks
+   indirectly lost: 0 bytes in 0 blocks
+     possibly lost: 0 bytes in 0 blocks
+```
+
+## Example 2: Use-After-Free Detection
+
+```c
+// use_after_free.c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) {
+        return 1;
+    }
+
+    *ptr = 42;
+    printf("Before free: %d\n", *ptr);
+
+    free(ptr);
+
+    // Use after free - Valgrind will catch this!
+    printf("After free: %d\n", *ptr);
+
+    // Write to freed memory - even worse!
+    *ptr = 100;
+
+    return 0;
+}
+```
+
+```bash
+gcc -g -o use_after_free use_after_free.c
+valgrind ./use_after_free
+```
+
+Output will show:
+```
+Invalid read of size 4
+   at 0x...: main (use_after_free.c:15)
+ Address 0x... is 0 bytes inside a block of size 4 free'd
+   at 0x...: free
+   by 0x...: main (use_after_free.c:13)
+
+Invalid write of size 4
+   at 0x...: main (use_after_free.c:18)
+```
+
+## Example 3: Uninitialized Memory
+
+```c
+// uninitialized.c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *arr = malloc(10 * sizeof(int));
+    if (arr == NULL) {
+        return 1;
+    }
+
+    // Only initialize some elements
+    arr[0] = 1;
+    arr[1] = 2;
+    // arr[2] through arr[9] are uninitialized
+
+    // Use uninitialized value - Valgrind will warn
+    if (arr[5] > 0) {
+        printf("arr[5] is positive\n");
+    }
+
+    free(arr);
+    return 0;
+}
+```
+
+```bash
+gcc -g -o uninitialized uninitialized.c
+valgrind --track-origins=yes ./uninitialized
+```
+
+## Example 4: Buffer Overflow
+
+```c
+// overflow.c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *arr = malloc(5 * sizeof(int));
+    if (arr == NULL) {
+        return 1;
+    }
+
+    // Initialize array
+    for (int i = 0; i < 5; i++) {
+        arr[i] = i;
+    }
+
+    // Buffer overflow - write beyond allocated memory
+    arr[10] = 999;  // Valgrind will catch this!
+
+    // Buffer over-read - read beyond allocated memory
+    printf("Invalid read: %d\n", arr[10]);
+
+    free(arr);
+    return 0;
+}
+```
+
+## Example 5: Double Free
+
+```c
+// double_free.c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) {
+        return 1;
+    }
+
+    *ptr = 42;
+
+    free(ptr);
+    free(ptr);  // Double free - Valgrind will catch this!
+
+    return 0;
+}
+```
+
+## Interpreting Valgrind Output
+
+### Leak Types
+
+```c
+// leak_types.c
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Node {
+    int data;
+    struct Node *next;
+} Node;
+
+int main() {
+    // Definitely lost: No pointer to this memory
+    int *definitely = malloc(100 * sizeof(int));
+    definitely = NULL;
+
+    // Indirectly lost: Head lost, so child is lost too
+    Node *head = malloc(sizeof(Node));
+    head->next = malloc(sizeof(Node));
+    head->next->next = malloc(sizeof(Node));
+    head = NULL;  // Lost all three nodes
+
+    // Still reachable: Have pointer but didn't free
+    static int *reachable = NULL;
+    reachable = malloc(50 * sizeof(int));
+
+    return 0;
+}
+```
+
+```bash
+valgrind --leak-check=full --show-leak-kinds=all ./leak_types
+```
+
+Output:
+```
+LEAK SUMMARY:
+   definitely lost: 400 bytes in 1 blocks     # No way to recover
+   indirectly lost: 16 bytes in 2 blocks      # Lost because parent lost
+     possibly lost: 0 bytes in 0 blocks       # Maybe still accessible
+   still reachable: 200 bytes in 1 blocks     # Have pointer but not freed
+```
+
+## Common Valgrind Options
+
+```bash
+# Basic leak check
+valgrind --leak-check=full ./program
+
+# Show all leak types
+valgrind --leak-check=full --show-leak-kinds=all ./program
+
+# Track where uninitialized values come from
+valgrind --track-origins=yes ./program
+
+# More detailed error information
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes -v ./program
+
+# Suppress known system library errors
+valgrind --leak-check=full --suppressions=my.supp ./program
+
+# Save output to file
+valgrind --leak-check=full --log-file=valgrind.log ./program
+```
+
+## Real-World Example: Debugging Complex Program
+
+```c
+// complex.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char *name;
+    int *scores;
+    int num_scores;
+} Student;
+
+Student *create_student(const char *name, int num_scores) {
+    Student *s = malloc(sizeof(Student));
+    if (s == NULL) {
+        return NULL;
+    }
+
+    s->name = malloc(strlen(name) + 1);
+    if (s->name == NULL) {
+        free(s);
+        return NULL;
+    }
+    strcpy(s->name, name);
+
+    s->scores = malloc(num_scores * sizeof(int));
+    if (s->scores == NULL) {
+        free(s->name);
+        free(s);
+        return NULL;
+    }
+
+    s->num_scores = num_scores;
+
+    // Initialize scores (without this, Valgrind would warn)
+    for (int i = 0; i < num_scores; i++) {
+        s->scores[i] = 0;
+    }
+
+    return s;
+}
+
+void free_student(Student *s) {
+    if (s != NULL) {
+        free(s->name);
+        free(s->scores);
+        free(s);
+    }
+}
+
+int main() {
+    Student *alice = create_student("Alice", 5);
+    if (alice == NULL) {
+        return 1;
+    }
+
+    // Set some scores
+    for (int i = 0; i < alice->num_scores; i++) {
+        alice->scores[i] = 80 + i * 5;
+    }
+
+    printf("Student: %s\n", alice->name);
+    printf("Scores: ");
+    for (int i = 0; i < alice->num_scores; i++) {
+        printf("%d ", alice->scores[i]);
+    }
+    printf("\n");
+
+    free_student(alice);
+
+    return 0;
+}
+```
+
+```bash
+gcc -g -o complex complex.c
+valgrind --leak-check=full --track-origins=yes ./complex
+```
+
+If no errors, you'll see:
+```
+All heap blocks were freed -- no leaks are possible
+```
+
+## Valgrind Best Practices
+
+### 1. Always Test with Valgrind
+
+```c
+// Makefile example
+test: program
+	valgrind --leak-check=full --error-exitcode=1 ./program
+
+clean:
+	rm -f program
+```
+
+### 2. Fix Errors from Top to Bottom
+
+Early errors can cause later ones. Fix the first error, then run again.
+
+### 3. Use Debug Builds
+
+```bash
+# Debug build
+gcc -g -O0 -o program program.c
+
+# Release build (after Valgrind is clean)
+gcc -O2 -o program program.c
+```
+
+### 4. Create Test Cases
+
+```c
+// test_memory.c
+#include <stdio.h>
+#include <stdlib.h>
+
+void test_allocation() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr != NULL) {
+        *ptr = 42;
+        free(ptr);
+    }
+}
+
+void test_array() {
+    int *arr = malloc(10 * sizeof(int));
+    if (arr != NULL) {
+        for (int i = 0; i < 10; i++) {
+            arr[i] = i;
+        }
+        free(arr);
+    }
+}
+
+int main() {
+    printf("Running memory tests...\n");
+    test_allocation();
+    test_array();
+    printf("Tests complete\n");
+    return 0;
+}
+```
+
+## Valgrind Limitations
+
+1. **Slows down execution** (10-50x slower)
+2. **Doesn't catch all errors** (logic errors, race conditions)
+3. **May have false positives** (especially with system libraries)
+4. **Windows not supported** (use WSL)
+
+## Alternative Tools
+
+- **AddressSanitizer** (faster, compile-time instrumentation)
+- **Memcheck** (built into Valgrind)
+- **Dr. Memory** (Windows)
+- **Electric Fence** (detects buffer overflows)
+
+### Using AddressSanitizer
+
+```bash
+# Compile with AddressSanitizer
+gcc -fsanitize=address -g -o program program.c
+
+# Run normally
+./program
+```
+
+## Key Takeaways
+
+1. **Always test with Valgrind** during development
+2. **Compile with `-g`** for useful line numbers
+3. **Fix errors from top to bottom**
+4. **"All heap blocks were freed"** means success
+5. **Use `--leak-check=full`** to see details
+6. **Track origins with `--track-origins=yes`**
+7. **Valgrind is slow** but thorough
+8. **Clean Valgrind = production ready**
+
+## Exercises
+
+1. Write a program with multiple memory errors and fix them based on Valgrind output
+2. Create a test suite that runs Valgrind automatically
+3. Compare Valgrind with AddressSanitizer
+4. Debug a complex data structure (tree, graph) with Valgrind
+5. Write a suppression file for system library errors
+6. Create a CI/CD script that fails if Valgrind finds errors
+
+In the next step, we'll put everything together by implementing dynamic arrays with proper memory management.

@@ -1,0 +1,339 @@
+---
+id: 01-gdb-basics
+title: GDB Fundamentals
+order: 1
+---
+
+# GDB Fundamentals
+
+GDB (GNU Debugger) is the most important tool in your C debugging arsenal. It lets you stop execution, inspect memory, and understand what your code is actually doing.
+
+## Compiling for Debugging
+
+Always compile with debug symbols:
+
+```bash
+gcc -g program.c -o program
+```
+
+The `-g` flag adds debugging information:
+
+- Symbol names (not just addresses)
+- Line numbers
+- Source file references
+- Variable types and scopes
+
+Without `-g`, GDB can't show you source code or variable names.
+
+## Starting GDB
+
+```bash
+gdb ./program
+```
+
+Or run with arguments:
+
+```bash
+gdb --args ./program arg1 arg2
+```
+
+## Basic GDB Commands
+
+### Running Your Program
+
+```bash
+(gdb) run           # Start execution (or 'r')
+(gdb) run arg1 arg2 # Start with arguments
+(gdb) run < input   # Redirect stdin from file
+```
+
+### Quitting
+
+```bash
+(gdb) quit          # Exit GDB (or 'q')
+(gdb) kill          # Stop the running program
+```
+
+## Breakpoints
+
+Breakpoints pause execution when reached.
+
+### Setting Breakpoints
+
+```bash
+(gdb) break main              # Break at function 'main'
+(gdb) break 42                # Break at line 42 of current file
+(gdb) break file.c:42         # Break at line 42 of file.c
+(gdb) break myfile.c:myfunc   # Break at myfunc in myfile.c
+```
+
+### Breakpoint Conditions
+
+```bash
+(gdb) break 42 if i == 10     # Only break if i == 10
+(gdb) break myfunc if x > 100 # Break if condition is true
+```
+
+### Managing Breakpoints
+
+```bash
+(gdb) info breakpoints        # List all breakpoints (or 'i b')
+(gdb) delete 1                # Delete breakpoint #1
+(gdb) disable 2               # Disable breakpoint #2
+(gdb) enable 2                # Enable breakpoint #2
+(gdb) clear                   # Clear breakpoint at current line
+(gdb) clear main              # Clear all breakpoints at main
+```
+
+## Controlling Execution
+
+```bash
+(gdb) continue        # Continue execution (or 'c')
+(gdb) step            # Step to next line (enter functions) (or 's')
+(gdb) next            # Next line (skip over functions) (or 'n')
+(gdb) finish          # Continue until current function returns (or 'fin')
+(gdb) until 42        # Continue until line 42
+(gdb) return          # Force return from current function
+```
+
+**step vs next**:
+
+- `step` goes into function calls
+- `next` steps over function calls
+
+## Examining Variables
+
+```bash
+(gdb) print x                # Print value of x (or 'p x')
+(gdb) print array[5]         # Print array element
+(gdb) print *ptr             # Dereference pointer
+(gdb) print struct_var.field # Access struct member
+(gdb) print/x x              # Print in hexadecimal
+(gdb) print/t x              # Print in binary
+```
+
+### Auto Display
+
+```bash
+(gdb) display x              # Print x every time GDB stops
+(gdb) display i              # Display loop counter
+(gdb) undisplay 1            # Stop auto-displaying #1
+```
+
+## Viewing the Call Stack
+
+```bash
+(gdb) backtrace              # Show stack trace (or 'bt' or 'where')
+(gdb) frame 0                # Select stack frame 0 (or 'f 0')
+(gdb) up                     # Move up one stack frame
+(gdb) down                   # Move down one stack frame
+```
+
+Example backtrace:
+
+```
+#0  0x0000000000401136 in inner_function (x=5) at test.c:15
+#1  0x0000000000401151 in middle_function (x=3) at test.c:21
+#2  0x0000000000401166 in main () at test.c:27
+```
+
+## Examining Memory
+
+```bash
+(gdb) x/10x ptr             # Examine 10 hex words at ptr
+(gdb) x/20b array           # Examine 20 bytes at array
+(gdb) x/s string_ptr        # Examine as string
+(gdb) x/i $pc               # Examine instruction at program counter
+```
+
+Format letters:
+
+- `x` — hexadecimal
+- `d` — decimal
+- `u` — unsigned decimal
+- `o` — octal
+- `t` — binary
+- `a` — address
+- `i` — instruction
+- `c` — char
+- `s` — string
+
+Size letters:
+
+- `b` — byte
+- `h` — halfword (2 bytes)
+- `w` — word (4 bytes)
+- `g` — giant word (8 bytes)
+
+## Crash Debugging: Post-Mortem
+
+When your program crashes, GDB can analyze the crash:
+
+```bash
+# Generate core file (ulimit -c unlimited first)
+./program
+# Segmentation fault (core dumped)
+
+# Debug the core file
+gdb ./program core
+```
+
+GDB automatically stops at the crash point:
+
+```bash
+(gdb) backtrace             # See where it crashed
+(gdb) print variable        # Check what caused it
+(gdb) frame 0               # Examine crash location
+```
+
+## Watching Variables
+
+Watchpoints break when a variable's value changes:
+
+```bash
+(gdb) watch x               # Break when x changes
+(gdb) rwatch x              # Break when x is read
+(gdb) awatch x              # Break when x is read or written
+```
+
+## Example Debugging Session
+
+```c
+// buggy.c
+#include <stdio.h>
+
+int main(void) {
+    int arr[5] = {1, 2, 3, 4, 5};
+    int *ptr = arr;
+
+    for (int i = 0; i <= 5; i++) {
+        printf("%d\n", ptr[i]);
+    }
+
+    return 0;
+}
+```
+
+Debug:
+
+```bash
+$ gcc -g buggy.c -o buggy
+$ gdb ./buggy
+(gdb) break 8
+(gdb) run
+Breakpoint 1, main () at buggy.c:8
+8           printf("%d\n", ptr[i]);
+(gdb) print i
+$1 = 0
+(gdb) continue
+1
+2
+3
+4
+5
+
+Breakpoint 1, main () at buggy.c:8
+8           printf("%d\n", ptr[i]);
+(gdb) print i
+$2 = 5
+(gdb) print ptr[5]
+$3 = 0  // Reading past array bounds!
+(gdb) continue
+0  // Garbage value printed
+
+Program received signal SIGSEGV, Segmentation fault.
+0x0000000000400593 in main () at buggy.c:9
+9       }
+```
+
+## TUI Mode: Visual Interface
+
+GDB has a terminal UI:
+
+```bash
+(gdb) layout src            # Show source code
+(gdb) layout asm            # Show assembly
+(gdb) layout split          # Show both
+(gdb) layout regs           # Show registers
+```
+
+Use arrow keys to navigate, `Ctrl+X` then `A` to exit TUI.
+
+## Common GDB Workflows
+
+### 1. Find Where a Segfault Happens
+
+```bash
+(gdb) run
+# Wait for crash
+(gdb) backtrace
+```
+
+### 2. Debug a Loop
+
+```bash
+(gdb) break 42 if i == 100
+(gdb) run
+(gdb) print variable
+```
+
+### 3. Examine Memory Corruption
+
+```bash
+(gdb) watch suspect_variable
+(gdb) continue
+# GDB stops when variable changes
+(gdb) backtrace
+```
+
+### 4. Step Through Complex Logic
+
+```bash
+(gdb) break function_name
+(gdb) run
+(gdb) step      # Enter function
+(gdb) next      # Skip function calls
+(gdb) print var # Check values
+```
+
+## Practice Exercise
+
+Debug this program that crashes:
+
+```c
+// crash.c
+#include <string.h>
+
+int main(void) {
+    char *src = "Hello, world!";
+    char *dst = NULL;
+
+    strcpy(dst, src);  // Crash here
+    return 0;
+}
+```
+
+1. Compile with `-g`
+2. Run in GDB
+3. Find where it crashes
+4. Use `backtrace` and `print` to understand why
+
+**Answer**:
+
+```bash
+$ gcc -g crash.c -o crash
+$ gdb ./crash
+(gdb) run
+Program received signal SIGSEGV, Segmentation fault.
+(gdb) backtrace
+#0  __strcpy_sse2_unaligned () at ../sysdeps/x86_64/multiarch/strcpy-sse2-unaligned.S:...
+#1  0x000000000040050d in main () at crash.c:8
+(gdb) print dst
+$1 = (char *) 0x0
+```
+
+`dst` is NULL, causing the crash. Fix by allocating memory.
+
+---
+
+**Next**: Advanced GDB techniques and tricks.

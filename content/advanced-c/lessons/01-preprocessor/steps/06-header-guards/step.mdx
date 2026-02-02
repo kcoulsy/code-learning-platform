@@ -1,0 +1,386 @@
+---
+id: 06-header-guards
+title: Header Guards and Include Patterns
+order: 6
+---
+
+# Header Guards and Include Patterns
+
+Header guards prevent multiple inclusion of the same header file, which would cause compilation errors due to duplicate definitions.
+
+## The Problem: Multiple Inclusion
+
+Consider this project structure:
+
+```
+main.c
+├── includes
+│   ├── a.h
+│   └── b.h
+```
+
+**a.h**:
+
+```c
+typedef struct {
+    int x;
+} Point;
+```
+
+**b.h**:
+
+```c
+#include "a.h"
+
+void use_point(Point *p);
+```
+
+**main.c**:
+
+```c
+#include "a.h"
+#include "b.h"
+```
+
+When compiling `main.c`, `a.h` is included twice:
+
+1. Directly from `main.c`
+2. Indirectly through `b.h`
+
+This causes an error:
+
+```
+error: redefinition of typedef 'Point'
+```
+
+## Solution 1: Traditional Header Guards
+
+```c
+#ifndef MY_HEADER_H
+#define MY_HEADER_H
+
+// Header content
+
+#endif  // MY_HEADER_H
+```
+
+**How it works**:
+
+1. First inclusion: `MY_HEADER_H` is not defined → content is included, `MY_HEADER_H` is defined
+2. Second inclusion: `MY_HEADER_H` is defined → content is skipped
+
+**Naming Convention**:
+
+- Use `ALL_CAPS`
+- Include project name to avoid collisions
+- End with `_H` suffix
+
+Examples:
+
+```c
+#ifndef SQLITE_H
+#define SQLITE_H
+...
+#endif
+
+#ifndef LEARNING_PLATFORM_TYPES_H
+#define LEARNING_PLATFORM_TYPES_H
+...
+#endif
+```
+
+## Solution 2: #pragma once (Non-Standard but Widely Supported)
+
+```c
+#pragma once
+
+// Header content
+```
+
+Most compilers support this pragma (GCC, Clang, MSVC). It's simpler and cleaner:
+
+- No need to choose a unique macro name
+- Slightly faster compilation (compiler can optimize)
+- Prevents the same file from being included more than once
+
+**Portability**: `#pragma once` is not part of the C standard, but it's universally supported on modern compilers. For maximum portability, use traditional header guards.
+
+## Comparison
+
+| Feature                   | Traditional Guards                  | #pragma once                   |
+| ------------------------- | ----------------------------------- | ------------------------------ |
+| Standard compliance       | Yes (ISO C)                         | No (but universally supported) |
+| Speed                     | Slightly slower                     | Slightly faster                |
+| Typing required           | Must choose unique name             | None                           |
+| Copy-paste safety         | Can cause collisions if names clash | Safe                           |
+| Works with symbolic links | Yes                                 | Sometimes problematic          |
+
+**Recommendation**: Use `#pragma once` for modern code. If you need strict standard compliance or target very old compilers, use traditional guards.
+
+## Common Pitfalls
+
+### 1. Forgetting #endif
+
+```c
+#ifndef MY_HEADER_H
+#define MY_HEADER_H
+
+// Content...
+// Missing #endif!
+```
+
+This causes compilation errors in files that include this header multiple times.
+
+### 2. Guard Name Collisions
+
+```c
+// logger.h
+#ifndef CONFIG_H  // Bad name! Should be LOGGER_H
+#define CONFIG_H
+...
+#endif
+
+// config.h
+#ifndef CONFIG_H  // Collision!
+#define CONFIG_H
+...
+#endif
+```
+
+When both are included, the second one's content is skipped.
+
+### 3. Guarding Non-Header Files
+
+Don't guard `.c` files — they should never be included.
+
+## Best Practices
+
+### DO: Include guards in every header
+
+```c
+#pragma once
+
+// OR
+
+#ifndef MY_PROJECT_MY_HEADER_H
+#define MY_PROJECT_MY_HEADER_H
+...
+#endif
+```
+
+### DO: Put guards at the very top
+
+```c
+#ifndef MY_HEADER_H
+#define MY_HEADER_H
+
+// Copyright notice
+// Includes
+// Content
+
+#endif
+```
+
+Comments and includes go inside the guards so they're also skipped on re-inclusion.
+
+### DON'T: Put code before guards
+
+```c
+// Bad: Comments before guards
+// Copyright notice 2024
+
+#ifndef MY_HEADER_H
+#define MY_HEADER_H
+...
+#endif
+```
+
+The comment will be processed every time the file is included, though it's harmless.
+
+### DON'T: Use guards in implementation files
+
+```c
+// main.c - Don't do this!
+#ifndef MAIN_C  // Wrong!
+#define MAIN_C
+...
+#endif
+```
+
+## Advanced: Controlling Multiple Inclusion Intentionally
+
+Sometimes you _want_ to include a file multiple times for code generation:
+
+```c
+// macros.h
+#define CALLBACK(name) \
+    void name##_callback(void) { \
+        printf("Callback: %s\n", #name); \
+    }
+
+// Generate callbacks
+CALLBACK(on_click)
+CALLBACK(on_load)
+CALLBACK(on_error)
+```
+
+Use this pattern carefully — it's powerful but confusing.
+
+## Include Order and Dependencies
+
+### 1. Minimize Includes in Headers
+
+```c
+// Good: Forward declare when possible
+#ifndef UTILS_H
+#define UTILS_H
+
+struct Point;  // Forward declaration
+void use_point(struct Point *p);
+
+#endif
+
+// Bad: Unnecessary includes
+#ifndef UTILS_H
+#define UTILS_H
+
+#include "geometry.h"  // Only needed for implementation
+
+void use_point(Point *p);  // Could use forward declaration
+
+#endif
+```
+
+Forward declarations reduce compile-time dependencies.
+
+### 2. Include What You Use
+
+Every source file should directly include the headers for the types/functions it uses:
+
+```c
+// Good: Explicit includes
+#include <stdio.h>
+#include <stdlib.h>
+#include "my_header.h"
+
+int main(void) {
+    printf("Hello\n");
+    return 0;
+}
+
+// Bad: Relying on transitive includes
+#include "my_header.h"  // Internally includes stdio.h and stdlib.h
+
+int main(void) {
+    printf("Hello\n");  // Works but fragile
+    return 0;
+}
+```
+
+### 3. System Headers First, Then Project Headers
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "my_header.h"
+#include "utils.h"
+#include "config.h"
+```
+
+This convention:
+
+- Makes project headers visible to system headers
+- Helps detect missing includes in project headers
+- Improves portability
+
+## Header Organization Example
+
+```c
+#pragma once
+
+////////////////////
+// System includes //
+////////////////////
+#include <stddef.h>
+#include <stdint.h>
+
+////////////////////////
+// Project includes   //
+////////////////////////
+#include "config.h"
+#include "types.h"
+
+////////////////////
+// Constants       //
+////////////////////
+#define MAX_CONNECTIONS 100
+
+////////////////////
+// Types           //
+////////////////////
+typedef struct {
+    int fd;
+    char buffer[1024];
+} Connection;
+
+////////////////////
+// Functions       //
+////////////////////
+void connection_init(Connection *c);
+int connection_read(Connection *c);
+```
+
+## Practice Exercise
+
+You have these files:
+
+```c
+// data.h
+typedef struct {
+    int x, y;
+} Point;
+
+// utils.h
+#include "data.h"
+void print_point(Point p);
+
+// main.c
+#include "data.h"
+#include "utils.h"
+```
+
+What happens without header guards? Add them to all three files.
+
+**Answer**:
+
+**data.h**:
+
+```c
+#pragma once
+
+typedef struct {
+    int x, y;
+} Point;
+```
+
+**utils.h**:
+
+```c
+#pragma once
+
+#include "data.h"
+void print_point(Point p);
+```
+
+**main.c** (no guards needed in .c files):
+
+```c
+#include "data.h"
+#include "utils.h"
+```
+
+---
+
+**Next**: The #pragma directive and compiler-specific controls.

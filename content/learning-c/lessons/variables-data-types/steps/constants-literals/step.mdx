@@ -1,0 +1,370 @@
+---
+id: constants-literals
+title: "Constants and Literals"
+order: 6
+---
+
+# Constants and Literals
+
+Constants are values that cannot be changed during program execution. Using constants makes your code more readable, maintainable, and less error-prone. C provides several ways to define constants, each with its own use cases and advantages.
+
+## The const Keyword
+
+The `const` keyword creates typed constants that are checked by the compiler. These constants occupy memory and can be used with pointers and arrays.
+
+Unlike `#define` macros, `const` variables have scope, type checking, and can be debugged easily. The compiler can often optimize them to be as efficient as macros.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Basic const variables
+    const int MAX_USERS = 100;
+    const double PI = 3.14159265359;
+    const char GRADE_A = 'A';
+
+    printf("Maximum users: %d\n", MAX_USERS);
+    printf("Pi value: %.10lf\n", PI);
+
+    // Attempting to modify causes compile error
+    // MAX_USERS = 200;  // ERROR: assignment of read-only variable
+
+    // const with pointers
+    const int *ptr1;        // Pointer to const int (can't change value)
+    int const *ptr2;        // Same as above
+    int *const ptr3 = NULL; // Const pointer to int (can't change address)
+    const int *const ptr4 = NULL; // Const pointer to const int (both fixed)
+
+    return 0;
+}
+```
+
+## Preprocessor #define Macros
+
+The `#define` directive creates text substitution macros processed before compilation. These don't occupy memory and don't have type checking, but are useful for compile-time constants.
+
+Macros are replaced during preprocessing, so they have no scope and can't be debugged. However, they're still widely used for configuration values and conditional compilation.
+
+```c
+#include <stdio.h>
+
+// Preprocessor constants (convention: UPPERCASE)
+#define MAX_BUFFER 1024
+#define APP_VERSION "1.0.3"
+#define DEBUG_MODE 1
+
+// Expression macros
+#define SQUARE(x) ((x) * (x))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+// Configuration macros
+#define USE_LOGGING
+#define PI 3.14159265359
+
+int main(void) {
+    printf("App version: %s\n", APP_VERSION);
+    printf("Buffer size: %d\n", MAX_BUFFER);
+
+    int num = 5;
+    printf("Square of %d is %d\n", num, SQUARE(num));
+
+    int a = 10, b = 20;
+    printf("Max of %d and %d is %d\n", a, b, MAX(a, b));
+
+#ifdef USE_LOGGING
+    printf("[LOG] Logging is enabled\n");
+#endif
+
+    return 0;
+}
+```
+
+## Comparing const and #define
+
+Understanding when to use each approach helps write better code.
+
+```c
+#include <stdio.h>
+
+#define BUFFER_SIZE 256        // No type, no scope, no memory
+const int ARRAY_SIZE = 256;    // Typed, scoped, uses memory
+
+// Macro gotcha: no type safety
+#define ADD(a, b) a + b
+
+int main(void) {
+    // #define advantage: array size at compile time
+    char buffer[BUFFER_SIZE];  // OK: size known at compile time
+
+    // const limitation in older C (OK in C99+)
+    // char array[ARRAY_SIZE];  // May not work in C89
+
+    // Macro gotcha: operator precedence
+    int result1 = ADD(2, 3) * 4;     // 2 + 3 * 4 = 14 (not 20!)
+    printf("Macro result: %d\n", result1);
+
+    // Should be: #define ADD(a, b) ((a) + (b))
+
+    // const advantage: type safety
+    const int MAX = 100;
+    // MAX = "string";  // Compile error: type mismatch
+
+    // #define no type safety
+    #define VALUE 100
+    // Can't catch type errors at compile time
+
+    printf("Buffer has %lu bytes\n", sizeof(buffer));
+
+    return 0;
+}
+```
+
+## Literal Suffixes
+
+Literals can have suffixes that specify their exact type. This prevents unexpected type conversions and makes code more explicit.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Integer literals with suffixes
+    long long big = 9223372036854775807LL;  // LL = long long
+    unsigned int u = 4294967295U;           // U = unsigned
+    unsigned long ul = 123456789UL;         // UL = unsigned long
+
+    // Without suffix: default to int
+    // long x = 2147483648;  // Warning! Too large for int
+    long x = 2147483648L;    // Correct: L suffix
+
+    // Floating-point literals
+    float f1 = 3.14F;        // F = float
+    double d1 = 3.14;        // Default is double
+    long double ld = 3.14L;  // L = long double
+
+    // Scientific notation
+    double avogadro = 6.022e23;      // 6.022 × 10^23
+    float planck = 6.626e-34F;       // 6.626 × 10^-34
+
+    // Hexadecimal literals
+    int hex = 0xFF;          // 255 in decimal
+    int hex2 = 0x1A2B;       // Hex numbers
+
+    // Octal literals (prefix with 0)
+    int octal = 077;         // 63 in decimal
+
+    // Binary literals (C23, or compiler extension)
+    // int binary = 0b1010;  // Not standard in C11
+
+    printf("Long long: %lld\n", big);
+    printf("Unsigned: %u\n", u);
+    printf("Float: %.2f\n", f1);
+    printf("Hex 0xFF: %d\n", hex);
+    printf("Octal 077: %d\n", octal);
+
+    return 0;
+}
+```
+
+## Character and String Literals
+
+Character and string literals have special escape sequences and prefixes.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Character literals
+    char newline = '\n';
+    char tab = '\t';
+    char backslash = '\\';
+    char quote = '\'';
+    char null = '\0';        // Null terminator
+
+    // Character by value
+    char letter_A = 65;      // ASCII value
+    char same_A = 'A';       // Same thing
+
+    printf("Letter: %c (ASCII %d)\n", letter_A, letter_A);
+
+    // String literals
+    const char *str1 = "Hello, World!";
+    const char *str2 = "Line 1\nLine 2\tTabbed";
+    const char *str3 = "Quote: \"Hello\"";
+
+    printf("%s\n", str2);
+
+    // Multi-line string literals
+    const char *multiline = "This is a very long string "
+                           "split across multiple lines "
+                           "for readability.";
+    printf("%s\n", multiline);
+
+    // Raw string (no escapes needed) - C23 feature
+    // Not available in C11
+
+    return 0;
+}
+```
+
+## Enumeration Constants
+
+Enumerations create named integer constants, making code more readable than using raw numbers.
+
+```c
+#include <stdio.h>
+
+// Basic enum
+enum Status {
+    SUCCESS,           // 0
+    ERROR,             // 1
+    PENDING,           // 2
+    CANCELLED          // 3
+};
+
+// Enum with explicit values
+enum HttpCode {
+    OK = 200,
+    NOT_FOUND = 404,
+    SERVER_ERROR = 500
+};
+
+// Enum as flags (powers of 2)
+enum Permission {
+    READ = 1,          // 0001
+    WRITE = 2,         // 0010
+    EXECUTE = 4,       // 0100
+    DELETE = 8         // 1000
+};
+
+int main(void) {
+    enum Status current_status = SUCCESS;
+
+    if (current_status == SUCCESS) {
+        printf("Operation successful!\n");
+    }
+
+    enum HttpCode response = NOT_FOUND;
+    printf("HTTP Response: %d\n", response);
+
+    // Combining flag enums with bitwise OR
+    enum Permission user_perms = READ | WRITE;
+
+    if (user_perms & READ) {
+        printf("User has read permission\n");
+    }
+
+    if (user_perms & EXECUTE) {
+        printf("User has execute permission\n");
+    } else {
+        printf("User does NOT have execute permission\n");
+    }
+
+    return 0;
+}
+```
+
+## Practical Example: Configuration System
+
+Here's how constants are typically used in real programs.
+
+```c
+#include <stdio.h>
+
+// Configuration constants
+#define APP_NAME "MyApp"
+#define APP_VERSION "2.1.4"
+#define MAX_CONNECTIONS 50
+#define ENABLE_DEBUG
+
+const double TAX_RATE = 0.08;
+const int TIMEOUT_SECONDS = 30;
+
+// Feature flags
+enum Features {
+    FEATURE_LOGGING = 1,
+    FEATURE_CACHING = 2,
+    FEATURE_ENCRYPTION = 4
+};
+
+int main(void) {
+    printf("%s v%s\n", APP_NAME, APP_VERSION);
+    printf("Max connections: %d\n", MAX_CONNECTIONS);
+    printf("Tax rate: %.2f%%\n", TAX_RATE * 100);
+    printf("Timeout: %d seconds\n", TIMEOUT_SECONDS);
+
+#ifdef ENABLE_DEBUG
+    printf("[DEBUG] Debug mode is active\n");
+#endif
+
+    // Enable multiple features
+    enum Features enabled = FEATURE_LOGGING | FEATURE_CACHING;
+
+    if (enabled & FEATURE_LOGGING) {
+        printf("[FEATURE] Logging enabled\n");
+    }
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+**Modifying const Variables**
+Attempting to modify a const variable causes a compile error.
+
+```c
+const int MAX = 100;
+// MAX = 200;  // ERROR: assignment of read-only variable
+```
+
+**Macro Operator Precedence**
+Always use parentheses in macro definitions.
+
+```c
+#define SQUARE(x) x * x       // WRONG
+int a = SQUARE(1 + 2);        // 1 + 2 * 1 + 2 = 5 (not 9!)
+
+#define SQUARE(x) ((x) * (x)) // CORRECT
+int b = SQUARE(1 + 2);        // ((1 + 2) * (1 + 2)) = 9
+```
+
+**Octal Number Confusion**
+Leading zeros create octal numbers.
+
+```c
+int a = 100;     // Decimal 100
+int b = 0100;    // Octal 100 = decimal 64 (surprise!)
+printf("%d\n", b);  // Prints 64
+```
+
+**Enum Value Assumptions**
+Don't assume enum values unless you explicitly set them.
+
+```c
+enum Color { RED, GREEN, BLUE };
+// RED is 0, but don't rely on it without explicit assignment
+```
+
+## Practice Exercises
+
+1. Create a program with configuration constants for a simple game (max health, starting lives, points per level) using both `const` and `#define`. Compare their usage.
+
+2. Write a program using enums to represent days of the week. Read a number (0-6) and print the corresponding day name.
+
+3. Create a permission system using enum flags (READ, WRITE, EXECUTE). Write functions to check if a user has specific permissions using bitwise operations.
+
+4. Write a program that demonstrates the difference between different numeric literal suffixes by showing their types and ranges.
+
+## Key Takeaways
+
+- Use `const` for typed constants with scope; use `#define` for compile-time values and conditional compilation
+- Convention: name constants in UPPERCASE for visibility
+- Literal suffixes specify exact types: `L` (long), `U` (unsigned), `F` (float), `LL` (long long)
+- Enumerations create named integer constants for better code readability
+- Always use parentheses in macro expressions to avoid operator precedence issues
+- Enums can be used as bit flags by assigning powers of 2 (1, 2, 4, 8, ...)
+
+Compile with:
+```bash
+gcc -Wall -Wextra -std=c11 -g constants.c -o constants
+```

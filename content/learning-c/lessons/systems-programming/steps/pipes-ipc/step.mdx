@@ -1,0 +1,481 @@
+---
+title: "Pipes and Inter-Process Communication"
+description: "Learn how to enable communication between processes using pipes and understand IPC concepts"
+order: 7
+---
+
+# Pipes and Inter-Process Communication
+
+Inter-Process Communication (IPC) allows separate processes to exchange data and coordinate their actions. Pipes are one of the simplest and most common IPC mechanisms in Unix/Linux systems, providing a unidirectional data channel between processes.
+
+**Note:** Like the previous step, these examples are specific to Unix/Linux/macOS systems.
+
+## What is a Pipe?
+
+A pipe is a unidirectional communication channel:
+- Data written to one end can be read from the other end
+- Data flows in one direction (one-way)
+- Implemented as a buffer in kernel memory
+- Operates on a First-In-First-Out (FIFO) basis
+
+Think of it like a physical pipe: you pour water in one end, and it comes out the other end.
+
+## Example 1: Basic Pipe Creation
+
+The `pipe()` system call creates a pipe and returns two file descriptors.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+int main(void) {
+    int pipefd[2];  // Array to hold two file descriptors
+
+    // Create the pipe
+    if (pipe(pipefd) == -1) {
+        perror("pipe failed");
+        return EXIT_FAILURE;
+    }
+
+    printf("Pipe created successfully\n");
+    printf("Read end: fd %d\n", pipefd[0]);
+    printf("Write end: fd %d\n", pipefd[1]);
+
+    // Write to pipe
+    const char *message = "Hello through pipe!";
+    write(pipefd[1], message, strlen(message));
+
+    // Read from pipe
+    char buffer[100];
+    ssize_t bytes_read = read(pipefd[0], buffer, sizeof(buffer) - 1);
+
+    if (bytes_read > 0) {
+        buffer[bytes_read] = '\0';
+        printf("Read from pipe: %s\n", buffer);
+    }
+
+    // Close both ends
+    close(pipefd[0]);
+    close(pipefd[1]);
+
+    return EXIT_SUCCESS;
+}
+```
+
+**Key points:**
+- `pipefd[0]` is the read end
+- `pipefd[1]` is the write end
+- Use `write()` to send data, `read()` to receive
+- Always close both ends when done
+
+## Example 2: Parent-Child Communication via Pipe
+
+Pipes are most useful for communication between related processes.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(void) {
+    int pipefd[2];
+    pid_t pid;
+
+    if (pipe(pipefd) == -1) {
+        perror("pipe failed");
+        return EXIT_FAILURE;
+    }
+
+    pid = fork();
+
+    if (pid < 0) {
+        perror("fork failed");
+        return EXIT_FAILURE;
+    }
+    else if (pid == 0) {
+        // Child process - reads from pipe
+        close(pipefd[1]);  // Close unused write end
+
+        char buffer[100];
+        ssize_t bytes_read = read(pipefd[0], buffer, sizeof(buffer) - 1);
+
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';
+            printf("Child received: %s\n", buffer);
+        }
+
+        close(pipefd[0]);
+        exit(EXIT_SUCCESS);
+    }
+    else {
+        // Parent process - writes to pipe
+        close(pipefd[0]);  // Close unused read end
+
+        const char *message = "Hello from parent!";
+        printf("Parent sending: %s\n", message);
+
+        write(pipefd[1], message, strlen(message));
+
+        close(pipefd[1]);
+        wait(NULL);  // Wait for child to finish
+    }
+
+    return EXIT_SUCCESS;
+}
+```
+
+**Important:** Each process should close the end of the pipe it doesn't use. This is crucial for proper EOF detection.
+
+## Example 3: Bidirectional Communication with Two Pipes
+
+For two-way communication, you need two pipes - one for each direction.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(void) {
+    int parent_to_child[2];  // Parent writes, child reads
+    int child_to_parent[2];  // Child writes, parent reads
+
+    // Create both pipes
+    if (pipe(parent_to_child) == -1 || pipe(child_to_parent) == -1) {
+        perror("pipe failed");
+        return EXIT_FAILURE;
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("fork failed");
+        return EXIT_FAILURE;
+    }
+    else if (pid == 0) {
+        // Child process
+        close(parent_to_child[1]);  // Close write end of input pipe
+        close(child_to_parent[0]);  // Close read end of output pipe
+
+        // Read message from parent
+        char buffer[100];
+        ssize_t bytes = read(parent_to_child[0], buffer, sizeof(buffer) - 1);
+        if (bytes > 0) {
+            buffer[bytes] = '\0';
+            printf("Child received: %s\n", buffer);
+        }
+
+        // Send response to parent
+        const char *response = "Message received!";
+        write(child_to_parent[1], response, strlen(response));
+
+        close(parent_to_child[0]);
+        close(child_to_parent[1]);
+        exit(EXIT_SUCCESS);
+    }
+    else {
+        // Parent process
+        close(parent_to_child[0]);  // Close read end of output pipe
+        close(child_to_parent[1]);  // Close write end of input pipe
+
+        // Send message to child
+        const char *message = "Hello, child!";
+        printf("Parent sending: %s\n", message);
+        write(parent_to_child[1], message, strlen(message));
+
+        // Read response from child
+        char buffer[100];
+        ssize_t bytes = read(child_to_parent[0], buffer, sizeof(buffer) - 1);
+        if (bytes > 0) {
+            buffer[bytes] = '\0';
+            printf("Parent received: %s\n", buffer);
+        }
+
+        close(parent_to_child[1]);
+        close(child_to_parent[0]);
+        wait(NULL);
+    }
+
+    return EXIT_SUCCESS;
+}
+```
+
+## Example 4: Implementing a Pipeline (Command1 | Command2)
+
+This demonstrates how shell pipelines work under the hood.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(void) {
+    int pipefd[2];
+
+    if (pipe(pipefd) == -1) {
+        perror("pipe failed");
+        return EXIT_FAILURE;
+    }
+
+    // First child: runs "ls -l"
+    pid_t pid1 = fork();
+
+    if (pid1 < 0) {
+        perror("fork failed");
+        return EXIT_FAILURE;
+    }
+    else if (pid1 == 0) {
+        // First child
+        close(pipefd[0]);  // Close read end
+
+        // Redirect stdout to pipe write end
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[1]);
+
+        // Execute ls -l
+        execlp("ls", "ls", "-l", NULL);
+        perror("execlp failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Second child: runs "wc -l"
+    pid_t pid2 = fork();
+
+    if (pid2 < 0) {
+        perror("fork failed");
+        return EXIT_FAILURE;
+    }
+    else if (pid2 == 0) {
+        // Second child
+        close(pipefd[1]);  // Close write end
+
+        // Redirect stdin from pipe read end
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[0]);
+
+        // Execute wc -l
+        execlp("wc", "wc", "-l", NULL);
+        perror("execlp failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Parent
+    close(pipefd[0]);
+    close(pipefd[1]);
+
+    // Wait for both children
+    waitpid(pid1, NULL, 0);
+    waitpid(pid2, NULL, 0);
+
+    return EXIT_SUCCESS;
+}
+```
+
+**This implements:** `ls -l | wc -l`
+
+**Key technique:** `dup2()` duplicates a file descriptor, allowing us to redirect stdin/stdout to the pipe.
+
+## Example 5: Simple Client-Server with Named Pipes (FIFOs)
+
+Named pipes (FIFOs) allow unrelated processes to communicate.
+
+```c
+// server.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
+#define FIFO_NAME "/tmp/my_fifo"
+
+int main(void) {
+    // Create the FIFO (named pipe)
+    if (mkfifo(FIFO_NAME, 0666) == -1) {
+        perror("mkfifo failed");
+        // It's okay if it already exists
+    }
+
+    printf("Server: Waiting for messages...\n");
+
+    // Open FIFO for reading
+    int fd = open(FIFO_NAME, O_RDONLY);
+    if (fd == -1) {
+        perror("open failed");
+        return EXIT_FAILURE;
+    }
+
+    char buffer[256];
+    ssize_t bytes_read;
+
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        printf("Server received: %s\n", buffer);
+
+        if (strcmp(buffer, "quit") == 0) {
+            break;
+        }
+    }
+
+    close(fd);
+    unlink(FIFO_NAME);  // Remove the FIFO
+
+    printf("Server shutting down\n");
+    return EXIT_SUCCESS;
+}
+```
+
+```c
+// client.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+#define FIFO_NAME "/tmp/my_fifo"
+
+int main(void) {
+    // Open FIFO for writing
+    int fd = open(FIFO_NAME, O_WRONLY);
+    if (fd == -1) {
+        perror("Cannot open FIFO - is server running?");
+        return EXIT_FAILURE;
+    }
+
+    char buffer[256];
+
+    printf("Client: Type messages (or 'quit' to exit)\n");
+
+    while (1) {
+        printf("> ");
+        fflush(stdout);
+
+        if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+            break;
+        }
+
+        // Remove newline
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0';
+        }
+
+        // Send message
+        write(fd, buffer, strlen(buffer) + 1);
+
+        if (strcmp(buffer, "quit") == 0) {
+            break;
+        }
+    }
+
+    close(fd);
+    printf("Client disconnected\n");
+    return EXIT_SUCCESS;
+}
+```
+
+**To use:**
+```bash
+# Terminal 1
+gcc server.c -o server
+./server
+
+# Terminal 2
+gcc client.c -o client
+./client
+```
+
+## Other IPC Mechanisms
+
+Besides pipes, Unix provides several IPC mechanisms:
+
+1. **Signals**: Asynchronous notifications (e.g., SIGTERM, SIGKILL)
+2. **Message Queues**: Structured message passing
+3. **Shared Memory**: Fastest IPC, shared memory regions
+4. **Sockets**: Network communication (local or remote)
+5. **Semaphores**: Synchronization primitive
+
+## Blocking vs Non-Blocking I/O
+
+By default, `read()` on a pipe blocks until data is available:
+
+```c
+// Blocking read (default)
+read(pipefd[0], buffer, sizeof(buffer));
+
+// Non-blocking read
+int flags = fcntl(pipefd[0], F_GETFL);
+fcntl(pipefd[0], F_SETFL, flags | O_NONBLOCK);
+ssize_t bytes = read(pipefd[0], buffer, sizeof(buffer));
+if (bytes == -1 && errno == EAGAIN) {
+    // No data available
+}
+```
+
+## Exercises
+
+### Exercise 1: Calculator Process
+Create a parent-child calculator:
+- Parent reads expressions like "5 + 3"
+- Sends to child via pipe
+- Child calculates result
+- Sends back to parent via second pipe
+- Parent displays result
+
+### Exercise 2: File Filter
+Implement a program that:
+- Parent reads a text file
+- Sends lines to child via pipe
+- Child filters lines (e.g., only lines containing "error")
+- Sends filtered lines back to parent
+- Parent writes to output file
+
+### Exercise 3: Producer-Consumer
+Build a producer-consumer system:
+- Producer child generates numbers
+- Sends to consumer via pipe
+- Consumer child processes numbers (e.g., sum, average)
+- Consumer reports results to parent
+
+### Exercise 4: Multi-Stage Pipeline
+Implement a three-stage pipeline:
+- Stage 1: Read file
+- Stage 2: Convert to uppercase
+- Stage 3: Count words
+- Use two pipes to connect the three processes
+- Demonstrate: `./program < input.txt`
+
+## Key Takeaways
+
+- Pipes provide unidirectional communication between processes
+- `pipe()` creates an anonymous pipe with two file descriptors
+- `pipefd[0]` is for reading, `pipefd[1]` is for writing
+- Close unused ends of pipes to avoid blocking
+- Bidirectional communication requires two pipes
+- `dup2()` redirects stdin/stdout to pipes for command pipelines
+- Named pipes (FIFOs) allow unrelated processes to communicate
+- `read()` on pipes blocks until data is available or writer closes
+- Pipes are buffered by the kernel (typically 4KB-64KB)
+- When all write ends are closed, `read()` returns 0 (EOF)
+
+Pipes are fundamental to Unix philosophy and the shell's pipeline mechanism. Combined with process management from the previous step, you can build sophisticated multi-process applications. This completes our journey through systems programming and file I/O!
+
+## Course Progress
+
+Congratulations! You've completed the Systems Programming and File I/O lesson. You now understand:
+- File operations with the standard library
+- Reading and writing in various modes
+- File positioning and random access
+- Binary vs text modes and portability
+- Process creation and management (POSIX)
+- Inter-process communication with pipes
+
+These skills are essential for building robust systems software, command-line tools, and understanding how Unix/Linux systems work at a fundamental level.

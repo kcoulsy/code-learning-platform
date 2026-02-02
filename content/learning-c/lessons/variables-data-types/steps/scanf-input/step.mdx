@@ -1,0 +1,280 @@
+---
+id: scanf-input
+title: "Reading Input with Scanf"
+order: 4
+---
+
+# Reading Input with Scanf
+
+While `printf` handles output, `scanf` is C's primary function for reading formatted input from the user. Understanding `scanf` is crucial for creating interactive programs, but it requires careful handling to avoid common security and reliability issues.
+
+## Understanding Scanf
+
+`scanf` stands for "scan formatted" and reads data from standard input (keyboard) according to a format string. Like `printf`, it uses format specifiers, but instead of displaying data, it reads and stores values into variables.
+
+The critical difference from `printf` is that `scanf` needs the *address* of variables (using the `&` operator) so it can modify them. The only exception is when reading strings, which are already pointers.
+
+## Basic Scanf Usage
+
+Here's how to read different data types from user input.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age;
+    float height;
+    char initial;
+
+    printf("Enter your age: ");
+    scanf("%d", &age);              // Note the & (address-of operator)
+
+    printf("Enter your height in feet: ");
+    scanf("%f", &height);           // & is required for primitives
+
+    printf("Enter your middle initial: ");
+    scanf(" %c", &initial);         // Space before %c skips whitespace
+
+    printf("\nYou entered:\n");
+    printf("Age: %d\n", age);
+    printf("Height: %.1f feet\n", height);
+    printf("Initial: %c\n", initial);
+
+    return 0;
+}
+```
+
+## The Address Operator (&)
+
+The `&` operator is essential for `scanf` because C passes arguments by value. Without `&`, `scanf` would receive a copy of the variable and couldn't modify the original.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int number = 0;
+
+    // CORRECT: Pass the address of number
+    scanf("%d", &number);
+    // scanf can now modify the value at that memory address
+
+    // WRONG: This would pass the value (0), not the address
+    // scanf("%d", number);  // Compiler warning/error!
+
+    printf("You entered: %d\n", number);
+
+    return 0;
+}
+```
+
+## Reading Multiple Values
+
+You can read several values in one `scanf` call, but be aware of how whitespace is handled.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int day, month, year;
+    float temperature;
+
+    // Reading multiple integers (whitespace-separated)
+    printf("Enter day, month, year: ");
+    scanf("%d %d %d", &day, &month, &year);
+
+    // Reading with specific delimiters
+    printf("Enter date (MM/DD/YYYY): ");
+    scanf("%d/%d/%d", &month, &day, &year);
+
+    // Reading float after integers
+    printf("Enter temperature: ");
+    scanf("%f", &temperature);
+
+    printf("Date: %02d/%02d/%d, Temp: %.1f°F\n",
+           month, day, year, temperature);
+
+    return 0;
+}
+```
+
+## Buffer Issues and Leftover Newlines
+
+One of the most frustrating `scanf` problems is leftover newlines in the input buffer.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age;
+    char name[50];
+    char choice;
+
+    printf("Enter your age: ");
+    scanf("%d", &age);              // Reads number but leaves \n in buffer
+
+    // PROBLEM: This gets skipped because \n is still in buffer
+    // printf("Enter your name: ");
+    // fgets(name, sizeof(name), stdin);  // Immediately reads the \n!
+
+    // SOLUTION 1: Consume the leftover newline
+    while (getchar() != '\n');      // Clear input buffer
+
+    printf("Enter your name: ");
+    fgets(name, sizeof(name), stdin);
+
+    // SOLUTION 2: Use space before %c to skip whitespace
+    printf("Continue? (y/n): ");
+    scanf(" %c", &choice);          // Space before %c skips whitespace
+
+    printf("Age: %d, Name: %s, Choice: %c\n", age, name, choice);
+
+    return 0;
+}
+```
+
+## Reading Strings Safely
+
+Reading strings with `scanf` is dangerous because it doesn't check buffer size by default.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    char name[20];
+    char address[100];
+
+    // DANGEROUS: No bounds checking!
+    // scanf("%s", name);  // Buffer overflow if input > 19 characters
+
+    // BETTER: Limit input width (buffer size - 1)
+    printf("Enter name (max 19 chars): ");
+    scanf("%19s", name);            // Reads max 19 chars + null terminator
+
+    // BEST: Use fgets for line input
+    printf("Enter address: ");
+    while (getchar() != '\n');      // Clear buffer first
+    fgets(address, sizeof(address), stdin);
+
+    // Remove trailing newline from fgets
+    size_t len = strlen(address);
+    if (len > 0 && address[len-1] == '\n') {
+        address[len-1] = '\0';
+    }
+
+    printf("Name: %s\n", name);
+    printf("Address: %s\n", address);
+
+    return 0;
+}
+```
+
+## Input Validation
+
+Always check if `scanf` successfully read the expected input.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age;
+    int items_read;
+
+    printf("Enter your age: ");
+    items_read = scanf("%d", &age);
+
+    if (items_read != 1) {
+        printf("Invalid input! Expected a number.\n");
+        // Clear the invalid input
+        while (getchar() != '\n');
+        return 1;
+    }
+
+    if (age < 0 || age > 150) {
+        printf("Age out of valid range!\n");
+        return 1;
+    }
+
+    printf("Valid age entered: %d\n", age);
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+**Forgetting the Address Operator**
+This is the most common `scanf` mistake.
+
+```c
+int x;
+scanf("%d", x);      // WRONG: passing value, not address
+scanf("%d", &x);     // CORRECT: passing address
+```
+
+**Buffer Overflow with Strings**
+Unbounded string input can overwrite memory.
+
+```c
+char name[10];
+scanf("%s", name);           // DANGEROUS: no length limit
+scanf("%9s", name);          // SAFER: limits to 9 chars + null
+fgets(name, sizeof(name), stdin);  // SAFEST: built-in bounds checking
+```
+
+**Not Checking Return Value**
+`scanf` returns the number of successfully read items. Always check it.
+
+```c
+int x;
+scanf("%d", &x);             // RISKY: doesn't check if read succeeded
+
+if (scanf("%d", &x) != 1) {  // BETTER: validates input
+    // Handle error
+}
+```
+
+**Mixing scanf with fgets**
+Be aware of leftover newlines in the buffer.
+
+```c
+int n;
+char str[50];
+scanf("%d", &n);             // Leaves \n in buffer
+fgets(str, 50, stdin);       // Immediately reads \n!
+
+// Solution: clear buffer between calls
+while (getchar() != '\n');
+```
+
+**Format String Vulnerabilities**
+Never use user input as a format string.
+
+```c
+char input[100];
+fgets(input, sizeof(input), stdin);
+scanf(input);                // DANGEROUS: format string vulnerability
+```
+
+## Practice Exercises
+
+1. Write a program that reads three exam scores from the user, validates they're between 0-100, calculates the average, and displays the result with error handling.
+
+2. Create a program that reads a person's first name, last name, and age on separate lines, properly handling the input buffer between reads.
+
+3. Write a calculator program that reads two numbers and an operator (+, -, *, /) with full input validation and error messages.
+
+4. Create a program that reads a date in MM/DD/YYYY format, validates the input, and displays it in different formats (e.g., "January 15, 2025").
+
+## Key Takeaways
+
+- `scanf` requires the address of variables (using `&`) except for strings
+- Always limit string input width to prevent buffer overflows: `scanf("%19s", name)` for a 20-char buffer
+- Check `scanf`'s return value to verify successful input
+- Use a space before `%c` to skip whitespace: `scanf(" %c", &ch)`
+- Clear the input buffer with `while (getchar() != '\n');` when switching between input methods
+- `fgets` is generally safer than `scanf` for string input
+
+Compile with:
+```bash
+gcc -Wall -Wextra -std=c11 -g scanf_examples.c -o scanf_examples
+```

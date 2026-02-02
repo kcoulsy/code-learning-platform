@@ -1,0 +1,516 @@
+---
+id: practice-io
+title: "Practice: Input/Output Programs"
+order: 7
+---
+
+# Practice: Input/Output Programs
+
+Now that you understand variables, data types, printf, scanf, type conversion, and constants, it's time to put everything together. This step provides hands-on practice exercises that combine all these concepts into real, working programs.
+
+## Exercise 1: Simple Calculator
+
+Create a calculator that performs basic arithmetic operations on two numbers entered by the user.
+
+**Requirements:**
+- Prompt user for two numbers (floating-point)
+- Display a menu of operations (+, -, *, /, %)
+- Read the user's choice
+- Perform the calculation and display the result
+- Handle division by zero
+- Format output to 2 decimal places
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    double num1, num2, result;
+    char operation;
+    int valid_input;
+
+    printf("=== Simple Calculator ===\n\n");
+
+    // Get first number
+    printf("Enter first number: ");
+    valid_input = scanf("%lf", &num1);
+
+    if (valid_input != 1) {
+        printf("Error: Invalid number\n");
+        return 1;
+    }
+
+    // Get second number
+    printf("Enter second number: ");
+    valid_input = scanf("%lf", &num2);
+
+    if (valid_input != 1) {
+        printf("Error: Invalid number\n");
+        return 1;
+    }
+
+    // Display menu
+    printf("\nOperations:\n");
+    printf("  + : Addition\n");
+    printf("  - : Subtraction\n");
+    printf("  * : Multiplication\n");
+    printf("  / : Division\n");
+    printf("\nChoose operation: ");
+    scanf(" %c", &operation);  // Space before %c to skip whitespace
+
+    // Perform calculation
+    switch (operation) {
+        case '+':
+            result = num1 + num2;
+            printf("%.2lf + %.2lf = %.2lf\n", num1, num2, result);
+            break;
+        case '-':
+            result = num1 - num2;
+            printf("%.2lf - %.2lf = %.2lf\n", num1, num2, result);
+            break;
+        case '*':
+            result = num1 * num2;
+            printf("%.2lf * %.2lf = %.2lf\n", num1, num2, result);
+            break;
+        case '/':
+            if (num2 == 0.0) {
+                printf("Error: Division by zero!\n");
+                return 1;
+            }
+            result = num1 / num2;
+            printf("%.2lf / %.2lf = %.2lf\n", num1, num2, result);
+            break;
+        default:
+            printf("Error: Invalid operation '%c'\n", operation);
+            return 1;
+    }
+
+    return 0;
+}
+```
+
+## Exercise 2: Temperature Converter
+
+Build a program that converts temperatures between Celsius, Fahrenheit, and Kelvin.
+
+**Requirements:**
+- Display conversion menu
+- Read temperature value and choice
+- Perform conversion with proper formulas
+- Display result with 2 decimal places
+- Validate that Kelvin values aren't negative
+
+**Formulas:**
+- Celsius to Fahrenheit: F = (C × 9/5) + 32
+- Celsius to Kelvin: K = C + 273.15
+- Fahrenheit to Celsius: C = (F - 32) × 5/9
+
+```c
+#include <stdio.h>
+
+#define ABSOLUTE_ZERO_C -273.15
+
+int main(void) {
+    double temperature, result;
+    int choice;
+
+    printf("=== Temperature Converter ===\n\n");
+    printf("Conversion options:\n");
+    printf("  1. Celsius to Fahrenheit\n");
+    printf("  2. Celsius to Kelvin\n");
+    printf("  3. Fahrenheit to Celsius\n");
+    printf("  4. Fahrenheit to Kelvin\n");
+    printf("  5. Kelvin to Celsius\n");
+    printf("  6. Kelvin to Fahrenheit\n");
+    printf("\nEnter choice (1-6): ");
+
+    if (scanf("%d", &choice) != 1) {
+        printf("Error: Invalid choice\n");
+        return 1;
+    }
+
+    printf("Enter temperature: ");
+    if (scanf("%lf", &temperature) != 1) {
+        printf("Error: Invalid temperature\n");
+        return 1;
+    }
+
+    // Perform conversion
+    switch (choice) {
+        case 1:  // Celsius to Fahrenheit
+            result = (temperature * 9.0 / 5.0) + 32.0;
+            printf("%.2lf°C = %.2lf°F\n", temperature, result);
+            break;
+
+        case 2:  // Celsius to Kelvin
+            if (temperature < ABSOLUTE_ZERO_C) {
+                printf("Error: Temperature below absolute zero!\n");
+                return 1;
+            }
+            result = temperature + 273.15;
+            printf("%.2lf°C = %.2lf K\n", temperature, result);
+            break;
+
+        case 3:  // Fahrenheit to Celsius
+            result = (temperature - 32.0) * 5.0 / 9.0;
+            printf("%.2lf°F = %.2lf°C\n", temperature, result);
+            break;
+
+        case 4:  // Fahrenheit to Kelvin
+            result = (temperature - 32.0) * 5.0 / 9.0 + 273.15;
+            printf("%.2lf°F = %.2lf K\n", temperature, result);
+            break;
+
+        case 5:  // Kelvin to Celsius
+            if (temperature < 0) {
+                printf("Error: Kelvin cannot be negative!\n");
+                return 1;
+            }
+            result = temperature - 273.15;
+            printf("%.2lf K = %.2lf°C\n", temperature, result);
+            break;
+
+        case 6:  // Kelvin to Fahrenheit
+            if (temperature < 0) {
+                printf("Error: Kelvin cannot be negative!\n");
+                return 1;
+            }
+            result = (temperature - 273.15) * 9.0 / 5.0 + 32.0;
+            printf("%.2lf K = %.2lf°F\n", temperature, result);
+            break;
+
+        default:
+            printf("Error: Invalid choice\n");
+            return 1;
+    }
+
+    return 0;
+}
+```
+
+## Exercise 3: Grade Calculator
+
+Create a program that calculates a student's final grade based on multiple assessments.
+
+**Requirements:**
+- Read scores for: Homework (30%), Midterm (30%), Final (40%)
+- Validate scores are between 0 and 100
+- Calculate weighted average
+- Display letter grade (A: 90+, B: 80-89, C: 70-79, D: 60-69, F: <60)
+- Show whether the student passed (60% or higher)
+
+```c
+#include <stdio.h>
+
+#define HOMEWORK_WEIGHT 0.30
+#define MIDTERM_WEIGHT 0.30
+#define FINAL_WEIGHT 0.40
+#define PASSING_GRADE 60.0
+
+int main(void) {
+    double homework, midterm, final, weighted_avg;
+    char letter_grade;
+
+    printf("=== Grade Calculator ===\n\n");
+
+    // Read homework score
+    printf("Enter homework score (0-100): ");
+    if (scanf("%lf", &homework) != 1 || homework < 0 || homework > 100) {
+        printf("Error: Invalid homework score\n");
+        return 1;
+    }
+
+    // Read midterm score
+    printf("Enter midterm score (0-100): ");
+    if (scanf("%lf", &midterm) != 1 || midterm < 0 || midterm > 100) {
+        printf("Error: Invalid midterm score\n");
+        return 1;
+    }
+
+    // Read final exam score
+    printf("Enter final exam score (0-100): ");
+    if (scanf("%lf", &final) != 1 || final < 0 || final > 100) {
+        printf("Error: Invalid final exam score\n");
+        return 1;
+    }
+
+    // Calculate weighted average
+    weighted_avg = (homework * HOMEWORK_WEIGHT) +
+                   (midterm * MIDTERM_WEIGHT) +
+                   (final * FINAL_WEIGHT);
+
+    // Determine letter grade
+    if (weighted_avg >= 90) {
+        letter_grade = 'A';
+    } else if (weighted_avg >= 80) {
+        letter_grade = 'B';
+    } else if (weighted_avg >= 70) {
+        letter_grade = 'C';
+    } else if (weighted_avg >= 60) {
+        letter_grade = 'D';
+    } else {
+        letter_grade = 'F';
+    }
+
+    // Display results
+    printf("\n=== Grade Report ===\n");
+    printf("Homework:   %6.2lf (weight: %.0f%%)\n", homework, HOMEWORK_WEIGHT * 100);
+    printf("Midterm:    %6.2lf (weight: %.0f%%)\n", midterm, MIDTERM_WEIGHT * 100);
+    printf("Final Exam: %6.2lf (weight: %.0f%%)\n", final, FINAL_WEIGHT * 100);
+    printf("-----------------------------------\n");
+    printf("Final Grade: %.2lf%% (%c)\n", weighted_avg, letter_grade);
+
+    if (weighted_avg >= PASSING_GRADE) {
+        printf("Status: PASSED\n");
+    } else {
+        printf("Status: FAILED (need %.2lf more points)\n",
+               PASSING_GRADE - weighted_avg);
+    }
+
+    return 0;
+}
+```
+
+## Exercise 4: BMI Calculator
+
+Build a Body Mass Index (BMI) calculator with health category display.
+
+**Requirements:**
+- Read weight (in kilograms) and height (in meters)
+- Calculate BMI using formula: BMI = weight / (height²)
+- Display BMI category:
+  - Underweight: BMI < 18.5
+  - Normal: 18.5 ≤ BMI < 25
+  - Overweight: 25 ≤ BMI < 30
+  - Obese: BMI ≥ 30
+- Validate positive inputs
+- Format BMI to 1 decimal place
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    double weight_kg, height_m, bmi;
+    const char *category;
+
+    printf("=== BMI Calculator ===\n\n");
+
+    // Read weight
+    printf("Enter weight (kg): ");
+    if (scanf("%lf", &weight_kg) != 1 || weight_kg <= 0) {
+        printf("Error: Invalid weight\n");
+        return 1;
+    }
+
+    // Read height
+    printf("Enter height (m): ");
+    if (scanf("%lf", &height_m) != 1 || height_m <= 0) {
+        printf("Error: Invalid height\n");
+        return 1;
+    }
+
+    // Calculate BMI
+    bmi = weight_kg / (height_m * height_m);
+
+    // Determine category
+    if (bmi < 18.5) {
+        category = "Underweight";
+    } else if (bmi < 25.0) {
+        category = "Normal weight";
+    } else if (bmi < 30.0) {
+        category = "Overweight";
+    } else {
+        category = "Obese";
+    }
+
+    // Display results
+    printf("\n=== Results ===\n");
+    printf("Weight: %.1lf kg\n", weight_kg);
+    printf("Height: %.2lf m\n", height_m);
+    printf("BMI: %.1lf\n", bmi);
+    printf("Category: %s\n", category);
+
+    // Additional info
+    printf("\nBMI Categories:\n");
+    printf("  Underweight: < 18.5\n");
+    printf("  Normal:      18.5 - 24.9\n");
+    printf("  Overweight:  25.0 - 29.9\n");
+    printf("  Obese:       >= 30.0\n");
+
+    return 0;
+}
+```
+
+## Exercise 5: Time Converter
+
+Create a program that converts seconds into hours, minutes, and remaining seconds.
+
+**Requirements:**
+- Read total seconds from user
+- Calculate hours, minutes, and remaining seconds
+- Display in HH:MM:SS format
+- Also display in days if applicable (≥ 86400 seconds)
+- Validate non-negative input
+
+```c
+#include <stdio.h>
+
+#define SECONDS_PER_MINUTE 60
+#define SECONDS_PER_HOUR 3600
+#define SECONDS_PER_DAY 86400
+
+int main(void) {
+    long total_seconds;
+    int days, hours, minutes, seconds;
+
+    printf("=== Time Converter ===\n\n");
+
+    // Read total seconds
+    printf("Enter total seconds: ");
+    if (scanf("%ld", &total_seconds) != 1 || total_seconds < 0) {
+        printf("Error: Invalid input\n");
+        return 1;
+    }
+
+    // Calculate days (if applicable)
+    days = total_seconds / SECONDS_PER_DAY;
+    total_seconds %= SECONDS_PER_DAY;
+
+    // Calculate hours
+    hours = total_seconds / SECONDS_PER_HOUR;
+    total_seconds %= SECONDS_PER_HOUR;
+
+    // Calculate minutes
+    minutes = total_seconds / SECONDS_PER_MINUTE;
+
+    // Remaining seconds
+    seconds = total_seconds % SECONDS_PER_MINUTE;
+
+    // Display results
+    printf("\n=== Result ===\n");
+
+    if (days > 0) {
+        printf("%d day(s), %02d:%02d:%02d\n", days, hours, minutes, seconds);
+    } else {
+        printf("%02d:%02d:%02d\n", hours, minutes, seconds);
+    }
+
+    return 0;
+}
+```
+
+## Challenge Exercise: Unit Converter Suite
+
+Combine all concepts into a comprehensive unit converter program.
+
+**Requirements:**
+- Menu-driven interface
+- Convert between: length (m/ft), weight (kg/lb), temperature (C/F/K)
+- Use constants for conversion factors
+- Input validation for all inputs
+- Clear formatting and user-friendly output
+- Allow multiple conversions in one run
+
+```c
+#include <stdio.h>
+
+#define METERS_TO_FEET 3.28084
+#define KG_TO_POUNDS 2.20462
+#define CELSIUS_TO_KELVIN 273.15
+
+void display_menu(void) {
+    printf("\n=== Unit Converter ===\n");
+    printf("1. Meters to Feet\n");
+    printf("2. Feet to Meters\n");
+    printf("3. Kilograms to Pounds\n");
+    printf("4. Pounds to Kilograms\n");
+    printf("5. Celsius to Fahrenheit\n");
+    printf("6. Fahrenheit to Celsius\n");
+    printf("0. Exit\n");
+    printf("Choice: ");
+}
+
+int main(void) {
+    int choice;
+    double value, result;
+
+    do {
+        display_menu();
+
+        if (scanf("%d", &choice) != 1) {
+            printf("Invalid input!\n");
+            while (getchar() != '\n');  // Clear buffer
+            continue;
+        }
+
+        if (choice == 0) {
+            printf("Goodbye!\n");
+            break;
+        }
+
+        if (choice < 1 || choice > 6) {
+            printf("Invalid choice!\n");
+            continue;
+        }
+
+        printf("Enter value: ");
+        if (scanf("%lf", &value) != 1) {
+            printf("Invalid value!\n");
+            while (getchar() != '\n');  // Clear buffer
+            continue;
+        }
+
+        switch (choice) {
+            case 1:
+                result = value * METERS_TO_FEET;
+                printf("%.2lf meters = %.2lf feet\n", value, result);
+                break;
+            case 2:
+                result = value / METERS_TO_FEET;
+                printf("%.2lf feet = %.2lf meters\n", value, result);
+                break;
+            case 3:
+                result = value * KG_TO_POUNDS;
+                printf("%.2lf kg = %.2lf lbs\n", value, result);
+                break;
+            case 4:
+                result = value / KG_TO_POUNDS;
+                printf("%.2lf lbs = %.2lf kg\n", value, result);
+                break;
+            case 5:
+                result = (value * 9.0 / 5.0) + 32.0;
+                printf("%.2lf°C = %.2lf°F\n", value, result);
+                break;
+            case 6:
+                result = (value - 32.0) * 5.0 / 9.0;
+                printf("%.2lf°F = %.2lf°C\n", value, result);
+                break;
+        }
+
+    } while (1);
+
+    return 0;
+}
+```
+
+## Key Takeaways
+
+- Real programs combine multiple concepts: input, processing, output, validation
+- Always validate user input before processing to prevent crashes and errors
+- Use constants for magic numbers to improve code readability and maintainability
+- Format output appropriately for the data type (2 decimal places for money, etc.)
+- Clear the input buffer when switching between different input methods
+- Provide helpful error messages to guide users when input is invalid
+
+Compile examples with:
+```bash
+gcc -Wall -Wextra -std=c11 -g calculator.c -o calculator
+gcc -Wall -Wextra -std=c11 -g temperature.c -o temperature
+gcc -Wall -Wextra -std=c11 -g grade_calc.c -o grade_calc
+gcc -Wall -Wextra -std=c11 -g bmi.c -o bmi
+gcc -Wall -Wextra -std=c11 -g time_convert.c -o time_convert
+gcc -Wall -Wextra -std=c11 -g unit_converter.c -o unit_converter
+```
+
+## Next Steps
+
+Now that you've practiced combining variables, data types, I/O, and validation, you're ready to move on to more advanced topics like control flow (if/else, loops) and functions. These practice programs form the foundation for building more complex applications.

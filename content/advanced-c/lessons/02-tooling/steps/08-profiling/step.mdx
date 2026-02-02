@@ -1,0 +1,382 @@
+---
+id: 08-profiling
+title: Profiling and Performance Analysis
+order: 8
+---
+
+# Profiling and Performance Analysis
+
+Profiling measures where your code spends time, so you can optimize what actually matters.
+
+## Why Profile?
+
+"Premature optimization is the root of all evil." — Donald Knuth
+
+Without profiling, you might optimize:
+
+- Code that runs rarely (waste of time)
+- Code that's already fast (diminishing returns)
+- The wrong algorithm (structural issue)
+
+Profiling tells you:
+
+- Which functions consume the most time
+- Where CPU cycles are spent
+- Cache miss rates
+- Branch prediction success
+
+## gprof: GNU Profiler
+
+### Compiling for Profiling
+
+```bash
+gcc -pg -g program.c -o program
+./program  # Generates gmon.out
+gprof program gmon.out > profile.txt
+```
+
+### Reading gprof Output
+
+```
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total
+ time   seconds   seconds    calls  Ts/call  Ts/call  name
+ 50.00      0.05     0.05     10000     0.00     0.00  compute_fast
+ 30.00      0.08     0.03     10000     0.00     0.00  process_data
+ 20.00      0.10     0.02        10     0.00     0.01  slow_function
+```
+
+- `% time`: Percentage of total execution time
+- `self seconds`: Time spent in this function only
+- `calls`: Number of calls
+- `name`: Function name
+
+### Call Graph
+
+```
+index % time    self  children    called  name
+[1]    80.0    0.05    0.05       10000  main [1]
+                0.03    0.02       10000/10000  compute_fast [2]
+                0.02    0.00       10000/10000  process_data [3]
+```
+
+Shows call relationships and time propagation.
+
+### gprof Limitations
+
+- Sampling-based (statistical)
+- Misses short functions
+- No system call information
+- No I/O wait time
+- Adds overhead to execution
+
+## perf: Linux Performance Counter
+
+### Basic Usage
+
+```bash
+# Record performance data
+perf record ./program
+
+# Analyze
+perf report
+
+# Annotate source
+perf annotate
+```
+
+### Counting Events
+
+```bash
+# Count CPU cycles
+perf stat -e cycles ./program
+
+# Count cache misses
+perf stat -e cache-misses ./program
+
+# Count instructions
+perf stat -e instructions ./program
+
+# All events
+perf stat ./program
+```
+
+Output:
+
+```
+Performance counter stats:
+       1,234.56 msec task-clock                #    1.000 CPUs utilized
+     2,345,678      cycles                    #    1.900 GHz
+     3,456,789      instructions              #    1.47  insn per cycle
+       123,456      cache-misses              #    3.573 % of all cache refs
+```
+
+### Profiling by Function
+
+```bash
+# Record with symbol information
+perf record -g ./program
+
+# Report
+perf report
+```
+
+Output:
+
+```
+# Overhead  Command  Shared Object  Symbol
+   50.00%  program  program         [.] compute_fast
+   30.00%  program  program         [.] process_data
+   20.00%  program  libc-2.31.so    [.] malloc
+```
+
+### Flame Graphs
+
+```bash
+# Generate flame graph
+perf record -F 99 -g ./program
+perf script | stackcollapse-perf.pl | flamegraph.pl > flamegraph.svg
+```
+
+Visualize call stacks and hot paths.
+
+## Valgrind Tools
+
+### cachegrind: Cache Profiler
+
+```bash
+valgrind --tool=cachegrind ./program
+cg_annotate cachegrind.out.<pid>
+```
+
+Shows:
+
+- L1 cache misses
+- L2 cache misses
+- Branch prediction misses
+- Instruction cache performance
+
+Output:
+
+```
+Ir      I1mr I1mr  Dr      D1mr  D1mr  Dw      D1mw  D1mw
+100,000  500  0.5%  50,000  1,000 2.0%  10,000  100    1.0% program
+```
+
+### callgrind: Call Graph Profiler
+
+```bash
+valgrind --tool=callgrind ./program
+kcachegrind callgrind.out.<pid>
+```
+
+GUI for visualizing:
+
+- Call trees
+- Function costs
+- Call relationships
+
+## time: Simple Timing
+
+```bash
+time ./program
+```
+
+Output:
+
+```
+real    0m0.125s   # Wall clock time
+user    0m0.100s   # CPU time in user mode
+sys     0m0.025s   # CPU time in kernel mode
+```
+
+## Microbenchmarking
+
+### Using clock_gettime()
+
+```c
+#include <time.h>
+
+double get_time(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+int main(void) {
+    double start = get_time();
+
+    // Code to benchmark
+    for (int i = 0; i < 1000000; i++) {
+        compute();
+    }
+
+    double end = get_time();
+    printf("Time: %.6f seconds\n", end - start);
+    return 0;
+}
+```
+
+### Using gettimeofday()
+
+```c
+#include <sys/time.h>
+
+double get_time(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec + tv.tv_usec / 1e6;
+}
+```
+
+## Benchmarking Best Practices
+
+### 1. Warm Up
+
+```c
+// Warm up CPU cache
+for (int i = 0; i < 100; i++) {
+    compute();
+}
+
+// Now measure
+start_timer();
+for (int i = 0; i < 10000; i++) {
+    compute();
+}
+end_timer();
+```
+
+### 2. Run Multiple Times
+
+```c
+for (int trial = 0; trial < 10; trial++) {
+    double time = benchmark();
+    printf("Trial %d: %.6f seconds\n", trial, time);
+}
+```
+
+### 3. Use Real Data
+
+```bash
+# Don't benchmark with tiny inputs
+./program 10
+
+# Use realistic workload
+./program 1000000
+```
+
+### 4. Control Environment
+
+```bash
+# Disable frequency scaling
+sudo cpupower frequency-set -g performance
+
+# Pin to single CPU
+taskset -c 0 ./program
+```
+
+### 5. Account for Variance
+
+```c
+double times[100];
+for (int i = 0; i < 100; i++) {
+    times[i] = benchmark();
+}
+qsort(times, 100, sizeof(double), compare_double);
+double median = times[50];
+```
+
+## Interpreting Results
+
+### What to Look For
+
+1. **Hot functions**: Most time spent here
+2. **Call frequency**: Called too often?
+3. **Cache misses**: Poor memory access patterns
+4. **Branch misses**: Unpredictable conditions
+
+### Common Issues
+
+#### Issue: Too Many Small Allocations
+
+```c
+for (int i = 0; i < 1000000; i++) {
+    char *buf = malloc(100);  // 1 million allocations!
+    free(buf);
+}
+```
+
+**Fix**: Use stack buffer or reuse allocation.
+
+#### Issue: Poor Cache Locality
+
+```c
+// Access pattern: strided (bad)
+for (int i = 0; i < N; i++) {
+    for (int j = 0; j < M; j++) {
+        process(matrix[j][i]);  // Column-major access
+    }
+}
+```
+
+**Fix**: Use row-major access.
+
+#### Issue: Branch Misprediction
+
+```c
+for (int i = 0; i < N; i++) {
+    if (data[i] > threshold) {  // Unpredictable!
+        process(data[i]);
+    }
+}
+```
+
+**Fix**: Branchless code or sort first.
+
+## Practice Exercise
+
+Profile this code:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+static int fibonacci(int n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+static int fast_fibonacci(int n) {
+    if (n <= 1) return n;
+    int a = 0, b = 1;
+    for (int i = 2; i <= n; i++) {
+        int temp = a + b;
+        a = b;
+        b = temp;
+    }
+    return b;
+}
+
+int main(void) {
+    printf("fib(40) = %d\n", fibonacci(40));
+    printf("fast_fib(40) = %d\n", fast_fibonacci(40));
+    return 0;
+}
+```
+
+Compile and profile:
+
+```bash
+gcc -pg -g fib.c -o fib
+./fib
+gprof fib gmon.out | less
+```
+
+Which function takes more time? Why?
+
+---
+
+**Next**: Valgrind memcheck for memory debugging.

@@ -1,25 +1,37 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { courses } from "@/lib/course-data";
-import { CourseCard } from "@/components/course-card";
 import { BookOpen } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { loadAllCourses } from "@/lib/course-data";
+import { CourseCard } from "@/components/course-card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
-export const Route = createFileRoute("/")({ component: HomePage });
+export const Route = createFileRoute("/")({
+  component: HomePage,
+  loader: async () => {
+    const courses = await loadAllCourses({ data: undefined });
+    return { courses };
+  },
+});
 
 function HomePage() {
+  const { courses } = Route.useLoaderData();
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <BookOpen className="h-6 w-6 text-primary" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <BookOpen className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">LearnCode</h1>
+                <p className="text-sm text-muted-foreground">
+                  Master programming with focused, step-by-step courses
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">LearnCode</h1>
-              <p className="text-sm text-muted-foreground">
-                Master programming with focused, step-by-step courses
-              </p>
-            </div>
+            <ThemeToggle />
           </div>
         </div>
       </header>

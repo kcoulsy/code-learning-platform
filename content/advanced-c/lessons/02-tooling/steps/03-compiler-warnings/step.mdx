@@ -1,0 +1,412 @@
+---
+id: 03-compiler-warnings
+title: Compiler Warnings
+order: 3
+---
+
+# Compiler Warnings
+
+Compiler warnings are your first line of defense against bugs. Professional C code compiles with **zero warnings**.
+
+## Why Warnings Matter
+
+A warning is often a bug in disguise:
+
+```c
+int main(void) {
+    int x = 5;
+    if (x = 10) {  // Assignment, not comparison!
+        printf("x is 10\n");
+    }
+    return 0;
+}
+```
+
+Compile with warnings:
+
+```bash
+$ gcc -Wall warning.c
+warning: suggest parentheses around assignment used as truth value
+```
+
+The compiler just saved you from a subtle bug.
+
+## Essential Warning Flags
+
+### -Wall: Enable Most Warnings
+
+Despite the name, `-Wall` does **not** enable all warnings. It enables the most important ones:
+
+```bash
+gcc -Wall program.c
+```
+
+Enables:
+
+- Implicit function declarations
+- Unused variables
+- Return type mismatches
+- Missing prototypes
+- Control flow issues
+- Format string vulnerabilities
+
+### -Wextra: Enable Extra Warnings
+
+```bash
+gcc -Wall -Wextra program.c
+```
+
+Adds:
+
+- Unused function parameters
+- Empty loop bodies
+- Missing field initializers
+- Sign comparison warnings
+- Type limit warnings
+
+### -Wpedantic: Strict ISO C
+
+```bash
+gcc -Wall -Wextra -Wpedantic program.c
+```
+
+Warns about:
+
+- Extensions beyond ISO C
+- Multibyte character literals
+- Long long (in C90 mode)
+
+### -Werror: Treat Warnings as Errors
+
+```bash
+gcc -Wall -Wextra -Werror program.c
+```
+
+Warnings become errors — compilation fails. This forces you to fix warnings immediately.
+
+**Best practice**: Use `-Werror` for release builds.
+
+### -Wconversion: Implicit Conversion Warnings
+
+```bash
+gcc -Wconversion program.c
+```
+
+Warns about:
+
+- Implicit type conversions
+- Loss of precision
+- Sign changes
+
+```c
+int i = -1;
+unsigned u = i;  // Warning: negative to unsigned
+```
+
+## Specific Useful Warnings
+
+### -Wunused
+
+```bash
+gcc -Wunused program.c
+```
+
+Warns about:
+
+- Unused variables
+- Unused functions
+- Unused labels
+- Unused parameters
+
+### -Wformat
+
+```bash
+gcc -Wformat program.c
+```
+
+Checks printf/scanf format strings:
+
+```c
+printf("%d", "hello");  // Warning: format mismatch
+printf("%s %s", one);   // Warning: not enough arguments
+```
+
+### -Wshadow
+
+```bash
+gcc -Wshadow program.c
+```
+
+Warns about shadowed variables:
+
+```c
+int x = 5;
+
+void func(void) {
+    int x = 10;  // Warning: shadows outer x
+}
+```
+
+### -Wstrict-prototypes
+
+```bash
+gcc -Wstrict-prototypes program.c
+```
+
+Warns about function declarations without parameter types:
+
+```c
+void func();     // Warning: declaration without prototype
+void func(void); // Correct
+```
+
+### -Wmissing-prototypes
+
+```bash
+gcc -Wmissing-prototypes program.c
+```
+
+Warns about global functions without prototypes:
+
+```c
+// Should be in a header file
+void helper(void) {  // Warning: no prototype
+    // ...
+}
+```
+
+### -Wfloat-equal
+
+```bash
+gcc -Wfloat-equal program.c
+```
+
+Warns about direct float comparisons (generally a bad idea):
+
+```c
+if (x == 0.0) {  // Warning: comparing floats
+    // ...
+}
+
+// Better:
+if (fabs(x) < EPSILON) {
+    // ...
+}
+```
+
+### -Waggregate-return
+
+```bash
+gcc -Waggregate-return program.c
+```
+
+Warns about functions returning structs/arrays (inefficient):
+
+```c
+struct Point get_point(void);  // Warning
+```
+
+### -Wcast-align
+
+```bash
+gcc -Wcast-align program.c
+```
+
+Warns about pointer casts that increase alignment requirements:
+
+```c
+char buffer[10];
+int *p = (int *)buffer;  // Warning: alignment issue
+```
+
+## Warning Suppression
+
+Sometimes you need to suppress specific warnings:
+
+### Method 1: Diagnostic Pragma (GCC/Clang)
+
+```c
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
+void callback(void *data, int unused) {
+    // unused parameter is intentional
+}
+
+#pragma GCC diagnostic pop
+```
+
+### Method 2: Attribute Unused
+
+```c
+void callback(void *data, int unused __attribute__((unused))) {
+    // ...
+}
+```
+
+### Method 3: (void) Trick
+
+```c
+void func(int a, int unused) {
+    (void)unused;  // Explicitly mark as intentionally unused
+    // ...
+}
+```
+
+## Common Warnings and Fixes
+
+### Warning: Implicit Declaration
+
+```c
+// Code
+int main(void) {
+    printf("Hello\n");
+    return 0;
+}
+
+// Warning:
+warning: implicit declaration of function 'printf'
+
+// Fix:
+#include <stdio.h>
+```
+
+### Warning: Unused Variable
+
+```c
+// Code
+int main(void) {
+    int x = 5;
+    return 0;
+}
+
+// Warning:
+warning: unused variable 'x'
+
+// Fix 1: Remove it
+int main(void) {
+    return 0;
+}
+
+// Fix 2: Use it
+int main(void) {
+    int x = 5;
+    printf("%d\n", x);
+    return 0;
+}
+
+// Fix 3: Mark unused (if intentional)
+int main(void) {
+    int x __attribute__((unused)) = 5;
+    return 0;
+}
+```
+
+### Warning: Control Reaches End of Non-Void Function
+
+```c
+// Code
+int calculate(int x) {
+    if (x > 0) {
+        return x * 2;
+    }
+}
+
+// Warning:
+warning: control reaches end of non-void function
+
+// Fix:
+int calculate(int x) {
+    if (x > 0) {
+        return x * 2;
+    }
+    return 0;  // Add default return
+}
+```
+
+### Warning: Suggest Parentheses
+
+```c
+// Code
+if (x = 5) {  // Assignment, not comparison
+    // ...
+}
+
+// Warning:
+warning: suggest parentheses around assignment used as truth value
+
+// Fix:
+if ((x = 5)) {  // Intentional assignment
+    // ...
+}
+
+// Or:
+if (x == 5) {  // Comparison
+    // ...
+}
+```
+
+## Compiler Warning Levels Comparison
+
+| Flag                   | Warnings Enabled         | Usage                        |
+| ---------------------- | ------------------------ | ---------------------------- |
+| `-Wall`                | Essential warnings       | **Always use**               |
+| `-Wextra`              | Additional warnings      | **Always use**               |
+| `-Wpedantic`           | Strict ISO C             | Use for strict compliance    |
+| `-Werror`              | Treat warnings as errors | Use for CI/CD, releases      |
+| `-Weverything` (Clang) | ALL warnings             | Use sparingly, lots of noise |
+
+## Makefile Integration
+
+```makefile
+CFLAGS = -Wall -Wextra -Werror -std=c11 -g
+LDFLAGS =
+
+all: program
+
+program: main.o utils.o
+	$(CC) $(LDFLAGS) -o $@ $^
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f *.o program
+```
+
+## Practice Exercise
+
+Fix all warnings in this code:
+
+```c
+// warnings.c
+int main(void) {
+    int x;
+    int y = 5;
+    if (y = 10) {
+        printf("y is %d\n", y);
+    }
+    return 0;
+}
+```
+
+Compile with: `gcc -Wall -Wextra warnings.c`
+
+**Answer**:
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // int x;  // Remove unused variable
+    int y = 5;
+    if (y == 10) {  // Fix: == not =
+        printf("y is %d\n", y);
+    }
+    return 0;
+}
+```
+
+---
+
+**Next**: Sanitizers — catching bugs at runtime.

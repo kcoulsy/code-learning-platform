@@ -1,0 +1,392 @@
+---
+title: "Step 2: Design Phase"
+description: "Plan your application architecture, modules, and data structures"
+order: 2
+---
+
+# Step 2: Design Phase
+
+Now that you have a clear specification, it's time to design the architecture of your application. Good design makes implementation easier and results in cleaner, more maintainable code.
+
+## Overview
+
+In this step, you'll plan:
+- Module organization and responsibilities
+- Data structures for storing contacts
+- Function interfaces (APIs) between modules
+- File structure and naming conventions
+- Memory management strategy
+
+## Modular Architecture
+
+### Why Modules?
+
+Breaking your program into modules provides:
+- **Separation of Concerns**: Each module has one clear purpose
+- **Testability**: Test each module independently
+- **Maintainability**: Easy to find and fix bugs
+- **Reusability**: Modules can be used in other projects
+
+### Recommended Module Structure
+
+```
+contact-book/
+├── src/
+│   ├── main.c           # Entry point, orchestrates modules
+│   ├── contact.h        # Contact data structure and operations
+│   ├── contact.c        # Contact implementation
+│   ├── storage.h        # File I/O interface
+│   ├── storage.c        # Save/load implementation
+│   ├── ui.h             # User interface functions
+│   └── ui.c             # Menu and display implementation
+├── data/
+│   └── contacts.txt     # Stored contacts (created at runtime)
+└── Makefile or build.sh # Compilation instructions
+```
+
+## Data Structures
+
+### Contact Structure
+
+Your core data structure. Consider this design:
+
+```c
+// What should go in contact.h?
+// Think about:
+// - What fields does each contact need?
+// - Should you use fixed arrays or pointers?
+// - How will you handle optional fields?
+
+typedef struct {
+    // YOUR DESIGN HERE
+    // Hint: name, phone, email at minimum
+} Contact;
+```
+
+**Design Questions**:
+1. Fixed-size char arrays (`char name[51]`) or dynamic strings (`char *name`)?
+   - Fixed: Simpler, no malloc/free needed, but wastes memory
+   - Dynamic: Flexible, memory-efficient, but requires careful management
+
+2. How do you represent "no phone number"? Empty string `""` or NULL?
+
+### Contact List Structure
+
+How will you store multiple contacts?
+
+**Option A: Fixed Array**
+```c
+#define MAX_CONTACTS 1000
+
+typedef struct {
+    Contact contacts[MAX_CONTACTS];
+    int count;  // Number of contacts currently stored
+} ContactBook;
+```
+
+**Pros**: Simple, no dynamic allocation
+**Cons**: Fixed limit, wastes memory if few contacts
+
+**Option B: Dynamic Array**
+```c
+typedef struct {
+    Contact *contacts;  // Pointer to array
+    int count;          // Current number of contacts
+    int capacity;       // Total allocated space
+} ContactBook;
+```
+
+**Pros**: Grows as needed, memory-efficient
+**Cons**: More complex, requires realloc
+
+**Your Task**: Choose an approach and justify it based on your requirements.
+
+## Module Interfaces
+
+### Contact Module (contact.h/contact.c)
+
+**Responsibility**: Manage individual contact data and operations
+
+**Suggested Functions**:
+```c
+// Create a new contact (think about memory allocation)
+Contact* contact_create(const char *name, const char *phone, const char *email);
+
+// Free memory associated with a contact
+void contact_destroy(Contact *contact);
+
+// Display a single contact
+void contact_print(const Contact *contact);
+
+// Compare contacts (for searching)
+int contact_matches(const Contact *contact, const char *search_term);
+
+// What other operations might you need?
+```
+
+**Design Hint**: Should `contact_create` return a pointer or a struct by value? Consider who owns the memory.
+
+### Storage Module (storage.h/storage.c)
+
+**Responsibility**: Handle file I/O and data persistence
+
+**Suggested Functions**:
+```c
+// Save all contacts to file
+int storage_save(const ContactBook *book, const char *filename);
+
+// Load contacts from file
+int storage_load(ContactBook *book, const char *filename);
+
+// Returns: 0 on success, -1 on error
+```
+
+**Design Decisions**:
+
+1. **File Format**: How will you structure the data file?
+
+   **CSV Format Example**:
+   ```
+   John Doe,555-0100,john@example.com
+   Jane Smith,555-0200,jane@example.com
+   Bob Jones,,bob@example.com
+   ```
+
+   **Custom Format Example**:
+   ```
+   [Contact]
+   name=John Doe
+   phone=555-0100
+   email=john@example.com
+
+   [Contact]
+   name=Jane Smith
+   ...
+   ```
+
+   **JSON-like Format Example**:
+   ```
+   {"name":"John Doe","phone":"555-0100","email":"john@example.com"}
+   {"name":"Jane Smith","phone":"555-0200","email":"jane@example.com"}
+   ```
+
+2. **Error Handling**: What if the file doesn't exist? Is corrupted? Disk is full?
+
+3. **Escaping**: What if a name contains a comma (CSV) or special character?
+
+### UI Module (ui.h/ui.c)
+
+**Responsibility**: Handle all user interaction and display
+
+**Suggested Functions**:
+```c
+// Display main menu and get user choice
+int ui_show_menu(void);
+
+// Get input from user with prompt
+void ui_get_input(const char *prompt, char *buffer, int size);
+
+// Display all contacts in formatted list
+void ui_list_contacts(const ContactBook *book);
+
+// Handle the "add contact" workflow
+void ui_add_contact(ContactBook *book);
+
+// Handle the "search" workflow
+void ui_search_contacts(const ContactBook *book);
+
+// Handle the "delete" workflow
+void ui_delete_contact(ContactBook *book);
+
+// Display error/success messages
+void ui_show_message(const char *message);
+```
+
+**Design Principle**: The UI module should NOT contain business logic. It only handles input/output.
+
+## Main Program Flow
+
+### main.c Structure
+
+```c
+#include "contact.h"
+#include "storage.h"
+#include "ui.h"
+
+int main(void) {
+    // 1. Initialize contact book
+
+    // 2. Load existing contacts from file
+
+    // 3. Main loop:
+    //    - Show menu
+    //    - Get user choice
+    //    - Execute corresponding operation
+    //    - Repeat until user chooses exit
+
+    // 4. Save contacts to file
+
+    // 5. Cleanup and free memory
+
+    return 0;
+}
+```
+
+**Your Task**: Sketch out the pseudocode for main() in detail.
+
+## Memory Management Strategy
+
+### Critical Questions
+
+1. **Who allocates memory?**
+   - When creating a contact, who calls malloc()?
+   - When adding to the list, who owns that memory?
+
+2. **Who frees memory?**
+   - When deleting a contact, what needs to be freed?
+   - On program exit, how do you ensure no leaks?
+
+3. **What about strings?**
+   - If using `char *name`, do you strdup() input?
+   - When do you free those strings?
+
+### Ownership Pattern
+
+**Recommendation**: Establish clear ownership rules.
+
+**Example Pattern**:
+```
+- ContactBook owns all Contact objects
+- contact_create() allocates and returns new Contact
+- ContactBook adds Contact to its list (takes ownership)
+- contact_destroy() frees a Contact's memory
+- On exit, ContactBook destroys all its contacts
+```
+
+## Error Handling Strategy
+
+### What Can Go Wrong?
+
+1. **File Operations**:
+   - File doesn't exist (first run)
+   - Permission denied
+   - Disk full
+   - Corrupted data
+
+2. **Memory Operations**:
+   - malloc() fails (out of memory)
+   - Buffer overflow on input
+
+3. **User Input**:
+   - Invalid menu choice
+   - Empty required fields
+   - Special characters
+
+### Return Value Convention
+
+**Suggestion**: Use consistent return values across all modules.
+
+```c
+// Success/failure functions return:
+// 0 = success
+// -1 = error
+
+// Functions that return counts or indices:
+// >= 0 = valid result
+// -1 = not found/error
+```
+
+## Compilation Strategy
+
+### How to Compile Multiple Files
+
+**Option 1: Manual Compilation**
+```bash
+gcc -c contact.c -o contact.o
+gcc -c storage.c -o storage.o
+gcc -c ui.c -o ui.o
+gcc -c main.c -o main.o
+gcc contact.o storage.o ui.o main.o -o contact-book
+```
+
+**Option 2: One Command**
+```bash
+gcc main.c contact.c storage.c ui.c -o contact-book
+```
+
+**Option 3: Makefile** (recommended for larger projects)
+```makefile
+# You'll create this in Step 6
+```
+
+## Your Design Tasks
+
+### 1. Draw Architecture Diagram
+
+Sketch (on paper or digitally) the module relationships:
+- Which modules depend on which?
+- What's the data flow?
+- Where does memory get allocated/freed?
+
+### 2. Define Data Structures
+
+Write the actual struct definitions for:
+- `Contact`
+- `ContactBook` (or whatever you name your list)
+
+### 3. Write Header Files
+
+Create skeleton header files with:
+- Include guards
+- Struct definitions
+- Function declarations (no implementations yet)
+
+**Example: contact.h skeleton**
+```c
+#ifndef CONTACT_H
+#define CONTACT_H
+
+// Your Contact struct here
+
+// Your function declarations here
+
+#endif
+```
+
+### 4. Document Your Decisions
+
+Create a `DESIGN.txt` file documenting:
+- Why you chose fixed vs. dynamic arrays
+- Your file format choice and rationale
+- Your memory management strategy
+- Error handling approach
+
+## Design Review Checklist
+
+Before moving to implementation, verify:
+
+- [ ] All modules have clear, single responsibilities
+- [ ] Data structures are defined and justified
+- [ ] Function interfaces are planned (parameters and return types)
+- [ ] Memory management strategy is documented
+- [ ] Error handling approach is clear
+- [ ] File format is decided and documented
+- [ ] No circular dependencies between modules
+- [ ] Header files have include guards
+
+## Common Design Pitfalls
+
+**Avoid These**:
+1. **God Object**: Putting all functionality in one struct or file
+2. **Unclear Ownership**: Not knowing which code should free memory
+3. **Tight Coupling**: Modules that depend too much on each other's internals
+4. **No Error Handling**: Assuming operations always succeed
+5. **Premature Optimization**: Making code complex before you know it's needed
+
+## Next Step
+
+With your design complete, you're ready to start implementing! **Step 3: Contact Module** will guide you through creating the core contact data structure and operations.
+
+---
+
+**Pro Tip**: Time spent on design is never wasted. A good design makes implementation straightforward, while a poor design leads to constant refactoring and frustration.

@@ -1,0 +1,469 @@
+---
+title: "Traversal & Search"
+order: 5
+---
+
+# Traversal & Search
+
+Now that you can build and modify lists, you need ways to examine and query them. This step covers traversal-based operations.
+
+## The Traversal Pattern
+
+Almost every linked list operation uses this pattern:
+
+```c
+struct Node *current = head;
+while (current != NULL) {
+    // Do something with current node
+    current = current->next;  // Move to next
+}
+```
+
+This pattern is the foundation for all the functions you'll implement.
+
+## Print List
+
+Display all elements in the list.
+
+### Visual Example
+```
+List: HEAD -> [10] -> [20] -> [30] -> NULL
+Output: 10 -> 20 -> 30 -> NULL
+```
+
+### Function Signature
+```c
+void print_list(struct Node *head);
+```
+
+### Implementation Hints
+
+```c
+void print_list(struct Node *head) {
+    if (head == NULL) {
+        printf("List is empty\n");
+        return;
+    }
+
+    struct Node *current = head;
+    while (current != NULL) {
+        printf("%d", current->data);
+        if (current->next != NULL) {
+            printf(" -> ");
+        }
+        current = current->next;
+    }
+    printf(" -> NULL\n");
+}
+```
+
+### Why Single Pointer?
+
+Notice `struct Node *head`, not `struct Node **head`. We're only **reading** the list, not modifying it, so we don't need to change the head pointer.
+
+## Search for Element
+
+Find if a value exists in the list.
+
+### Algorithm
+```
+1. Traverse the list
+2. Compare each node's data to target
+3. Return 1 if found, 0 otherwise
+```
+
+### Function Signature
+```c
+int search(struct Node *head, int value);
+```
+
+### Implementation Hints
+
+```c
+int search(struct Node *head, int value) {
+    // TODO: Traverse the list
+    // TODO: Check each node's data
+    // TODO: Return 1 if found, 0 if not
+}
+```
+
+### Optimization: Early Exit
+
+```c
+// As soon as you find it, return immediately
+while (current != NULL) {
+    if (current->data == value) {
+        return 1;  // Found! No need to continue
+    }
+    current = current->next;
+}
+return 0;  // Finished traversal without finding
+```
+
+## Find Position
+
+Return the position (index) of the first occurrence of a value.
+
+### Visual Example
+```
+List: [10] -> [20] -> [30] -> [20] -> NULL
+       0      1       2       3
+
+find_position(head, 20) = 1
+```
+
+### Function Signature
+```c
+int find_position(struct Node *head, int value);
+// Returns position (0-indexed), or -1 if not found
+```
+
+### Implementation Hints
+
+```c
+int find_position(struct Node *head, int value) {
+    struct Node *current = head;
+    int position = 0;
+
+    while (current != NULL) {
+        // TODO: Check if current node matches value
+        // TODO: If yes, return position
+        // TODO: Otherwise, increment position and continue
+    }
+
+    return -1;  // Not found
+}
+```
+
+## Count Nodes
+
+Return the total number of nodes in the list.
+
+### Function Signature
+```c
+int count_nodes(struct Node *head);
+```
+
+### Implementation Hints
+
+```c
+int count_nodes(struct Node *head) {
+    int count = 0;
+    struct Node *current = head;
+
+    // TODO: Traverse list, incrementing count for each node
+
+    return count;
+}
+```
+
+### One-Liner Version
+Once you understand the pattern:
+```c
+int count_nodes(struct Node *head) {
+    int count = 0;
+    for (struct Node *curr = head; curr != NULL; curr = curr->next) {
+        count++;
+    }
+    return count;
+}
+```
+
+## Find Nth Node
+
+Return the data at position n (0-indexed).
+
+### Algorithm
+```
+1. Traverse to position n
+2. Return the data, or indicate error if out of bounds
+```
+
+### Function Signature
+```c
+int get_nth_node(struct Node *head, int n, int *result);
+// Returns 1 if successful, 0 if position invalid
+// Stores result in *result parameter
+```
+
+### Why Output Parameter?
+
+We need to distinguish between:
+- Successfully finding node with data 0
+- Position being out of bounds
+
+Using a return value for success/failure and an output parameter for the data solves this.
+
+### Implementation Hints
+
+```c
+int get_nth_node(struct Node *head, int n, int *result) {
+    if (n < 0 || head == NULL) {
+        return 0;  // Invalid
+    }
+
+    struct Node *current = head;
+    int position = 0;
+
+    while (current != NULL) {
+        if (position == n) {
+            *result = current->data;
+            return 1;  // Success
+        }
+        position++;
+        current = current->next;
+    }
+
+    return 0;  // Position out of bounds
+}
+```
+
+### Using It
+```c
+int value;
+if (get_nth_node(head, 2, &value)) {
+    printf("Node at position 2: %d\n", value);
+} else {
+    printf("Position 2 doesn't exist\n");
+}
+```
+
+## Find Middle Node
+
+Find the middle node of the list in one pass.
+
+### The Two-Pointer Technique
+
+Use two pointers:
+- **Slow pointer**: moves one step at a time
+- **Fast pointer**: moves two steps at a time
+
+When fast reaches the end, slow is at the middle!
+
+### Visual Example
+```
+List: [10] -> [20] -> [30] -> [40] -> [50] -> NULL
+       ↑                              ↑
+      slow                           fast
+
+After iteration:
+       [10] -> [20] -> [30] -> [40] -> [50] -> NULL
+                       ↑                       ↑
+                      slow                    fast (NULL)
+
+Middle: 30
+```
+
+### Implementation Hints
+
+```c
+int find_middle(struct Node *head, int *result) {
+    if (head == NULL) {
+        return 0;
+    }
+
+    struct Node *slow = head;
+    struct Node *fast = head;
+
+    // Move fast by 2, slow by 1
+    while (fast != NULL && fast->next != NULL) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+
+    *result = slow->data;
+    return 1;
+}
+```
+
+## Check if List Has Cycle (Bonus Challenge)
+
+Detect if the list has a cycle (a node's next points back to a previous node).
+
+### Algorithm
+Use the same two-pointer technique:
+- If there's a cycle, fast will eventually meet slow
+- If there's no cycle, fast will reach NULL
+
+### Implementation Hints
+
+```c
+int has_cycle(struct Node *head) {
+    if (head == NULL) {
+        return 0;
+    }
+
+    struct Node *slow = head;
+    struct Node *fast = head;
+
+    while (fast != NULL && fast->next != NULL) {
+        slow = slow->next;
+        fast = fast->next->next;
+
+        if (slow == fast) {
+            return 1;  // Cycle detected!
+        }
+    }
+
+    return 0;  // No cycle
+}
+```
+
+Note: For this project, your lists shouldn't have cycles, but it's good to know how to detect them!
+
+## Testing Your Functions
+
+```c
+int main() {
+    struct Node *head = NULL;
+
+    // Build test list: 10 -> 20 -> 30 -> 40 -> 50
+    for (int i = 10; i <= 50; i += 10) {
+        insert_at_tail(&head, i);
+    }
+
+    // Test print
+    printf("List: ");
+    print_list(head);
+
+    // Test search
+    printf("Search for 30: %d\n", search(head, 30));
+    printf("Search for 99: %d\n", search(head, 99));
+
+    // Test find position
+    printf("Position of 40: %d\n", find_position(head, 40));
+    printf("Position of 99: %d\n", find_position(head, 99));
+
+    // Test count
+    printf("Total nodes: %d\n", count_nodes(head));
+
+    // Test get nth
+    int value;
+    if (get_nth_node(head, 2, &value)) {
+        printf("Node at position 2: %d\n", value);
+    }
+
+    // Test find middle
+    if (find_middle(head, &value)) {
+        printf("Middle node: %d\n", value);
+    }
+
+    // Clean up
+    delete_list(&head);
+
+    return 0;
+}
+```
+
+Expected output:
+```
+List: 10 -> 20 -> 30 -> 40 -> 50 -> NULL
+Search for 30: 1
+Search for 99: 0
+Position of 40: 3
+Position of 99: -1
+Total nodes: 5
+Node at position 2: 30
+Middle node: 30
+```
+
+## Exercises
+
+### Exercise 1: Implement print_list
+Create a function that displays the list. Consider:
+- Empty list
+- Single node
+- Multiple nodes
+- Format: make it readable!
+
+### Exercise 2: Implement search
+Return 1 if value exists, 0 otherwise. Test with:
+- Value at head
+- Value at tail
+- Value in middle
+- Value not in list
+
+### Exercise 3: Implement find_position
+Return the index of first occurrence. What should you return if not found?
+
+### Exercise 4: Implement count_nodes
+Count all nodes. Should handle empty list (return 0).
+
+### Exercise 5: Implement get_nth_node
+Get data at specific position. Use output parameter pattern.
+
+### Exercise 6: Implement find_middle
+Use two-pointer technique. Test with:
+- Odd number of nodes
+- Even number of nodes (which middle do you return?)
+- Single node
+- Empty list
+
+### Exercise 7: Implement has_cycle (Bonus)
+Detect cycles using Floyd's algorithm.
+
+## Common Pitfalls
+
+### 1. Null Pointer Dereferencing
+```c
+// DANGEROUS
+void print_list(struct Node *head) {
+    while (head->next != NULL) {  // Crashes if head is NULL!
+        printf("%d ", head->data);
+        head = head->next;
+    }
+}
+
+// SAFE
+void print_list(struct Node *head) {
+    while (head != NULL) {  // Check head itself
+        printf("%d ", head->data);
+        head = head->next;
+    }
+}
+```
+
+### 2. Off-by-One Errors
+```c
+// WRONG - skips first node
+struct Node *current = head->next;  // Starts at second node
+
+// CORRECT
+struct Node *current = head;  // Starts at first node
+```
+
+### 3. Infinite Loops
+```c
+// WRONG - never advances!
+while (current != NULL) {
+    printf("%d ", current->data);
+    // Forgot: current = current->next;
+}
+```
+
+## Key Concepts
+
+- **Traversal pattern**: Core operation for linked lists
+- **Single pointer for read**: No need for double pointer when not modifying list
+- **Early exit optimization**: Return as soon as answer is found
+- **Output parameters**: Used when return value indicates success/failure
+- **Two-pointer technique**: Elegant solution for finding middle, detecting cycles
+- **NULL checks**: Always validate before dereferencing
+
+## Algorithm Complexity
+
+| Operation | Time Complexity | Space Complexity |
+|-----------|----------------|------------------|
+| Print list | O(n) | O(1) |
+| Search | O(n) | O(1) |
+| Find position | O(n) | O(1) |
+| Count nodes | O(n) | O(1) |
+| Get nth node | O(n) | O(1) |
+| Find middle | O(n) | O(1) |
+| Has cycle | O(n) | O(1) |
+
+All operations are linear time because worst case requires visiting every node.
+
+## Next Step
+
+You now have a complete set of list operations! In **Step 6: Memory Management**, you'll learn to ensure your implementation is leak-free and valgrind-clean.

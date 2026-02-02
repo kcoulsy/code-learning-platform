@@ -1,0 +1,369 @@
+---
+title: "Function Prototypes"
+description: "Understand forward declarations and proper code organization"
+order: 2
+---
+
+# Function Prototypes
+
+Function prototypes are declarations that tell the compiler about a function's existence before its actual definition. They're essential for organizing code and enabling functions to call each other.
+
+## Introduction
+
+In C, the compiler reads your code from top to bottom. If you try to call a function before defining it, the compiler doesn't know it exists yet. Function prototypes solve this problem by declaring the function's signature (return type, name, and parameters) before its use.
+
+This enables:
+- Functions to call each other in any order
+- Better code organization (related functions grouped together)
+- Separation of interface (header files) from implementation
+
+## The Problem: Order Dependency
+
+Without prototypes, you must define functions before using them, which can be awkward.
+
+## Code Examples
+
+### Example 1: The Problem Without Prototypes
+
+```c
+#include <stdio.h>
+
+int main() {
+    int result = multiply(5, 3);  // ERROR: multiply not yet defined!
+    printf("Result: %d\n", result);
+    return 0;
+}
+
+int multiply(int a, int b) {
+    return a * b;
+}
+```
+
+**Problem**: The compiler doesn't know about `multiply` when `main` tries to call it.
+
+### Example 2: Solution with Prototypes
+
+```c
+#include <stdio.h>
+
+// Function prototype (declaration)
+int multiply(int a, int b);
+
+int main() {
+    int result = multiply(5, 3);  // Works! Compiler knows signature
+    printf("Result: %d\n", result);
+    return 0;
+}
+
+// Function definition (implementation)
+int multiply(int a, int b) {
+    return a * b;
+}
+```
+
+**Output:**
+```
+Result: 15
+```
+
+**Key points:**
+- Prototype ends with semicolon
+- Tells compiler the function exists and its signature
+- Parameter names in prototype are optional (but recommended for clarity)
+
+### Example 3: Multiple Prototypes for Organization
+
+```c
+#include <stdio.h>
+
+// Mathematical function prototypes
+int add(int a, int b);
+int subtract(int a, int b);
+int multiply(int a, int b);
+double divide(int a, int b);
+
+// Utility function prototypes
+void printResult(char operation[], int result);
+void printMenu();
+
+int main() {
+    printMenu();
+
+    int x = 10, y = 5;
+
+    printResult("Addition", add(x, y));
+    printResult("Subtraction", subtract(x, y));
+    printResult("Multiplication", multiply(x, y));
+    printf("Division: %.2f\n\n", divide(x, y));
+
+    return 0;
+}
+
+// Mathematical function definitions
+int add(int a, int b) {
+    return a + b;
+}
+
+int subtract(int a, int b) {
+    return a - b;
+}
+
+int multiply(int a, int b) {
+    return a * b;
+}
+
+double divide(int a, int b) {
+    if (b != 0) {
+        return (double)a / b;
+    }
+    return 0.0;
+}
+
+// Utility function definitions
+void printResult(char operation[], int result) {
+    printf("%s: %d\n", operation, result);
+}
+
+void printMenu() {
+    printf("=== Calculator ===\n");
+    printf("Testing operations...\n\n");
+}
+```
+
+**Output:**
+```
+=== Calculator ===
+Testing operations...
+
+Addition: 15
+Subtraction: 5
+Multiplication: 50
+Division: 2.00
+```
+
+### Example 4: Mutual Recursion (Functions Calling Each Other)
+
+```c
+#include <stdio.h>
+
+// Prototypes needed for mutual recursion
+int isEven(int n);
+int isOdd(int n);
+
+int main() {
+    printf("5 is even: %d\n", isEven(5));
+    printf("5 is odd: %d\n", isOdd(5));
+    printf("8 is even: %d\n", isEven(8));
+
+    return 0;
+}
+
+// isEven calls isOdd
+int isEven(int n) {
+    if (n == 0) {
+        return 1;  // 0 is even
+    }
+    return isOdd(n - 1);
+}
+
+// isOdd calls isEven
+int isOdd(int n) {
+    if (n == 0) {
+        return 0;  // 0 is not odd
+    }
+    return isEven(n - 1);
+}
+```
+
+**Output:**
+```
+5 is even: 0
+5 is odd: 1
+8 is even: 1
+```
+
+**Note**: Without prototypes, this mutual recursion would be impossible!
+
+### Example 5: Header Files (Professional Organization)
+
+**math_utils.h** (header file):
+```c
+// Header guard to prevent multiple inclusion
+#ifndef MATH_UTILS_H
+#define MATH_UTILS_H
+
+// Function prototypes
+int square(int n);
+int cube(int n);
+int factorial(int n);
+double average(int arr[], int size);
+
+#endif  // MATH_UTILS_H
+```
+
+**math_utils.c** (implementation file):
+```c
+#include "math_utils.h"
+
+int square(int n) {
+    return n * n;
+}
+
+int cube(int n) {
+    return n * n * n;
+}
+
+int factorial(int n) {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+}
+
+double average(int arr[], int size) {
+    int sum = 0;
+    for (int i = 0; i < size; i++) {
+        sum += arr[i];
+    }
+    return (double)sum / size;
+}
+```
+
+**main.c** (main program):
+```c
+#include <stdio.h>
+#include "math_utils.h"  // Include our header
+
+int main() {
+    printf("Square of 5: %d\n", square(5));
+    printf("Cube of 3: %d\n", cube(3));
+    printf("Factorial of 5: %d\n", factorial(5));
+
+    int numbers[] = {10, 20, 30, 40, 50};
+    printf("Average: %.2f\n", average(numbers, 5));
+
+    return 0;
+}
+```
+
+**Compilation:**
+```bash
+gcc main.c math_utils.c -o program
+```
+
+**Output:**
+```
+Square of 5: 25
+Cube of 3: 27
+Factorial of 5: 120
+Average: 30.00
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Mismatched Prototype and Definition
+
+```c
+// WRONG: Prototype and definition don't match
+int add(int a, int b);  // Prototype says int
+
+double add(int a, int b) {  // Definition says double!
+    return a + b;
+}
+```
+
+**Error**: The compiler will complain about conflicting types.
+
+### Pitfall 2: Forgetting Parameter Types
+
+```c
+// WRONG: Old K&R style (deprecated)
+int multiply();
+
+// CORRECT: Always specify parameter types
+int multiply(int a, int b);
+```
+
+### Pitfall 3: Missing Header Guards
+
+```c
+// WRONG: No header guard
+// If this header is included twice, you get duplicate declarations!
+
+// math.h
+int add(int a, int b);
+
+// CORRECT: Always use header guards
+#ifndef MATH_H
+#define MATH_H
+
+int add(int a, int b);
+
+#endif
+```
+
+**Problem**: Without header guards, including the same header file multiple times causes redefinition errors.
+
+### Pitfall 4: Prototype Parameter Names Don't Match
+
+```c
+// This is OK but confusing:
+int calculate(int x, int y);  // Prototype
+
+int calculate(int a, int b) {  // Definition
+    return a + b;
+}
+```
+
+**Not an error**, but can confuse readers. Use consistent names for clarity.
+
+## Exercises
+
+### Exercise 1: Fix the Order
+Given this broken code, add the necessary prototypes:
+```c
+int main() {
+    int area = calculateArea(5, 10);
+    printArea(area);
+    return 0;
+}
+
+int calculateArea(int length, int width) {
+    return length * width;
+}
+
+void printArea(int area) {
+    printf("Area: %d\n", area);
+}
+```
+
+### Exercise 2: Create a Header File
+Create a header file `string_utils.h` with prototypes for:
+- `int stringLength(char str[])`
+- `void reverseString(char str[])`
+- `int isPalindrome(char str[])`
+
+### Exercise 3: Mutual Recursion
+Write two mutually recursive functions:
+- `countDownEven(int n)`: prints n if even, then calls countDownOdd(n-1)
+- `countDownOdd(int n)`: prints n if odd, then calls countDownEven(n-1)
+
+Both should stop at 0.
+
+### Exercise 4: Organize Code
+Take a program with 5+ functions and organize it into:
+- A header file with prototypes
+- An implementation file with definitions
+- A main file that uses them
+
+## Key Takeaways
+
+1. **Function Prototypes**: Declare function signature before use
+2. **Syntax**: `return_type name(parameter_types);`
+3. **Purpose**: Tell compiler about function before definition
+4. **Order Independence**: Functions can call each other in any order
+5. **Header Files**: Use `.h` files for prototypes, `.c` files for implementation
+6. **Header Guards**: Always use `#ifndef/#define/#endif` to prevent multiple inclusion
+7. **Consistency**: Keep prototype and definition signatures identical
+8. **Professional Practice**: Separate interface (headers) from implementation
+9. **Parameter Names**: Optional in prototypes but recommended for documentation
+
+Function prototypes are the foundation of professional C code organization. They enable modular design, code reuse, and team collaboration through clear interfaces.

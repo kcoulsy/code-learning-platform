@@ -1,0 +1,385 @@
+---
+title: "Pointers and Arrays"
+order: 4
+---
+
+# Pointers and Arrays
+
+Arrays and pointers are deeply connected in C. In fact, array notation is just syntactic sugar for pointer arithmetic. Understanding this relationship is crucial for mastering C.
+
+## The Array-Pointer Connection
+
+When you declare an array, the array name acts like a pointer to the first element.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[] = {10, 20, 30, 40, 50};
+
+    // Array name is a pointer to the first element
+    printf("arr:       %p\n", (void*)arr);
+    printf("&arr[0]:   %p\n", (void*)&arr[0]);
+
+    // These are equivalent
+    printf("arr[0] = %d\n", arr[0]);         // 10
+    printf("*arr = %d\n", *arr);             // 10
+
+    printf("arr[1] = %d\n", arr[1]);         // 20
+    printf("*(arr + 1) = %d\n", *(arr + 1)); // 20
+
+    printf("arr[4] = %d\n", arr[4]);         // 50
+    printf("*(arr + 4) = %d\n", *(arr + 4)); // 50
+
+    return 0;
+}
+```
+
+**Key insight:** `arr[i]` is exactly the same as `*(arr + i)`!
+
+## Array Indexing is Pointer Arithmetic
+
+The `[]` operator is defined as pointer arithmetic plus dereference.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int numbers[] = {100, 200, 300, 400, 500};
+
+    // These four lines are IDENTICAL in behavior
+    printf("%d\n", numbers[2]);      // Array indexing
+    printf("%d\n", *(numbers + 2));  // Pointer arithmetic
+    printf("%d\n", 2[numbers]);      // Weird but legal!
+    printf("%d\n", *(2 + numbers));  // Same as above
+
+    // Why does 2[numbers] work?
+    // Because arr[i] is defined as *(arr + i)
+    // And addition is commutative: arr + i = i + arr
+    // So arr[i] = i[arr]
+    // Don't use this in real code!
+
+    return 0;
+}
+```
+
+## Array Name vs. Pointer Variable
+
+While array names act like pointers, they're not exactly the same as pointer variables.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[] = {10, 20, 30};
+    int *ptr = arr;
+
+    // This works: ptr is a variable
+    ptr++;
+    printf("ptr after ++: points to %d\n", *ptr);  // 20
+
+    // This doesn't work: arr is not a variable
+    // arr++;  // ERROR: can't modify array name
+
+    // arr is a constant pointer (can't be reassigned)
+    // ptr is a pointer variable (can be reassigned)
+
+    // But both can be used with pointer arithmetic
+    printf("arr[1] = %d\n", arr[1]);           // 20
+    printf("*(arr + 1) = %d\n", *(arr + 1));   // 20
+
+    return 0;
+}
+```
+
+**Key difference:**
+- Array name: constant pointer (can't modify it)
+- Pointer variable: modifiable (can reassign or increment)
+
+## Arrays as Function Parameters
+
+When you pass an array to a function, it **decays** to a pointer. The function receives a pointer, not a copy of the array.
+
+```c
+#include <stdio.h>
+
+// These three declarations are IDENTICAL
+void print_array1(int arr[], int size);
+void print_array2(int *arr, int size);
+void print_array3(int arr[10], int size);  // Size is ignored!
+
+void print_array1(int arr[], int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+void modify_array(int arr[], int size) {
+    // Modifying through the pointer affects the original array
+    for (int i = 0; i < size; i++) {
+        arr[i] *= 2;
+    }
+}
+
+int main(void) {
+    int numbers[] = {1, 2, 3, 4, 5};
+    int size = sizeof(numbers) / sizeof(numbers[0]);
+
+    printf("Original: ");
+    print_array1(numbers, size);
+
+    modify_array(numbers, size);
+
+    printf("Modified: ");
+    print_array1(numbers, size);
+
+    // sizeof behaves differently
+    printf("In main, sizeof(numbers) = %zu\n", sizeof(numbers));      // 20 (5 * 4)
+
+    return 0;
+}
+
+// If we try sizeof inside print_array1:
+void print_size(int arr[]) {
+    printf("In function, sizeof(arr) = %zu\n", sizeof(arr));  // 8 (pointer size)
+    // This is the size of a POINTER, not the array!
+}
+```
+
+**Important:**
+- Arrays passed to functions become pointers
+- `sizeof` on array in function gives pointer size, not array size
+- Always pass the size as a separate parameter
+- Changes through the pointer affect the original array
+
+## Multidimensional Arrays
+
+Arrays can have multiple dimensions, but they're still stored in contiguous memory.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int matrix[3][4] = {
+        {1,  2,  3,  4},
+        {5,  6,  7,  8},
+        {9, 10, 11, 12}
+    };
+
+    // Access with array notation
+    printf("matrix[1][2] = %d\n", matrix[1][2]);  // 7
+
+    // Access with pointer notation
+    // matrix[i][j] = *(*(matrix + i) + j)
+    printf("*(*(matrix + 1) + 2) = %d\n", *(*(matrix + 1) + 2));  // 7
+
+    // Flatten to single array (row-major order)
+    int *flat = (int*)matrix;
+    printf("Accessing as flat array:\n");
+    for (int i = 0; i < 12; i++) {
+        printf("%d ", flat[i]);
+    }
+    printf("\n");
+
+    return 0;
+}
+```
+
+## String Literals and Character Arrays
+
+Strings are just arrays of characters, so pointers work with them too.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // Character array: modifiable
+    char str1[] = "Hello";
+    str1[0] = 'h';  // OK: you can modify
+    printf("%s\n", str1);  // "hello"
+
+    // String literal: read-only
+    char *str2 = "World";
+    // str2[0] = 'w';  // CRASH! String literals are read-only
+
+    // Both can be traversed with pointers
+    char *p = str1;
+    while (*p != '\0') {
+        printf("%c", *p);
+        p++;
+    }
+    printf("\n");
+
+    return 0;
+}
+```
+
+**Key difference:**
+- `char arr[] = "..."`: Creates modifiable array
+- `char *str = "..."`: Points to read-only string literal (better: `const char *str`)
+
+## Pointer to Array vs. Array of Pointers
+
+These are completely different types!
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[5] = {10, 20, 30, 40, 50};
+
+    // Pointer to an array of 5 ints
+    int (*ptr_to_array)[5] = &arr;
+    printf("First element via ptr_to_array: %d\n", (*ptr_to_array)[0]);  // 10
+
+    // Array of 3 pointers to int
+    int a = 1, b = 2, c = 3;
+    int *array_of_ptrs[3] = {&a, &b, &c};
+    printf("Via array_of_ptrs: %d, %d, %d\n",
+           *array_of_ptrs[0], *array_of_ptrs[1], *array_of_ptrs[2]);  // 1, 2, 3
+
+    // Key difference:
+    // int (*p)[5]  - p is a pointer to an array of 5 ints
+    // int *p[5]    - p is an array of 5 pointers to int
+
+    return 0;
+}
+```
+
+**Read declarations right-to-left:**
+- `int (*p)[5]`: `p` is a pointer to an array of 5 ints
+- `int *p[5]`: `p` is an array of 5 pointers to int
+
+## Common Pitfalls
+
+### Pitfall 1: Confusing Array Name with Pointer Variable
+
+```c
+int arr[5] = {1, 2, 3, 4, 5};
+int *ptr = arr;
+
+ptr++;      // OK: ptr is a variable
+// arr++;   // ERROR: arr is not a variable
+```
+
+**Fix:** Remember array names are constant pointers.
+
+### Pitfall 2: sizeof on Array Parameter
+
+```c
+void process(int arr[]) {
+    int size = sizeof(arr) / sizeof(arr[0]);  // WRONG! sizeof(arr) is pointer size
+    // This calculates 8/4 = 2 on 64-bit, not the actual array size
+}
+
+// Correct:
+void process(int arr[], int size) {
+    // Use the size parameter
+}
+```
+
+**Fix:** Always pass size as a separate parameter.
+
+### Pitfall 3: Returning Local Array
+
+```c
+int* create_array(void) {
+    int arr[5] = {1, 2, 3, 4, 5};
+    return arr;  // DANGER! arr goes out of scope
+}
+
+int main(void) {
+    int *ptr = create_array();
+    printf("%d\n", ptr[0]);  // Undefined behavior!
+}
+```
+
+**Fix:** Use dynamic allocation (next lesson) or pass array as parameter.
+
+### Pitfall 4: String Literal Modification
+
+```c
+char *str = "Hello";
+str[0] = 'h';  // CRASH! String literals are read-only
+```
+
+**Fix:** Use `char arr[] = "Hello";` or `const char *str = "Hello";`
+
+### Pitfall 5: Pointer Arithmetic Beyond Array Bounds
+
+```c
+int arr[3] = {1, 2, 3};
+int *ptr = arr;
+ptr += 10;           // ptr now points outside the array
+printf("%d\n", *ptr); // Undefined behavior!
+```
+
+**Fix:** Always keep pointers within array bounds (plus one past the end for comparisons).
+
+### Pitfall 6: Comparing Array Name with NULL
+
+```c
+int arr[5];
+if (arr == NULL) {  // Always false! arr is not a pointer variable
+    printf("NULL\n");
+}
+```
+
+**Fix:** Array names can't be NULL. Only pointer variables can be NULL.
+
+### Pitfall 7: Multidimensional Array Access
+
+```c
+int matrix[3][4];
+int *ptr = matrix;  // WARNING: type mismatch
+                    // matrix is int(*)[4], not int*
+
+// Correct:
+int (*ptr)[4] = matrix;
+```
+
+**Fix:** Match pointer type to array type, or use int* with manual calculation.
+
+## Array vs. Pointer Summary
+
+| Feature | Array Name | Pointer Variable |
+|---------|-----------|------------------|
+| Stores address | Yes | Yes |
+| Can be modified | No | Yes |
+| `sizeof` result | Array size | Pointer size |
+| Can be NULL | No | Yes |
+| Arithmetic | Yes | Yes |
+| Dereferencing | Yes | Yes |
+
+## Key Takeaways
+
+- Array name acts like a constant pointer to the first element
+- `arr[i]` is exactly `*(arr + i)`
+- Array names can't be modified (no `arr++`)
+- Arrays passed to functions decay to pointers
+- Always pass array size as a separate parameter
+- `sizeof` on array parameter gives pointer size, not array size
+- String literals are read-only (use `const char*`)
+- `char arr[] = "..."` creates modifiable array
+- `char *str = "..."` points to read-only literal
+- Keep pointers within array bounds
+
+## Exercises
+
+1. **Pointer vs. Index**: Write two versions of a function that finds the maximum element in an array: one using array indexing `[]`, one using only pointer arithmetic. Verify they produce identical results.
+
+2. **Array Reversal**: Write a function that reverses an array in place using two pointers: one at the start, one at the end. Don't use array indexing.
+
+3. **String Length**: Implement your own `strlen` function using pointer arithmetic. Count characters until you hit `'\0'`.
+
+4. **2D Array Access**: Create a 3x3 matrix and write code to access element `[1][2]` using:
+   - Array notation: `matrix[1][2]`
+   - Pointer notation: `*(*(matrix + 1) + 2)`
+   - Flattened pointer: `*((int*)matrix + 1*3 + 2)`
+
+5. **Array Decay Demo**: Write a function that prints `sizeof` the parameter. Call it with an array. Compare with `sizeof` in main. Explain the difference.
+
+6. **Safe String Copy**: Write a function `safe_strcpy` that copies a string using pointers. Include a maximum length parameter to prevent buffer overflow.
+
+7. **Array of Strings**: Create an array of string pointers: `char *days[] = {"Mon", "Tue", "Wed"};`. Print all strings using pointer arithmetic.

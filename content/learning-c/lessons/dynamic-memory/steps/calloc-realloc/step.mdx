@@ -1,0 +1,412 @@
+---
+title: "calloc() and realloc()"
+order: 3
+---
+
+# calloc() and realloc()
+
+While `malloc()` is the workhorse of dynamic allocation, C provides two additional functions that offer specialized functionality: `calloc()` for zero-initialized allocation and `realloc()` for resizing existing allocations.
+
+## calloc() - Zero-Initialized Allocation
+
+```c
+void *calloc(size_t nmemb, size_t size);
+```
+
+- **Parameters**: Number of elements and size of each element
+- **Returns**: Pointer to allocated memory (zero-initialized), or `NULL` on failure
+- **Key Difference**: Automatically initializes all bytes to zero
+
+### calloc() vs malloc()
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int n = 5;
+
+    // Using malloc - contains garbage values
+    int *arr1 = malloc(n * sizeof(int));
+    if (arr1 == NULL) {
+        return 1;
+    }
+
+    printf("malloc (garbage values): ");
+    for (int i = 0; i < n; i++) {
+        printf("%d ", arr1[i]);  // Unpredictable values!
+    }
+    printf("\n");
+
+    // Using calloc - initialized to zero
+    int *arr2 = calloc(n, sizeof(int));
+    if (arr2 == NULL) {
+        free(arr1);
+        return 1;
+    }
+
+    printf("calloc (zero-initialized): ");
+    for (int i = 0; i < n; i++) {
+        printf("%d ", arr2[i]);  // All zeros
+    }
+    printf("\n");
+
+    free(arr1);
+    free(arr2);
+
+    return 0;
+}
+```
+
+### When to Use calloc()
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+typedef struct {
+    char *name;
+    int count;
+    bool initialized;
+} Record;
+
+int main() {
+    int n = 3;
+
+    // Perfect for arrays of structures where zero is meaningful
+    Record *records = calloc(n, sizeof(Record));
+    if (records == NULL) {
+        return 1;
+    }
+
+    // All fields are zero/NULL/false
+    for (int i = 0; i < n; i++) {
+        printf("Record %d: name=%p, count=%d, initialized=%d\n",
+               i, (void*)records[i].name, records[i].count,
+               records[i].initialized);
+    }
+
+    // Perfect for boolean/flag arrays
+    bool *flags = calloc(100, sizeof(bool));
+    if (flags == NULL) {
+        free(records);
+        return 1;
+    }
+
+    // All flags start as false (0)
+    printf("All flags initially false: ");
+    for (int i = 0; i < 10; i++) {
+        printf("%d ", flags[i]);
+    }
+    printf("\n");
+
+    free(flags);
+    free(records);
+
+    return 0;
+}
+```
+
+## realloc() - Resizing Allocations
+
+```c
+void *realloc(void *ptr, size_t size);
+```
+
+- **Parameters**: Pointer to existing allocation, new size in bytes
+- **Returns**: Pointer to resized memory (may be different address), or `NULL` on failure
+- **Key Feature**: Preserves existing data when resizing
+
+### Basic realloc() Usage
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Start with small array
+    int *arr = malloc(3 * sizeof(int));
+    if (arr == NULL) {
+        return 1;
+    }
+
+    // Initialize
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+
+    printf("Original array: ");
+    for (int i = 0; i < 3; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+
+    // Grow array to hold 5 elements
+    int *temp = realloc(arr, 5 * sizeof(int));
+    if (temp == NULL) {
+        // realloc failed, original arr is still valid
+        printf("realloc failed!\n");
+        free(arr);
+        return 1;
+    }
+    arr = temp;  // Update pointer
+
+    // Old values preserved, initialize new elements
+    arr[3] = 40;
+    arr[4] = 50;
+
+    printf("Expanded array: ");
+    for (int i = 0; i < 5; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+
+    free(arr);
+
+    return 0;
+}
+```
+
+## Critical realloc() Pitfalls
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *arr = malloc(5 * sizeof(int));
+    if (arr == NULL) {
+        return 1;
+    }
+
+    for (int i = 0; i < 5; i++) {
+        arr[i] = i;
+    }
+
+    // WRONG - Loses original pointer if realloc fails!
+    // arr = realloc(arr, 10 * sizeof(int));
+    // if (arr == NULL) {
+    //     // Original memory leaked! We lost the pointer!
+    // }
+
+    // RIGHT - Use temporary pointer
+    int *temp = realloc(arr, 10 * sizeof(int));
+    if (temp == NULL) {
+        printf("realloc failed, but original memory is safe\n");
+        free(arr);  // Can still free original
+        return 1;
+    }
+    arr = temp;  // Only update on success
+
+    // Initialize new elements
+    for (int i = 5; i < 10; i++) {
+        arr[i] = i;
+    }
+
+    printf("Array after successful realloc: ");
+    for (int i = 0; i < 10; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+
+    free(arr);
+
+    return 0;
+}
+```
+
+## Growing Arrays Dynamically
+
+Here's a practical example of building a dynamic array that grows as needed:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct {
+    int *data;
+    size_t size;      // Current number of elements
+    size_t capacity;  // Total allocated space
+} DynamicArray;
+
+// Initialize array
+DynamicArray *array_create(size_t initial_capacity) {
+    DynamicArray *arr = malloc(sizeof(DynamicArray));
+    if (arr == NULL) {
+        return NULL;
+    }
+
+    arr->data = malloc(initial_capacity * sizeof(int));
+    if (arr->data == NULL) {
+        free(arr);
+        return NULL;
+    }
+
+    arr->size = 0;
+    arr->capacity = initial_capacity;
+    return arr;
+}
+
+// Add element, growing if necessary
+int array_push(DynamicArray *arr, int value) {
+    if (arr->size >= arr->capacity) {
+        // Need to grow
+        size_t new_capacity = arr->capacity * 2;
+        int *temp = realloc(arr->data, new_capacity * sizeof(int));
+        if (temp == NULL) {
+            return 0;  // Growth failed
+        }
+        arr->data = temp;
+        arr->capacity = new_capacity;
+        printf("Array grew to capacity %zu\n", new_capacity);
+    }
+
+    arr->data[arr->size++] = value;
+    return 1;
+}
+
+// Free array
+void array_free(DynamicArray *arr) {
+    if (arr != NULL) {
+        free(arr->data);
+        free(arr);
+    }
+}
+
+int main() {
+    DynamicArray *arr = array_create(2);
+    if (arr == NULL) {
+        return 1;
+    }
+
+    // Add elements - watch it grow
+    for (int i = 0; i < 10; i++) {
+        if (!array_push(arr, i * 10)) {
+            printf("Failed to add element %d\n", i);
+            array_free(arr);
+            return 1;
+        }
+    }
+
+    // Display contents
+    printf("Array contents (%zu elements): ", arr->size);
+    for (size_t i = 0; i < arr->size; i++) {
+        printf("%d ", arr->data[i]);
+    }
+    printf("\n");
+
+    array_free(arr);
+
+    return 0;
+}
+```
+
+## realloc() Special Cases
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Case 1: realloc with NULL pointer (equivalent to malloc)
+    int *arr1 = realloc(NULL, 5 * sizeof(int));
+    if (arr1 != NULL) {
+        printf("realloc(NULL, size) works like malloc\n");
+        free(arr1);
+    }
+
+    // Case 2: realloc with size 0 (equivalent to free in many implementations)
+    int *arr2 = malloc(5 * sizeof(int));
+    if (arr2 != NULL) {
+        // This is implementation-defined behavior
+        // arr2 = realloc(arr2, 0);  // May free and return NULL
+        // Better to explicitly free
+        free(arr2);
+    }
+
+    // Case 3: Shrinking allocation
+    int *arr3 = malloc(10 * sizeof(int));
+    if (arr3 != NULL) {
+        for (int i = 0; i < 10; i++) {
+            arr3[i] = i;
+        }
+
+        // Shrink to 5 elements
+        int *temp = realloc(arr3, 5 * sizeof(int));
+        if (temp != NULL) {
+            arr3 = temp;
+            printf("Shrunk array: ");
+            for (int i = 0; i < 5; i++) {
+                printf("%d ", arr3[i]);
+            }
+            printf("\n");
+        }
+
+        free(arr3);
+    }
+
+    return 0;
+}
+```
+
+## malloc vs calloc vs realloc Summary
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // malloc: Fast, uninitialized
+    int *m = malloc(5 * sizeof(int));
+    if (m == NULL) return 1;
+    // Must manually initialize if needed
+    for (int i = 0; i < 5; i++) m[i] = 0;
+
+    // calloc: Slightly slower, zero-initialized
+    int *c = calloc(5, sizeof(int));
+    if (c == NULL) {
+        free(m);
+        return 1;
+    }
+    // Already zeroed
+
+    // realloc: Resize existing allocation
+    int *r = realloc(c, 10 * sizeof(int));
+    if (r == NULL) {
+        free(m);
+        free(c);
+        return 1;
+    }
+    c = r;  // Update pointer
+
+    // First 5 elements preserved, next 5 uninitialized
+    for (int i = 5; i < 10; i++) c[i] = 0;
+
+    free(m);
+    free(c);
+
+    return 0;
+}
+```
+
+## Key Takeaways
+
+1. **calloc(n, size)** allocates and zeros `n * size` bytes
+2. **Use calloc()** when zero initialization is desired (flags, counters, pointers)
+3. **realloc(ptr, new_size)** resizes existing allocation, preserving data
+4. **Always use temporary pointer** with realloc() to avoid leaking on failure
+5. **realloc() may move memory** - never keep other pointers to reallocated memory
+6. **calloc() is NOT just malloc + memset** - it may be optimized by the system
+7. **Growing by doubling** (capacity * 2) is efficient for dynamic arrays
+
+## Exercises
+
+1. Write a function that reads integers from stdin into a dynamically growing array
+2. Implement a dynamic string builder that grows as you append characters
+3. Compare performance: `malloc + memset` vs `calloc` for large allocations
+4. Write a program that shrinks an array after removing elements
+5. Create a dynamic 2D array that can grow in both dimensions
+6. Implement a function that safely reallocates, returning the new pointer or NULL while preserving the original
+
+In the next step, we'll learn about `free()` and proper memory deallocation practices.

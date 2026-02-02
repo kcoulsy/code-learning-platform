@@ -1,0 +1,372 @@
+---
+id: 07-pragma-directives
+title: The #pragma Directive and Compiler Controls
+order: 7
+---
+
+# The #pragma Directive and Compiler Controls
+
+The `#pragma` directive provides a way to give compiler-specific instructions. Each compiler can define its own pragmas, and unrecognized pragmas are ignored.
+
+## Basic Syntax
+
+```c
+#pragma pragma_name [arguments]
+```
+
+If a compiler doesn't recognize a pragma, it ignores it without error (with some exceptions).
+
+## Common Pragmas
+
+### 1. #pragma once (Already Covered)
+
+Prevents multiple file inclusion:
+
+```c
+#pragma once
+```
+
+### 2. #pragma warning (MSVC)
+
+Control compiler warnings:
+
+```c
+// Disable warning 4996 (unsafe functions)
+#pragma warning(disable: 4996)
+
+char* strcpy(char* dest, const char* src);  // No warning
+
+// Re-enable warning
+#pragma warning(default: 4996)
+```
+
+### 3. #pragma GCC diagnostic (GCC/Clang)
+
+GCC and Clang equivalent:
+
+```c
+// Disable warning for next line only
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+
+int unused;  // No warning
+
+#pragma GCC diagnostic pop
+```
+
+**Practical use**: Suppressing warnings in generated code:
+
+```c
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
+// Generated macro that might have signed/unsigned comparison
+#define COMPARE(a, b) ((a) == (b))
+
+#pragma GCC diagnostic pop
+```
+
+### 4. #pragma pack
+
+Control structure padding and alignment:
+
+```c
+#pragma pack(push, 1)  // 1-byte alignment
+typedef struct {
+    char a;
+    int b;
+    char c;
+} PackedStruct;
+#pragma pack(pop)
+
+sizeof(PackedStruct);  // = 6 bytes (no padding)
+
+// Normal packing
+typedef struct {
+    char a;
+    int b;
+    char c;
+} NormalStruct;
+
+sizeof(NormalStruct);  // = 12 bytes (with padding)
+```
+
+**Normal structure layout**:
+
+```
+a: offset 0 (1 byte)
+padding: 3 bytes
+b: offset 4 (4 bytes)
+c: offset 8 (1 byte)
+padding: 3 bytes
+Total: 12 bytes
+```
+
+**Packed structure layout**:
+
+```
+a: offset 0 (1 byte)
+b: offset 1 (4 bytes)
+c: offset 5 (1 byte)
+Total: 6 bytes
+```
+
+**Use case**: Network protocols and file formats where padding matters:
+
+```c
+#pragma pack(push, 1)
+
+struct IPHeader {
+    uint8_t version_ihl;
+    uint8_t tos;
+    uint16_t total_length;
+    uint16_t identification;
+    // ...
+};
+
+#pragma pack(pop)
+
+// Can safely read/write directly from network buffer
+```
+
+**Warning**: Packed structures can cause performance issues or crashes on some architectures due to misaligned accesses.
+
+### 5. #pragma comment (MSVC)
+
+Embed commands into the object file:
+
+```c
+// Link with a specific library
+#pragma comment(lib, "ws2_32.lib")
+
+// Display compiler message
+#pragma message("Compiling with optimization enabled")
+
+// Put a string in the object file
+#pragma comment(linker, "/VERSION:2.5.0")
+```
+
+### 6. #pragma weak (GCC/Clang)
+
+Create weak symbols that can be overridden:
+
+```c
+// In library
+#pragma weak debug_log = default_debug_log
+
+void default_debug_log(const char *msg) {
+    // Default implementation
+}
+
+void debug_log(const char *msg);
+
+// In application - can override
+void debug_log(const char *msg) {
+    // Custom implementation
+}
+```
+
+If the user doesn't define `debug_log`, the weak symbol resolves to `default_debug_log`.
+
+### 7. #pragma STDC
+
+Access to standard C implementation limits:
+
+```c
+#pragma STDC FP_CONTRACT OFF
+// Disable floating-point contraction (e.g., fma)
+
+#pragma STDC FENV_ACCESS ON
+// Enable access to floating-point environment
+
+#pragma STDC CX_LIMITED_RANGE ON
+// Assumption: complex multiplication is safe
+```
+
+These are rarely used in application code.
+
+### 8. #pragma region (MSVC/Intel)
+
+Organize code into collapsible regions in IDE:
+
+```c
+#pragma region Memory Management
+
+void *allocate(size_t size);
+void deallocate(void *ptr);
+// ...
+
+#pragma endregion
+
+#pragma region Network
+
+int send_data(const void *data, size_t len);
+// ...
+
+#pragma endregion
+```
+
+### 9. #pragma omp (OpenMP)
+
+Parallel computing directives:
+
+```c
+#pragma omp parallel for
+for (int i = 0; i < 1000000; i++) {
+    // This loop runs in parallel
+    array[i] = compute(i);
+}
+```
+
+## Compiler-Specific Pragma Summary
+
+| Pragma                   | Compiler   | Purpose                    |
+| ------------------------ | ---------- | -------------------------- |
+| `#pragma once`           | Most       | Prevent multiple inclusion |
+| `#pragma warning`        | MSVC       | Control warnings           |
+| `#pragma GCC diagnostic` | GCC/Clang  | Control warnings           |
+| `#pragma pack`           | Most       | Control alignment          |
+| `#pragma comment`        | MSVC       | Linker commands            |
+| `#pragma weak`           | GCC/Clang  | Weak symbols               |
+| `#pragma omp`            | Most       | OpenMP parallel            |
+| `#pragma region`         | MSVC/Intel | Code organization          |
+
+## Using Pragmas Portably
+
+Since pragmas are compiler-specific, you often need conditional compilation:
+
+```c
+#if defined(_MSC_VER)
+    #pragma warning(push)
+    #pragma warning(disable: 4200)  // Zero-sized array
+#elif defined(__GNUC__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+
+// Code that triggers warnings
+
+#if defined(_MSC_VER)
+    #pragma warning(pop)
+#elif defined(__GNUC__)
+    #pragma GCC diagnostic pop
+#endif
+```
+
+Or create helper macros:
+
+```c
+// config.h
+#if defined(_MSC_VER)
+    #define DISABLE_WARNING(w) __pragma(warning(disable: w))
+    #define ENABLE_WARNING(w) __pragma(warning(default: w))
+#elif defined(__GNUC__)
+    #define DO_PRAGMA(x) _Pragma(#x)
+    #define DISABLE_WARNING(w) DO_PRAGMA(GCC diagnostic ignored w)
+    #define ENABLE_WARNING(w) DO_PRAGMA(GCC diagnostic warning w)
+#else
+    #define DISABLE_WARNING(w)
+    #define ENABLE_WARNING(w)
+#endif
+
+// Usage
+DISABLE_WARNING("-Wunused-variable")
+int unused;
+ENABLE_WARNING("-Wunused-variable")
+```
+
+## Best Practices
+
+### DO: Push/pop pragma state
+
+```c
+// Good: Restores previous state
+#pragma warning(push)
+#pragma warning(disable: 4996)
+// Code with suppressed warnings
+#pragma warning(pop)
+```
+
+### DO: Use for specific code sections
+
+```c
+// Suppress warning only where needed
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+legacy_api_call();
+#pragma GCC diagnostic warning "-Wdeprecated-declarations"
+```
+
+### DON'T: Disable warnings globally
+
+```c
+// Bad: Disables warning for entire file
+#pragma warning(disable: 4996)  // At top of file
+
+// ... thousands of lines ...
+```
+
+This hides real problems. Suppress only where necessary.
+
+### DON'T: Assume portability
+
+```c
+// This won't work on GCC
+#pragma comment(lib, "mylib.lib")
+```
+
+Use Makefiles or build systems instead of pragma comments.
+
+## \_Pragma Operator (C99)
+
+`_Pragma` is the string version of `#pragma`:
+
+```c
+#pragma warning(disable: 4996)
+
+// Equivalent to:
+_Pragma("warning(disable: 4996)")
+```
+
+This is useful in macros:
+
+```c
+#define SUPPRESS_WARNING(x) \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored " x) \
+    /* code */ \
+    _Pragma("GCC diagnostic pop")
+
+SUPPRESS_WARNING("\"-Wsign-compare\"")
+int compare(int a, unsigned b) {
+    return a == b;
+}
+```
+
+## Practice Exercise
+
+Write a portable macro that suppresses unused variable warnings on both MSVC and GCC.
+
+**Answer**:
+
+```c
+#if defined(_MSC_VER)
+    #define SUPPRESS_UNUSED_WARNING() \
+        __pragma(warning(push)) \
+        __pragma(warning(disable: 4101))  // unreferenced local variable
+#elif defined(__GNUC__)
+    #define SUPPRESS_UNUSED_WARNING() \
+        _Pragma("GCC diagnostic push") \
+        _Pragma("GCC diagnostic ignored \"-Wunused-variable\"")
+#else
+    #define SUPPRESS_UNUSED_WARNING()
+#endif
+
+// Usage
+SUPPRESS_UNUSED_WARNING()
+int temp = compute();
+SUPPRESS_UNUSED_WARNING_END()  // Need to define this too
+```
+
+---
+
+**Next**: Safe macro patterns and idioms.

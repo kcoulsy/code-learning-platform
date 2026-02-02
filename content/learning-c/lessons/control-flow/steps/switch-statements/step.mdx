@@ -1,0 +1,323 @@
+---
+id: switch-statements
+title: Switch Statements
+order: 2
+---
+
+# Switch Statements
+
+The switch statement provides a cleaner way to handle multiple conditions based on a single value, especially when comparing against constant values.
+
+## Basic Switch Statement
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int day = 3;
+
+    switch (day) {
+        case 1:
+            printf("Monday\n");
+            break;
+        case 2:
+            printf("Tuesday\n");
+            break;
+        case 3:
+            printf("Wednesday\n");
+            break;
+        case 4:
+            printf("Thursday\n");
+            break;
+        case 5:
+            printf("Friday\n");
+            break;
+        case 6:
+            printf("Saturday\n");
+            break;
+        case 7:
+            printf("Sunday\n");
+            break;
+        default:
+            printf("Invalid day\n");
+            break;
+    }
+
+    return 0;
+}
+```
+
+## The Importance of Break
+
+Without `break`, execution "falls through" to the next case.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int option = 2;
+
+    printf("Without break:\n");
+    switch (option) {
+        case 1:
+            printf("Case 1\n");
+        case 2:
+            printf("Case 2\n");  // Starts here
+        case 3:
+            printf("Case 3\n");  // Falls through to here!
+        default:
+            printf("Default\n"); // And here!
+    }
+    // Output: Case 2, Case 3, Default
+
+    printf("\nWith break:\n");
+    switch (option) {
+        case 1:
+            printf("Case 1\n");
+            break;
+        case 2:
+            printf("Case 2\n");  // Executes this
+            break;               // Then exits
+        case 3:
+            printf("Case 3\n");
+            break;
+        default:
+            printf("Default\n");
+            break;
+    }
+    // Output: Case 2
+
+    return 0;
+}
+```
+
+## Intentional Fall-Through
+
+Sometimes fall-through is useful for grouping cases.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    char grade = 'B';
+
+    switch (grade) {
+        case 'A':
+        case 'B':
+        case 'C':
+            printf("You passed!\n");
+            break;
+        case 'D':
+        case 'F':
+            printf("You failed.\n");
+            break;
+        default:
+            printf("Invalid grade\n");
+            break;
+    }
+
+    return 0;
+}
+```
+
+## Calculator Example
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    char operator;
+    double num1, num2, result;
+
+    printf("Enter operator (+, -, *, /): ");
+    scanf(" %c", &operator);
+
+    printf("Enter two numbers: ");
+    scanf("%lf %lf", &num1, &num2);
+
+    switch (operator) {
+        case '+':
+            result = num1 + num2;
+            printf("%.2lf + %.2lf = %.2lf\n", num1, num2, result);
+            break;
+        case '-':
+            result = num1 - num2;
+            printf("%.2lf - %.2lf = %.2lf\n", num1, num2, result);
+            break;
+        case '*':
+            result = num1 * num2;
+            printf("%.2lf * %.2lf = %.2lf\n", num1, num2, result);
+            break;
+        case '/':
+            if (num2 != 0) {
+                result = num1 / num2;
+                printf("%.2lf / %.2lf = %.2lf\n", num1, num2, result);
+            } else {
+                printf("Error: Division by zero!\n");
+            }
+            break;
+        default:
+            printf("Error: Invalid operator\n");
+            break;
+    }
+
+    return 0;
+}
+```
+
+## Switch vs If-Else
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int choice = 2;
+
+    // Using switch (better for discrete values)
+    switch (choice) {
+        case 1:
+            printf("Option 1\n");
+            break;
+        case 2:
+            printf("Option 2\n");
+            break;
+        case 3:
+            printf("Option 3\n");
+            break;
+        default:
+            printf("Invalid option\n");
+    }
+
+    // Equivalent if-else (more verbose)
+    if (choice == 1) {
+        printf("Option 1\n");
+    } else if (choice == 2) {
+        printf("Option 2\n");
+    } else if (choice == 3) {
+        printf("Option 3\n");
+    } else {
+        printf("Invalid option\n");
+    }
+
+    // When to use if-else instead:
+    int age = 25;
+    if (age < 13) {
+        printf("Child\n");
+    } else if (age < 20) {
+        printf("Teenager\n");
+    } else {
+        printf("Adult\n");
+    }
+    // Switch doesn't work well for ranges!
+
+    return 0;
+}
+```
+
+## Common Pitfalls
+
+### Forgetting Break
+
+```c
+// WRONG: Missing break causes unexpected fall-through
+int x = 2;
+switch (x) {
+    case 1:
+        printf("One\n");
+    case 2:
+        printf("Two\n");    // Executes
+    case 3:
+        printf("Three\n");  // Also executes! (unintended)
+        break;
+}
+
+// CORRECT: Add break statements
+switch (x) {
+    case 1:
+        printf("One\n");
+        break;
+    case 2:
+        printf("Two\n");    // Executes
+        break;              // Exits switch
+    case 3:
+        printf("Three\n");
+        break;
+}
+```
+
+### Variable Declarations in Cases
+
+```c
+// WRONG: Can't declare variables directly in case
+switch (x) {
+    case 1:
+        int y = 10;  // Compilation error!
+        printf("%d\n", y);
+        break;
+}
+
+// CORRECT: Use braces to create scope
+switch (x) {
+    case 1: {
+        int y = 10;  // OK now
+        printf("%d\n", y);
+        break;
+    }
+    case 2: {
+        int y = 20;  // Different scope
+        printf("%d\n", y);
+        break;
+    }
+}
+```
+
+### Non-Constant Case Values
+
+```c
+int threshold = 100;
+int value = 150;
+
+// WRONG: case values must be compile-time constants
+switch (value) {
+    case threshold:      // Error: not a constant!
+        printf("At threshold\n");
+        break;
+}
+
+// CORRECT: Use if-else for variable comparisons
+if (value == threshold) {
+    printf("At threshold\n");
+}
+```
+
+## Exercises
+
+1. **Menu System**: Create a menu-driven program with options:
+   - 1: Display "Hello"
+   - 2: Display current date/time simulation
+   - 3: Calculate circle area (prompt for radius)
+   - 4: Exit
+   Use switch to handle menu choices.
+
+2. **Month Days**: Write a program that takes a month number (1-12) and displays the number of days in that month. Group months with the same days using fall-through.
+
+3. **Vowel or Consonant**: Ask for a character and determine if it's a vowel, consonant, or neither. Use switch with fall-through for vowels (a, e, i, o, u).
+
+4. **Grade Calculator**: Convert numeric grades to letter grades:
+   - 90-100: A
+   - 80-89: B
+   - 70-79: C
+   - 60-69: D
+   - Below 60: F
+   (Hint: Use `grade/10` in switch)
+
+## Key Takeaways
+
+- Switch statements work with integer types (`int`, `char`) and enumerated types
+- Each case must be a compile-time constant (literal value)
+- Always use `break` to prevent fall-through (unless intentional)
+- The `default` case handles all values not matched by specific cases
+- Fall-through can be useful for grouping multiple cases with the same action
+- Switch is cleaner than if-else for multiple discrete value comparisons
+- Cannot use switch for ranges or variable comparisons - use if-else instead
+- Use braces `{}` in cases if you need to declare variables

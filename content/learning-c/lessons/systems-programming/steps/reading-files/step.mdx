@@ -1,0 +1,358 @@
+---
+title: "Reading Files"
+description: "Master various techniques for reading data from files using fgetc, fgets, fread, and fscanf"
+order: 2
+---
+
+# Reading Files
+
+Once you've opened a file, you need to read its contents. C provides several functions for reading, each suited to different use cases. Choosing the right function depends on whether you're reading characters, lines, blocks of data, or formatted input.
+
+## Reading Functions Overview
+
+- `fgetc()` - Read a single character
+- `fgets()` - Read a line of text
+- `fread()` - Read a block of binary data
+- `fscanf()` - Read formatted input
+- `getc()` - Macro version of fgetc (usually faster)
+
+## Example 1: Reading Character by Character
+
+The `fgetc()` function reads one character at a time and returns it as an `int`. It returns `EOF` when the end of file is reached.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void read_char_by_char(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    int ch;
+    int char_count = 0;
+
+    printf("File contents:\n");
+
+    // Read until end of file
+    while ((ch = fgetc(file)) != EOF) {
+        putchar(ch);
+        char_count++;
+    }
+
+    printf("\n\nTotal characters: %d\n", char_count);
+
+    // Check if we stopped due to error or EOF
+    if (ferror(file)) {
+        perror("Error reading file");
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    // First, create a test file
+    FILE *file = fopen("test.txt", "w");
+    if (file) {
+        fprintf(file, "Hello, World!\nThis is a test.\n");
+        fclose(file);
+    }
+
+    // Now read it character by character
+    read_char_by_char("test.txt");
+
+    return EXIT_SUCCESS;
+}
+```
+
+**Important:** `fgetc()` returns `int`, not `char`, because it needs to be able to return `EOF` (usually -1), which is outside the range of `unsigned char`.
+
+## Example 2: Reading Line by Line with fgets
+
+The `fgets()` function is perfect for reading text files line by line. It reads until a newline, EOF, or buffer size is reached.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void process_file_lines(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    char buffer[256];
+    int line_number = 0;
+
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        line_number++;
+
+        // Remove trailing newline if present
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0';
+        }
+
+        printf("Line %d: %s\n", line_number, buffer);
+    }
+
+    if (ferror(file)) {
+        perror("Error reading file");
+    } else {
+        printf("\nTotal lines read: %d\n", line_number);
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    // Create a multi-line test file
+    FILE *file = fopen("lines.txt", "w");
+    if (file) {
+        fprintf(file, "First line\n");
+        fprintf(file, "Second line\n");
+        fprintf(file, "Third line\n");
+        fclose(file);
+    }
+
+    process_file_lines("lines.txt");
+    return EXIT_SUCCESS;
+}
+```
+
+**Key points about fgets():**
+- Always includes the newline character (if there's room)
+- Null-terminates the string
+- Returns NULL on EOF or error
+- Buffer size should account for the null terminator
+
+## Example 3: Reading Binary Data with fread
+
+For binary files or reading structures, `fread()` is the right choice. It reads a specified number of elements of a given size.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    int id;
+    char name[50];
+    double score;
+} Student;
+
+void write_student_file(const char *filename) {
+    FILE *file = fopen(filename, "wb");  // Note: "wb" for binary
+    if (file == NULL) {
+        perror("Error creating file");
+        return;
+    }
+
+    Student students[] = {
+        {1, "Alice", 95.5},
+        {2, "Bob", 87.3},
+        {3, "Charlie", 92.8}
+    };
+
+    size_t count = sizeof(students) / sizeof(students[0]);
+
+    // Write all students at once
+    size_t written = fwrite(students, sizeof(Student), count, file);
+
+    if (written != count) {
+        fprintf(stderr, "Error: wrote %zu of %zu students\n",
+                written, count);
+    }
+
+    fclose(file);
+}
+
+void read_student_file(const char *filename) {
+    FILE *file = fopen(filename, "rb");  // Note: "rb" for binary
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    Student student;
+
+    printf("Students in file:\n");
+    printf("%-5s %-20s %s\n", "ID", "Name", "Score");
+    printf("-----------------------------------\n");
+
+    // Read one student at a time
+    while (fread(&student, sizeof(Student), 1, file) == 1) {
+        printf("%-5d %-20s %.2f\n",
+               student.id, student.name, student.score);
+    }
+
+    if (ferror(file)) {
+        perror("Error reading file");
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    write_student_file("students.dat");
+    read_student_file("students.dat");
+
+    return EXIT_SUCCESS;
+}
+```
+
+**fread() signature:**
+```c
+size_t fread(void *ptr, size_t size, size_t count, FILE *stream);
+```
+- Returns the number of elements successfully read
+- Returns less than `count` on EOF or error
+
+## Example 4: Reading Formatted Input with fscanf
+
+Similar to `scanf()`, but reads from a file instead of stdin.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void write_csv_file(const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error creating file");
+        return;
+    }
+
+    fprintf(file, "Alice,25,Engineer\n");
+    fprintf(file, "Bob,30,Teacher\n");
+    fprintf(file, "Charlie,28,Doctor\n");
+
+    fclose(file);
+}
+
+void read_csv_file(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    char name[50];
+    int age;
+    char occupation[50];
+
+    printf("%-15s %-5s %s\n", "Name", "Age", "Occupation");
+    printf("----------------------------------------\n");
+
+    // Read formatted data
+    while (fscanf(file, "%49[^,],%d,%49[^\n]\n",
+                  name, &age, occupation) == 3) {
+        printf("%-15s %-5d %s\n", name, age, occupation);
+    }
+
+    if (ferror(file)) {
+        perror("Error reading file");
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    write_csv_file("people.csv");
+    read_csv_file("people.csv");
+
+    return EXIT_SUCCESS;
+}
+```
+
+**fscanf() notes:**
+- Returns the number of successfully matched items
+- Stops at whitespace unless you use special format specifiers
+- `%[^,]` reads until a comma
+- `%[^\n]` reads until a newline
+
+## Checking for Errors vs EOF
+
+After a read operation fails, determine whether it was due to an error or EOF:
+
+```c
+FILE *file = fopen("data.txt", "r");
+char buffer[100];
+
+while (fgets(buffer, sizeof(buffer), file) != NULL) {
+    // Process data
+}
+
+// Check why the loop ended
+if (feof(file)) {
+    printf("Reached end of file\n");
+} else if (ferror(file)) {
+    perror("Read error occurred");
+}
+
+fclose(file);
+```
+
+## Comparing Reading Functions
+
+| Function | Best For | Returns | Stops At |
+|----------|----------|---------|----------|
+| `fgetc()` | Single characters | int (char or EOF) | EOF, error |
+| `fgets()` | Text lines | char* or NULL | newline, EOF, buffer full |
+| `fread()` | Binary data, structs | size_t (count read) | EOF, error, count reached |
+| `fscanf()` | Formatted text | int (items matched) | EOF, mismatch, error |
+
+## Exercises
+
+### Exercise 1: Word Counter
+Write a program that counts words in a text file. A word is any sequence of non-whitespace characters.
+
+```c
+// TODO: Implement count_words(const char *filename)
+// Should return the number of words in the file
+// Test with: "Hello world" -> 2 words
+```
+
+### Exercise 2: Line Length Analyzer
+Create a program that:
+- Reads a text file line by line
+- Reports the length of each line
+- Finds and displays the longest line
+- Handles lines longer than your buffer size
+
+### Exercise 3: Binary File Reader
+Write a program that reads a binary file containing integers and:
+- Displays each integer
+- Calculates the sum and average
+- Finds the minimum and maximum values
+
+```c
+// Create test file with:
+// int numbers[] = {10, 20, 30, 40, 50};
+// fwrite(numbers, sizeof(int), 5, file);
+```
+
+### Exercise 4: CSV Parser
+Implement a robust CSV parser that:
+- Reads a CSV file with name, age, and salary
+- Handles missing fields gracefully
+- Reports the average salary
+- Finds the oldest person
+
+## Key Takeaways
+
+- `fgetc()` is ideal for character-by-character processing and counting
+- `fgets()` is the standard choice for reading text files line by line
+- `fread()` is essential for binary data and reading structures efficiently
+- `fscanf()` is convenient for formatted text but requires careful format strings
+- Always check return values to distinguish between EOF and errors
+- Use `feof()` and `ferror()` to determine why a read operation stopped
+- Binary mode ("rb") is crucial for `fread()` to work correctly
+- Buffer sizes matter - always account for the null terminator with strings
+- Different functions have different performance characteristics for different tasks
+
+Mastering these reading techniques gives you the flexibility to handle any file format efficiently. In the next step, we'll explore writing data to files.

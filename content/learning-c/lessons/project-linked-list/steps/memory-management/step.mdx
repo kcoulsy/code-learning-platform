@@ -1,0 +1,427 @@
+---
+title: "Memory Management"
+order: 6
+---
+
+# Memory Management
+
+Memory management is what separates good C code from dangerous C code. In this step, you'll learn to ensure your linked list implementation is completely leak-free.
+
+## Why Memory Management Matters
+
+In C, **you** are responsible for memory. The language won't clean up after you. Poor memory management causes:
+- **Memory leaks**: Allocated memory never freed
+- **Dangling pointers**: Pointers to freed memory
+- **Use after free**: Accessing freed memory (undefined behavior)
+- **Double free**: Freeing the same memory twice (crash)
+
+For a linked list, every `malloc()` must have a corresponding `free()`.
+
+## The Rules of Memory Management
+
+### Rule 1: Every malloc Gets a free
+
+```c
+// WRONG - memory leak!
+struct Node *node = create_node(10);
+// ... node goes out of scope without being freed
+
+// CORRECT
+struct Node *node = create_node(10);
+// ... use node ...
+free(node);
+node = NULL;  // Good practice
+```
+
+### Rule 2: Free in Reverse Order of Allocation
+
+If A points to B, free B before freeing A:
+
+```c
+// List: A -> B -> C
+
+// WRONG
+free(A);  // Now can't access A->next (B)!
+
+// CORRECT
+free(C);
+free(B);
+free(A);
+
+// Or traverse and free iteratively
+```
+
+### Rule 3: Don't Use After Free
+
+```c
+// WRONG
+free(node);
+printf("%d\n", node->data);  // Undefined behavior!
+
+// CORRECT
+int data = node->data;  // Save data first
+free(node);
+printf("%d\n", data);   // Use saved value
+```
+
+### Rule 4: Don't Double Free
+
+```c
+// WRONG
+free(node);
+free(node);  // Crash!
+
+// CORRECT
+free(node);
+node = NULL;  // Prevent accidental reuse
+```
+
+## Reviewing Your delete_list Function
+
+You should have implemented this in Step 4:
+
+```c
+void delete_list(struct Node **head) {
+    struct Node *current = *head;
+
+    while (current != NULL) {
+        struct Node *temp = current;
+        current = current->next;
+        free(temp);
+    }
+
+    *head = NULL;
+}
+```
+
+This is the **safe deletion pattern**:
+1. Save pointer to current node
+2. Advance to next node
+3. Free the saved pointer
+
+## Using valgrind
+
+Valgrind is your best friend for finding memory issues.
+
+### Installation
+```bash
+# Linux
+sudo apt-get install valgrind
+
+# macOS
+brew install valgrind
+```
+
+### Basic Usage
+```bash
+valgrind --leak-check=full ./linked_list
+```
+
+### Reading valgrind Output
+
+#### No Leaks (Good!)
+```
+HEAP SUMMARY:
+    in use at exit: 0 bytes in 0 blocks
+    total heap usage: 5 allocs, 5 frees, 120 bytes allocated
+
+All heap blocks were freed -- no leaks are possible
+```
+
+#### Memory Leak (Bad!)
+```
+HEAP SUMMARY:
+    in use at exit: 24 bytes in 1 blocks
+    total heap usage: 5 allocs, 4 frees, 120 bytes allocated
+
+24 bytes in 1 blocks are definitely lost in loss record 1 of 1
+   at 0x4C2DB8F: malloc
+   by 0x108734: create_node (linked_list.c:10)
+   by 0x108891: main (main.c:15)
+```
+
+This tells you:
+- 24 bytes leaked (size of one Node)
+- Allocated in `create_node` at line 10
+- Called from `main` at line 15
+
+#### Use After Free (Very Bad!)
+```
+Invalid read of size 4
+   at 0x108824: print_list (linked_list.c:45)
+   by 0x1088A2: main (main.c:20)
+Address 0x522d040 is 0 bytes inside a block of size 24 free'd
+   at 0x4C2EDEB: free
+   by 0x108801: delete_list (linked_list.c:35)
+```
+
+This shows you tried to read from freed memory.
+
+## Common Memory Issues in Linked Lists
+
+### Issue 1: Orphaned Nodes
+
+```c
+// WRONG - orphans the old head!
+void insert_at_head(struct Node **head, int data) {
+    *head = create_node(data);  // Old head is lost!
+}
+
+// CORRECT - links old head first
+void insert_at_head(struct Node **head, int data) {
+    struct Node *new_node = create_node(data);
+    new_node->next = *head;  // Save old head
+    *head = new_node;
+}
+```
+
+### Issue 2: Incomplete delete_list
+
+```c
+// WRONG - doesn't set head to NULL
+void delete_list(struct Node **head) {
+    struct Node *current = *head;
+    while (current != NULL) {
+        struct Node *temp = current;
+        current = current->next;
+        free(temp);
+    }
+    // Missing: *head = NULL;
+}
+
+// Now head is a dangling pointer!
+```
+
+### Issue 3: Using Freed Memory
+
+```c
+// WRONG
+void delete_by_value(struct Node **head, int value) {
+    struct Node *current = *head;
+    while (current != NULL) {
+        if (current->data == value) {
+            free(current);
+            current = current->next;  // Use after free!
+        }
+    }
+}
+
+// CORRECT
+void delete_by_value(struct Node **head, int value) {
+    // ... proper implementation with temp variable
+}
+```
+
+### Issue 4: Memory Leak in delete_by_position
+
+```c
+// WRONG - skips node without freeing
+current->next = current->next->next;  // Node is orphaned!
+
+// CORRECT - free before skipping
+struct Node *temp = current->next;
+current->next = temp->next;
+free(temp);
+```
+
+## Creating a Memory-Safe Test Suite
+
+Build a comprehensive test that exercises all operations:
+
+```c
+int main() {
+    printf("=== Memory Management Test ===\n\n");
+
+    // Test 1: Multiple insertions and full cleanup
+    printf("Test 1: Create and delete list\n");
+    struct Node *head = NULL;
+    for (int i = 0; i < 100; i++) {
+        insert_at_head(&head, i);
+    }
+    printf("Created 100 nodes\n");
+    delete_list(&head);
+    printf("Deleted all nodes\n\n");
+
+    // Test 2: Insert and delete by value
+    printf("Test 2: Insert and delete by value\n");
+    head = NULL;
+    for (int i = 0; i < 10; i++) {
+        insert_at_tail(&head, i);
+    }
+    for (int i = 0; i < 10; i++) {
+        delete_by_value(&head, i);
+    }
+    printf("All nodes deleted individually\n\n");
+
+    // Test 3: Delete all occurrences
+    printf("Test 3: Delete all occurrences\n");
+    head = NULL;
+    for (int i = 0; i < 20; i++) {
+        insert_at_tail(&head, i % 5);  // Creates duplicates
+    }
+    delete_all_by_value(&head, 3);
+    delete_list(&head);
+    printf("Deleted duplicates and cleaned up\n\n");
+
+    // Test 4: Mixed operations
+    printf("Test 4: Mixed operations\n");
+    head = NULL;
+    insert_at_head(&head, 10);
+    insert_at_tail(&head, 20);
+    insert_at_position(&head, 15, 1);
+    delete_by_position(&head, 1);
+    insert_sorted(&head, 5);
+    delete_list(&head);
+    printf("Mixed operations completed\n\n");
+
+    printf("=== All tests complete ===\n");
+    printf("Run with valgrind to verify no leaks!\n");
+
+    return 0;
+}
+```
+
+Run with valgrind:
+```bash
+gcc -Wall -Wextra -g linked_list.c main.c -o linked_list
+valgrind --leak-check=full --show-leak-kinds=all ./linked_list
+```
+
+## Debugging Memory Issues
+
+### Technique 1: Allocation Tracking
+
+Add counters to track allocations:
+
+```c
+// At top of file
+static int g_allocations = 0;
+static int g_deallocations = 0;
+
+struct Node* create_node(int data) {
+    struct Node *new_node = malloc(sizeof(struct Node));
+    if (new_node == NULL) {
+        return NULL;
+    }
+
+    g_allocations++;
+    printf("DEBUG: Allocated node #%d with data %d at %p\n",
+           g_allocations, data, (void*)new_node);
+
+    new_node->data = data;
+    new_node->next = NULL;
+    return new_node;
+}
+
+void safe_free(struct Node *node) {
+    if (node != NULL) {
+        g_deallocations++;
+        printf("DEBUG: Freed node #%d with data %d at %p\n",
+               g_deallocations, node->data, (void*)node);
+        free(node);
+    }
+}
+
+// At end of main:
+printf("\nMemory summary:\n");
+printf("Allocations: %d\n", g_allocations);
+printf("Deallocations: %d\n", g_deallocations);
+if (g_allocations == g_deallocations) {
+    printf("✓ All memory freed!\n");
+} else {
+    printf("✗ Memory leak detected!\n");
+}
+```
+
+### Technique 2: Poisoning Freed Memory
+
+Set freed memory to NULL to catch use-after-free:
+
+```c
+void safe_free_node(struct Node **node) {
+    if (node != NULL && *node != NULL) {
+        free(*node);
+        *node = NULL;  // Prevent use after free
+    }
+}
+```
+
+### Technique 3: Using Address Sanitizer
+
+Compile with AddressSanitizer for runtime checks:
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address linked_list.c main.c -o linked_list
+./linked_list
+```
+
+AddressSanitizer will detect:
+- Use after free
+- Double free
+- Memory leaks
+- Buffer overflows
+
+## Exercises
+
+### Exercise 1: Run valgrind
+Compile your program with `-g` flag and run valgrind. Fix any leaks found.
+
+### Exercise 2: Add Allocation Tracking
+Implement the global counter approach. Verify counts match at program end.
+
+### Exercise 3: Stress Test
+Create and delete 10,000 nodes. Verify no leaks with valgrind.
+
+### Exercise 4: Test Edge Cases
+Ensure these are leak-free:
+- Creating empty list and immediately deleting
+- Deleting non-existent values
+- Deleting at invalid positions
+- Deleting all nodes one by one
+
+### Exercise 5: Add Cleanup to All Paths
+Review every function. Ensure all error paths free allocated memory.
+
+Example:
+```c
+struct Node* create_node(int data) {
+    struct Node *node = malloc(sizeof(struct Node));
+    if (node == NULL) {
+        return NULL;  // OK - nothing to free
+    }
+
+    // If we allocated more things and one failed:
+    char *string = malloc(100);
+    if (string == NULL) {
+        free(node);  // Must free node before returning!
+        return NULL;
+    }
+
+    // ... rest of function
+}
+```
+
+## Key Concepts
+
+- **malloc/free pairing**: Every allocation needs deallocation
+- **Safe deletion pattern**: Save, advance, free
+- **NULL after free**: Prevents use-after-free bugs
+- **valgrind**: Essential tool for finding memory issues
+- **Allocation tracking**: Useful for debugging leaks
+- **Error path cleanup**: Free resources on all exit paths
+
+## Memory Safety Checklist
+
+Before moving to the next step, verify:
+
+- [ ] All functions are valgrind-clean (no leaks)
+- [ ] No use-after-free errors
+- [ ] No double-free errors
+- [ ] All error paths free allocated memory
+- [ ] Head is set to NULL after delete_list
+- [ ] Stress test with large number of nodes passes
+- [ ] All edge cases (empty, single node) are handled
+
+## Next Step
+
+Your linked list is now memory-safe! In **Step 7: Testing & Debugging**, you'll create a comprehensive test suite and learn debugging techniques to ensure your implementation is robust.

@@ -1,0 +1,547 @@
+---
+title: "Step 4: Storage Module"
+description: "Implement file I/O for saving and loading contacts"
+order: 4
+---
+
+# Step 4: Storage Module
+
+Your contacts are now stored in memory, but they disappear when the program exits. In this step, you'll implement persistent storage using file I/O, allowing contacts to be saved and loaded between program runs.
+
+## Overview
+
+In this step, you'll create:
+- `storage.h` - Header file with file I/O function declarations
+- `storage.c` - Implementation of save and load operations
+- A file format for storing contact data
+- Error handling for file operations
+
+## File Format Design
+
+Before implementing, decide how to structure your data file. Here are three approaches:
+
+### Option 1: CSV (Comma-Separated Values)
+
+**Format**:
+```
+John Doe,555-0100,john@example.com
+Jane Smith,555-0200,jane@example.com
+Bob Jones,,bob@example.com
+```
+
+**Pros**: Simple, human-readable, compact
+**Cons**: Requires escaping if data contains commas
+
+### Option 2: Line-Delimited Format
+
+**Format**:
+```
+John Doe
+555-0100
+john@example.com
+---
+Jane Smith
+555-0200
+jane@example.com
+---
+```
+
+**Pros**: No escaping needed, easy to parse
+**Cons**: More verbose, needs delimiter between records
+
+### Option 3: Tagged Format
+
+**Format**:
+```
+NAME:John Doe
+PHONE:555-0100
+EMAIL:john@example.com
+---
+NAME:Jane Smith
+PHONE:555-0200
+EMAIL:jane@example.com
+---
+```
+
+**Pros**: Self-documenting, extensible, order-independent
+**Cons**: Most verbose
+
+**Recommendation**: Start with CSV for simplicity. You can enhance later.
+
+## Storage Header File (storage.h)
+
+```c
+#ifndef STORAGE_H
+#define STORAGE_H
+
+#include "contact.h"
+
+// Default filename for contact storage
+#define DEFAULT_CONTACTS_FILE "data/contacts.txt"
+
+// Save all contacts to a file
+// Returns: 0 on success, -1 on error
+int storage_save(const ContactBook *book, const char *filename);
+
+// Load contacts from a file into the contact book
+// Returns: number of contacts loaded, or -1 on error
+int storage_load(ContactBook *book, const char *filename);
+
+// Check if storage file exists
+// Returns: 1 if exists, 0 otherwise
+int storage_file_exists(const char *filename);
+
+#endif
+```
+
+## Storage Implementation (storage.c)
+
+### Required Includes
+
+```c
+#include "storage.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+```
+
+### Saving Contacts
+
+Implement `storage_save()`:
+
+```c
+int storage_save(const ContactBook *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        fprintf(stderr, "Error: Invalid parameters to storage_save\n");
+        return -1;
+    }
+
+    // Open file for writing
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        fprintf(stderr, "Error: Cannot open file '%s' for writing: %s\n",
+                filename, strerror(errno));
+        return -1;
+    }
+
+    // Write each contact
+    for (int i = 0; i < book->count; i++) {
+        Contact *contact = book->contacts[i];
+
+        // CSV format: name,phone,email
+        // TODO: Write contact to file
+        // Hint: Use fprintf()
+        // Be careful with commas in the data!
+
+        // Example (you need to handle escaping):
+        // fprintf(file, "%s,%s,%s\n",
+        //         contact->name, contact->phone, contact->email);
+    }
+
+    fclose(file);
+
+    printf("Saved %d contact(s) to %s\n", book->count, filename);
+    return 0;
+}
+```
+
+**Your Task**: Complete the save implementation.
+
+**Challenge**: What if a name contains a comma? You'll need to either:
+1. Escape it somehow (e.g., replace `,` with `\,`)
+2. Use a different delimiter (e.g., pipe `|`)
+3. Use quotes around fields (like real CSV)
+
+**Simple Solution for Now**: Use pipe `|` as delimiter instead of comma.
+
+### Loading Contacts
+
+Implement `storage_load()`:
+
+```c
+int storage_load(ContactBook *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        return -1;
+    }
+
+    // Open file for reading
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        // File doesn't exist (first run) - not necessarily an error
+        if (errno == ENOENT) {
+            printf("No existing contacts file. Starting fresh.\n");
+            return 0;  // 0 contacts loaded
+        }
+
+        fprintf(stderr, "Error: Cannot open file '%s' for reading: %s\n",
+                filename, strerror(errno));
+        return -1;
+    }
+
+    int loaded_count = 0;
+    char line[256];
+
+    // Read file line by line
+    while (fgets(line, sizeof(line), file) != NULL) {
+        // Remove trailing newline
+        line[strcspn(line, "\n")] = '\0';
+
+        // Skip empty lines
+        if (strlen(line) == 0) {
+            continue;
+        }
+
+        // Parse the line (assuming CSV format)
+        // TODO: Parse name, phone, email from line
+        // Hint: Use strtok() or sscanf()
+
+        char name[MAX_NAME_LEN + 1] = "";
+        char phone[MAX_PHONE_LEN + 1] = "";
+        char email[MAX_EMAIL_LEN + 1] = "";
+
+        // Example parsing with pipe delimiter:
+        // char *token = strtok(line, "|");
+        // if (token) strcpy(name, token);
+        // token = strtok(NULL, "|");
+        // if (token) strcpy(phone, token);
+        // token = strtok(NULL, "|");
+        // if (token) strcpy(email, token);
+
+        // Create contact and add to book
+        Contact *contact = contact_create(name, phone, email);
+        if (contact != NULL) {
+            if (contactbook_add(book, contact) == 0) {
+                loaded_count++;
+            } else {
+                // Failed to add (book full?)
+                contact_destroy(contact);
+                break;
+            }
+        }
+    }
+
+    fclose(file);
+
+    printf("Loaded %d contact(s) from %s\n", loaded_count, filename);
+    return loaded_count;
+}
+```
+
+**Your Task**: Complete the parsing logic to extract name, phone, and email from each line.
+
+### Parsing Helper Function
+
+Consider creating a helper function:
+
+```c
+// Parse a CSV/delimited line into components
+// Returns: 1 on success, 0 on failure
+static int parse_contact_line(const char *line,
+                               char *name, char *phone, char *email) {
+    // Make a copy of line since strtok modifies it
+    char line_copy[256];
+    strncpy(line_copy, line, sizeof(line_copy) - 1);
+    line_copy[sizeof(line_copy) - 1] = '\0';
+
+    // Parse using pipe delimiter
+    char *token = strtok(line_copy, "|");
+    if (token == NULL) return 0;
+    strncpy(name, token, MAX_NAME_LEN);
+    name[MAX_NAME_LEN] = '\0';
+
+    token = strtok(NULL, "|");
+    if (token != NULL) {
+        strncpy(phone, token, MAX_PHONE_LEN);
+        phone[MAX_PHONE_LEN] = '\0';
+    } else {
+        phone[0] = '\0';
+    }
+
+    token = strtok(NULL, "|");
+    if (token != NULL) {
+        strncpy(email, token, MAX_EMAIL_LEN);
+        email[MAX_EMAIL_LEN] = '\0';
+    } else {
+        email[0] = '\0';
+    }
+
+    return 1;
+}
+```
+
+### File Existence Check
+
+```c
+int storage_file_exists(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file != NULL) {
+        fclose(file);
+        return 1;
+    }
+    return 0;
+}
+```
+
+## Error Handling
+
+### Common File I/O Errors
+
+1. **File Not Found**: Normal on first run
+2. **Permission Denied**: User doesn't have read/write access
+3. **Disk Full**: No space to save
+4. **Corrupted Data**: File has invalid format
+
+### Robust Error Handling
+
+```c
+// Example error handling in save:
+FILE *file = fopen(filename, "w");
+if (file == NULL) {
+    switch (errno) {
+        case EACCES:
+            fprintf(stderr, "Error: Permission denied for '%s'\n", filename);
+            break;
+        case ENOSPC:
+            fprintf(stderr, "Error: No space left on device\n");
+            break;
+        default:
+            fprintf(stderr, "Error: Cannot open '%s': %s\n",
+                    filename, strerror(errno));
+    }
+    return -1;
+}
+```
+
+## Testing Your Storage Module
+
+Create a test program `test_storage.c`:
+
+```c
+#include "contact.h"
+#include "storage.h"
+#include <stdio.h>
+#include <assert.h>
+
+void test_save_and_load() {
+    printf("Testing save and load...\n");
+
+    ContactBook book1;
+    contactbook_init(&book1);
+
+    // Add some contacts
+    contactbook_add(&book1, contact_create("Alice Anderson", "111-1111", "alice@test.com"));
+    contactbook_add(&book1, contact_create("Bob Baker", "222-2222", "bob@test.com"));
+    contactbook_add(&book1, contact_create("Charlie Chen", "", "charlie@test.com"));
+
+    // Save to file
+    int result = storage_save(&book1, "test_contacts.txt");
+    assert(result == 0);
+
+    // Create new book and load
+    ContactBook book2;
+    contactbook_init(&book2);
+
+    int loaded = storage_load(&book2, "test_contacts.txt");
+    assert(loaded == 3);
+    assert(book2.count == 3);
+
+    // Verify contacts
+    Contact *c = contactbook_get(&book2, 0);
+    assert(strcmp(c->name, "Alice Anderson") == 0);
+    assert(strcmp(c->phone, "111-1111") == 0);
+
+    c = contactbook_get(&book2, 2);
+    assert(strcmp(c->name, "Charlie Chen") == 0);
+    assert(strlen(c->phone) == 0);  // Empty phone
+
+    // Cleanup
+    contactbook_destroy(&book1);
+    contactbook_destroy(&book2);
+
+    printf("PASSED\n\n");
+}
+
+void test_empty_fields() {
+    printf("Testing contacts with empty optional fields...\n");
+
+    ContactBook book;
+    contactbook_init(&book);
+
+    contactbook_add(&book, contact_create("John Doe", "", ""));
+
+    storage_save(&book, "test_empty.txt");
+
+    ContactBook loaded;
+    contactbook_init(&loaded);
+    storage_load(&loaded, "test_empty.txt");
+
+    Contact *c = contactbook_get(&loaded, 0);
+    assert(strlen(c->phone) == 0);
+    assert(strlen(c->email) == 0);
+
+    contactbook_destroy(&book);
+    contactbook_destroy(&loaded);
+
+    printf("PASSED\n\n");
+}
+
+void test_nonexistent_file() {
+    printf("Testing load from nonexistent file...\n");
+
+    ContactBook book;
+    contactbook_init(&book);
+
+    int loaded = storage_load(&book, "doesnt_exist.txt");
+    assert(loaded == 0);  // Should succeed with 0 contacts
+    assert(book.count == 0);
+
+    contactbook_destroy(&book);
+
+    printf("PASSED\n\n");
+}
+
+int main() {
+    printf("=== Storage Module Tests ===\n\n");
+
+    test_save_and_load();
+    test_empty_fields();
+    test_nonexistent_file();
+
+    printf("All tests passed!\n");
+    printf("Check test_contacts.txt and test_empty.txt to verify format.\n");
+
+    return 0;
+}
+```
+
+### Compile and Run
+
+```bash
+gcc -o test_storage test_storage.c contact.c storage.c
+./test_storage
+```
+
+### Verify File Contents
+
+After running tests, check the generated file:
+
+```bash
+cat test_contacts.txt
+```
+
+**Expected Output** (with pipe delimiter):
+```
+Alice Anderson|111-1111|alice@test.com
+Bob Baker|222-2222|bob@test.com
+Charlie Chen||charlie@test.com
+```
+
+## Advanced Enhancements
+
+### 1. Backup System
+
+Create a backup before saving:
+
+```c
+int storage_save_with_backup(const ContactBook *book, const char *filename) {
+    // If file exists, create backup
+    if (storage_file_exists(filename)) {
+        char backup[256];
+        snprintf(backup, sizeof(backup), "%s.bak", filename);
+        rename(filename, backup);
+    }
+
+    return storage_save(book, filename);
+}
+```
+
+### 2. Corrupted File Recovery
+
+Handle partial or corrupted files gracefully:
+
+```c
+// In storage_load(), track line numbers
+int line_number = 0;
+while (fgets(line, sizeof(line), file) != NULL) {
+    line_number++;
+
+    if (!parse_contact_line(line, name, phone, email)) {
+        fprintf(stderr, "Warning: Invalid format at line %d, skipping\n",
+                line_number);
+        continue;  // Skip bad line, continue loading
+    }
+    // ... rest of loading
+}
+```
+
+### 3. File Format Versioning
+
+Add a header to your file:
+
+```
+VERSION:1.0
+Alice Anderson|111-1111|alice@test.com
+Bob Baker|222-2222|bob@test.com
+```
+
+This allows you to change the format later while maintaining backward compatibility.
+
+### 4. Directory Creation
+
+Ensure the data directory exists:
+
+```c
+#include <sys/stat.h>  // For mkdir
+
+int storage_ensure_directory(const char *path) {
+    #ifdef _WIN32
+        mkdir(path);
+    #else
+        mkdir(path, 0755);
+    #endif
+    return 0;
+}
+```
+
+## Common Issues and Solutions
+
+### Issue: strtok() Doesn't Work as Expected
+
+**Problem**: `strtok()` modifies the string and maintains internal state.
+
+**Solution**: Always work on a copy of the string, and be careful with nested `strtok()` calls.
+
+### Issue: Empty Fields Cause Parsing Problems
+
+**Problem**: Consecutive delimiters (`||`) confuse parsing.
+
+**Solution**: Check for NULL after each `strtok()` call and handle empty fields explicitly.
+
+### Issue: File Has Windows Line Endings
+
+**Problem**: On Linux, Windows files have `\r\n` instead of `\n`.
+
+**Solution**: Strip both:
+```c
+line[strcspn(line, "\r\n")] = '\0';
+```
+
+## Milestone Checklist
+
+- [ ] storage.h has all function declarations
+- [ ] storage_save() writes contacts to file
+- [ ] storage_load() reads contacts from file
+- [ ] File format handles empty optional fields
+- [ ] Error handling for missing/corrupted files
+- [ ] All test cases pass
+- [ ] Manual verification of file contents
+- [ ] No memory leaks (valgrind clean)
+
+## Next Step
+
+With persistent storage working, you're ready for **Step 5: UI Module**, where you'll create the interactive menu system and user interface for your application.
+
+---
+
+**Pro Tip**: Always test file I/O with edge cases like empty files, permission errors, and corrupted data. Real-world applications must handle failures gracefully!

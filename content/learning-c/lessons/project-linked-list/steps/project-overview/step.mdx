@@ -1,0 +1,136 @@
+---
+title: "Project Overview"
+order: 1
+---
+
+# Project Overview
+
+Before diving into code, let's understand what we're building and why.
+
+## What is a Linked List?
+
+A **linked list** is a dynamic data structure where elements (called **nodes**) are connected through pointers. Unlike arrays, linked lists:
+- Don't require contiguous memory
+- Can grow and shrink dynamically
+- Allow efficient insertion/deletion at any position
+- Require extra memory for storing pointers
+
+### Visual Representation
+
+```
+[Data|Next] -> [Data|Next] -> [Data|Next] -> NULL
+   Head           Node           Tail
+```
+
+Each node contains:
+- **Data**: The value being stored
+- **Next**: A pointer to the next node in the list
+
+## Project Requirements
+
+Your linked list implementation must support the following operations:
+
+### Core Operations
+1. **Create** a new node
+2. **Insert** at head, tail, middle, or in sorted order
+3. **Delete** by value, by position, or delete all nodes
+4. **Traverse** the list (print all elements)
+5. **Search** for an element
+6. **Count** the number of nodes
+7. **Free** all memory (no leaks!)
+
+### Quality Requirements
+- All operations must be **memory-safe** (no segfaults)
+- No **memory leaks** (verified with valgrind)
+- Handle **edge cases** (empty list, single node, etc.)
+- Clear and **documented** code
+
+## File Structure
+
+You'll create these files for your project:
+
+```
+linked_list/
+├── linked_list.h      # Header file with struct and function declarations
+├── linked_list.c      # Implementation of all functions
+└── main.c             # Test program to demonstrate functionality
+```
+
+## Linked List Concepts
+
+### The Node
+
+The fundamental building block:
+
+```c
+struct Node {
+    int data;           // The value stored
+    struct Node *next;  // Pointer to next node
+};
+```
+
+### The Head Pointer
+
+You'll maintain a pointer to the first node (the "head"):
+
+```c
+struct Node *head = NULL;  // Empty list starts as NULL
+```
+
+### Key Operations
+
+**Insertion at Head** (most common):
+- Create new node
+- Point new node's `next` to current head
+- Update head to point to new node
+
+**Traversal**:
+- Start at head
+- Follow `next` pointers until reaching NULL
+
+**Deletion**:
+- Find the node to delete
+- Adjust pointers to bypass it
+- Free the memory
+
+## Common Pitfalls to Avoid
+
+1. **Lost references**: Always save pointers before modifying them
+2. **NULL pointer dereferencing**: Check if pointer is NULL before using it
+3. **Memory leaks**: Free every malloc'd node
+4. **Dangling pointers**: Don't use pointers after freeing them
+
+## Your Task
+
+Before moving to the next step, make sure you understand:
+
+1. What a linked list is and how it differs from an array
+2. The basic structure of a node
+3. How nodes connect to form a list
+4. The operations your implementation must support
+
+## Exercises
+
+1. **Draw it out**: On paper, draw a linked list with 4 nodes containing values 10, 20, 30, 40. Show all pointers.
+
+2. **Think through operations**:
+   - How would you insert 15 between 10 and 20?
+   - How would you delete the node containing 30?
+   - What happens when you delete the head node?
+
+3. **Consider edge cases**:
+   - What if the list is empty?
+   - What if the list has only one node?
+   - What if you're deleting the last node?
+
+## Key Concepts
+
+- **Dynamic data structure**: Size can change during runtime
+- **Node**: Basic unit containing data and a link to the next node
+- **Head pointer**: Reference to the first node in the list
+- **NULL termination**: Last node's `next` pointer is NULL
+- **Pointer manipulation**: Core skill for linked list operations
+
+## Next Step
+
+Once you're comfortable with these concepts, move on to **Step 2: Node Structure** where you'll start writing code!

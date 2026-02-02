@@ -1,0 +1,353 @@
+---
+title: "Relational and Logical Operators"
+description: "Learn to compare values and combine conditions using relational and logical operators"
+order: 3
+---
+
+# Relational and Logical Operators
+
+Relational and logical operators are the foundation of decision-making in C. They allow you to compare values and combine multiple conditions to control program flow.
+
+## Relational Operators
+
+Relational operators compare two values and return either 1 (true) or 0 (false):
+
+- `==` Equal to
+- `!=` Not equal to
+- `<` Less than
+- `>` Greater than
+- `<=` Less than or equal to
+- `>=` Greater than or equal to
+
+```c
+#include <stdio.h>
+
+int main() {
+    int a = 10, b = 20;
+
+    printf("a = %d, b = %d\n\n", a, b);
+
+    // Equal to
+    printf("a == b: %d\n", a == b);    // 0 (false)
+    printf("a == 10: %d\n", a == 10);  // 1 (true)
+
+    // Not equal to
+    printf("a != b: %d\n", a != b);    // 1 (true)
+
+    // Less than
+    printf("a < b: %d\n", a < b);      // 1 (true)
+    printf("b < a: %d\n", b < a);      // 0 (false)
+
+    // Greater than
+    printf("a > b: %d\n", a > b);      // 0 (false)
+
+    // Less than or equal to
+    printf("a <= 10: %d\n", a <= 10);  // 1 (true)
+
+    // Greater than or equal to
+    printf("a >= 10: %d\n", a >= 10);  // 1 (true)
+
+    return 0;
+}
+```
+
+## Using Relational Operators in Conditions
+
+Relational operators are most commonly used in if statements and loops:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int age = 25;
+    int score = 85;
+
+    // Simple condition
+    if (age >= 18) {
+        printf("You are an adult\n");
+    }
+
+    // Comparing with variable
+    int passing_score = 60;
+    if (score >= passing_score) {
+        printf("You passed!\n");
+    }
+
+    // Using in loop
+    int count = 0;
+    while (count < 5) {
+        printf("Count: %d\n", count);
+        count++;
+    }
+
+    // Checking inequality
+    char grade = 'A';
+    if (grade != 'F') {
+        printf("Not failing\n");
+    }
+
+    return 0;
+}
+```
+
+## Logical Operators
+
+Logical operators combine multiple conditions:
+
+- `&&` Logical AND (both conditions must be true)
+- `||` Logical OR (at least one condition must be true)
+- `!` Logical NOT (inverts the condition)
+
+```c
+#include <stdio.h>
+
+int main() {
+    int age = 25;
+    int income = 50000;
+    int has_license = 1;  // 1 = true, 0 = false
+
+    // Logical AND (&&): Both conditions must be true
+    if (age >= 18 && has_license) {
+        printf("You can drive\n");
+    }
+
+    // Logical OR (||): At least one condition must be true
+    if (age < 13 || age > 65) {
+        printf("Discounted ticket\n");
+    } else {
+        printf("Regular price\n");
+    }
+
+    // Logical NOT (!): Inverts the condition
+    if (!has_license) {
+        printf("You need a license\n");
+    } else {
+        printf("You have a license\n");
+    }
+
+    // Combining multiple conditions
+    if (age >= 21 && income > 30000 && has_license) {
+        printf("Loan approved\n");
+    }
+
+    return 0;
+}
+```
+
+## Complex Logical Expressions
+
+You can combine multiple logical operators to create sophisticated conditions:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int age = 22;
+    int student = 1;
+    int employed = 1;
+    int credit_score = 700;
+
+    // Complex AND/OR combinations
+    if ((age >= 18 && age <= 25 && student) || (employed && credit_score >= 650)) {
+        printf("Eligible for special program\n");
+    }
+
+    // Checking ranges
+    int score = 85;
+    if (score >= 90 && score <= 100) {
+        printf("Grade: A\n");
+    } else if (score >= 80 && score < 90) {
+        printf("Grade: B\n");
+    } else if (score >= 70 && score < 80) {
+        printf("Grade: C\n");
+    }
+
+    // Validating input
+    int temperature = 75;
+    if (temperature >= -50 && temperature <= 150) {
+        printf("Temperature reading is valid\n");
+    } else {
+        printf("Temperature reading is invalid\n");
+    }
+
+    return 0;
+}
+```
+
+## Short-Circuit Evaluation
+
+C uses short-circuit evaluation with logical operators, which can improve efficiency and prevent errors:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int x = 10;
+    int y = 0;
+
+    // Short-circuit with &&
+    // If first condition is false, second is never evaluated
+    if (y != 0 && x / y > 5) {
+        printf("This won't cause division by zero\n");
+    }
+    // Since y != 0 is false, x / y is never executed
+
+    // Short-circuit with ||
+    // If first condition is true, second is never evaluated
+    if (x > 5 || x / y > 2) {
+        printf("This is safe too\n");
+    }
+    // Since x > 5 is true, x / y is never executed
+
+    // Practical use: checking pointer before dereferencing
+    int *ptr = NULL;
+    if (ptr != NULL && *ptr > 0) {
+        printf("Pointer is valid and positive\n");
+    }
+    // ptr != NULL is false, so *ptr is never evaluated (avoiding crash)
+
+    // Using short-circuit for efficiency
+    int expensive_check_done = 0;
+    if (x < 0 || (expensive_check_done = 1)) {
+        // expensive_check_done is only set if x >= 0
+    }
+    printf("Expensive check done: %d\n", expensive_check_done);  // 1
+
+    return 0;
+}
+```
+
+## Truth Tables
+
+Understanding how logical operators combine conditions:
+
+**AND (&&) Truth Table:**
+```
+A     B     A && B
+0     0       0
+0     1       0
+1     0       0
+1     1       1
+```
+
+**OR (||) Truth Table:**
+```
+A     B     A || B
+0     0       0
+0     1       1
+1     0       1
+1     1       1
+```
+
+**NOT (!) Truth Table:**
+```
+A     !A
+0     1
+1     0
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Using = Instead of ==
+
+```c
+int x = 5;
+
+// Wrong: Assignment instead of comparison
+if (x = 10) {    // Always true, and x is now 10!
+    printf("This always executes\n");
+}
+
+// Correct: Comparison
+if (x == 10) {
+    printf("x equals 10\n");
+}
+```
+
+### Pitfall 2: Comparing Floating-Point Numbers for Equality
+
+```c
+#include <math.h>
+
+float a = 0.1 + 0.2;  // Due to floating-point precision, might not be exactly 0.3
+
+// Wrong: Direct comparison
+if (a == 0.3) {
+    printf("Equal\n");    // Might not print!
+}
+
+// Correct: Use epsilon for comparison
+float epsilon = 0.00001;
+if (fabs(a - 0.3) < epsilon) {
+    printf("Approximately equal\n");
+}
+```
+
+### Pitfall 3: Confusing && and ||
+
+```c
+int age = 25;
+
+// Wrong: Using OR when you mean AND
+if (age >= 18 || age <= 65) {    // Always true!
+    printf("Valid age\n");
+}
+
+// Correct: Using AND for range check
+if (age >= 18 && age <= 65) {
+    printf("Working age\n");
+}
+```
+
+### Pitfall 4: Forgetting Parentheses in Complex Expressions
+
+```c
+int a = 1, b = 0, c = 1;
+
+// Confusing: && has higher precedence than ||
+if (a || b && c) {    // Evaluated as: a || (b && c)
+    printf("True\n");
+}
+
+// Clear: Use parentheses for clarity
+if (a || (b && c)) {
+    printf("True\n");
+}
+
+if ((a || b) && c) {
+    printf("Different result\n");
+}
+```
+
+## Exercises
+
+1. Write a program that checks if a number is within a range (e.g., between 1 and 100 inclusive).
+
+2. Create a program that determines if a year is a leap year using logical operators. A leap year is divisible by 4, but century years must be divisible by 400.
+
+3. Write a program that classifies a triangle as equilateral, isosceles, or scalene based on its three side lengths.
+
+4. Create a simple login system that checks if a username is "admin" AND password is "1234".
+
+5. Write a program that determines eligibility for voting based on age (>= 18) and citizenship (1 for citizen, 0 for non-citizen).
+
+6. Create a program that categorizes a person's BMI using multiple conditions:
+   - Underweight: BMI < 18.5
+   - Normal: 18.5 <= BMI < 25
+   - Overweight: 25 <= BMI < 30
+   - Obese: BMI >= 30
+
+## Key Takeaways
+
+- Relational operators compare values and return 1 (true) or 0 (false)
+- Use `==` for equality comparison, not `=` (assignment)
+- The six relational operators are: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- Logical AND `&&` requires both conditions to be true
+- Logical OR `||` requires at least one condition to be true
+- Logical NOT `!` inverts a condition (true becomes false, false becomes true)
+- C uses short-circuit evaluation to optimize logical expressions
+- Short-circuit evaluation can prevent errors (like division by zero)
+- Always use parentheses for clarity in complex logical expressions
+- Be careful comparing floating-point numbers for equality
+- Understanding operator precedence prevents logical errors
+- Relational and logical operators are essential for control flow

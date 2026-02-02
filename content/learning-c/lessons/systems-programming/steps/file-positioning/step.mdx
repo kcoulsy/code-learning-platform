@@ -1,0 +1,483 @@
+---
+title: "File Positioning"
+description: "Navigate through files using fseek, ftell, and rewind for random access operations"
+order: 4
+---
+
+# File Positioning
+
+Sequential file access is straightforward, but sometimes you need to jump to specific locations in a file. File positioning functions let you implement random access, skip sections, modify specific records, and navigate files efficiently.
+
+## File Position Indicator
+
+Every open file has a position indicator that tracks where the next read or write will occur. Reading or writing advances this indicator. Positioning functions let you control it explicitly.
+
+## Core Positioning Functions
+
+- `fseek()` - Move to a specific position
+- `ftell()` - Get the current position
+- `rewind()` - Move back to the beginning
+- `fgetpos()` / `fsetpos()` - Save and restore positions (portable for large files)
+
+## Example 1: Basic fseek and ftell
+
+The `fseek()` function moves the file position, and `ftell()` reports the current position.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void demonstrate_positioning(void) {
+    FILE *file = fopen("test.txt", "w");
+    if (file == NULL) {
+        perror("Error creating file");
+        return;
+    }
+
+    // Write some content
+    fputs("0123456789ABCDEFGHIJ", file);
+    fclose(file);
+
+    // Reopen for reading
+    file = fopen("test.txt", "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    printf("Initial position: %ld\n", ftell(file));
+
+    // Read first character
+    printf("Character at 0: %c\n", fgetc(file));
+    printf("Position after read: %ld\n", ftell(file));
+
+    // Seek to position 10
+    fseek(file, 10, SEEK_SET);
+    printf("After seeking to 10: %ld\n", ftell(file));
+    printf("Character at 10: %c\n", fgetc(file));
+
+    // Seek 5 bytes forward from current position
+    fseek(file, 5, SEEK_CUR);
+    printf("After seeking +5 from current: %ld\n", ftell(file));
+    printf("Character at 16: %c\n", fgetc(file));
+
+    // Seek to 3 bytes before end
+    fseek(file, -3, SEEK_END);
+    printf("3 bytes from end: %ld\n", ftell(file));
+    printf("Character: %c\n", fgetc(file));
+
+    fclose(file);
+}
+
+int main(void) {
+    demonstrate_positioning();
+    return EXIT_SUCCESS;
+}
+```
+
+**Output:**
+```
+Initial position: 0
+Character at 0: 0
+Position after read: 1
+After seeking to 10: 10
+Character at 10: A
+After seeking +5 from current: 16
+Character at 16: G
+3 bytes from end: 17
+Character: H
+```
+
+## fseek() Whence Parameters
+
+The third parameter to `fseek()` specifies the reference point:
+
+```c
+int fseek(FILE *stream, long offset, int whence);
+```
+
+- `SEEK_SET` - Offset from beginning of file
+- `SEEK_CUR` - Offset from current position
+- `SEEK_END` - Offset from end of file
+
+**Examples:**
+```c
+fseek(file, 0, SEEK_SET);    // Go to beginning
+fseek(file, 0, SEEK_END);    // Go to end
+fseek(file, 100, SEEK_SET);  // Go to byte 100
+fseek(file, -10, SEEK_END);  // 10 bytes before end
+fseek(file, 5, SEEK_CUR);    // Move forward 5 bytes
+fseek(file, -3, SEEK_CUR);   // Move back 3 bytes
+```
+
+## Example 2: Random Access to Records
+
+File positioning is essential for database-like operations on files.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    int id;
+    char name[32];
+    double salary;
+} Employee;
+
+void create_employee_file(const char *filename) {
+    FILE *file = fopen(filename, "wb");
+    if (file == NULL) {
+        perror("Error creating file");
+        return;
+    }
+
+    Employee employees[] = {
+        {101, "Alice", 75000.0},
+        {102, "Bob", 68000.0},
+        {103, "Charlie", 82000.0},
+        {104, "Diana", 71000.0},
+        {105, "Eve", 79000.0}
+    };
+
+    fwrite(employees, sizeof(Employee), 5, file);
+    fclose(file);
+}
+
+Employee* read_employee_by_id(const char *filename, int record_num) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        perror("Error opening file");
+        return NULL;
+    }
+
+    // Calculate position of the record
+    long position = (long)record_num * sizeof(Employee);
+
+    // Seek to that position
+    if (fseek(file, position, SEEK_SET) != 0) {
+        perror("Error seeking");
+        fclose(file);
+        return NULL;
+    }
+
+    // Allocate and read the employee
+    Employee *emp = malloc(sizeof(Employee));
+    if (emp == NULL) {
+        perror("Memory allocation failed");
+        fclose(file);
+        return NULL;
+    }
+
+    if (fread(emp, sizeof(Employee), 1, file) != 1) {
+        fprintf(stderr, "Error reading employee record\n");
+        free(emp);
+        fclose(file);
+        return NULL;
+    }
+
+    fclose(file);
+    return emp;
+}
+
+void update_employee_salary(const char *filename, int record_num,
+                           double new_salary) {
+    FILE *file = fopen(filename, "r+b");  // Read/write mode
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    // Seek to the record
+    long position = (long)record_num * sizeof(Employee);
+    if (fseek(file, position, SEEK_SET) != 0) {
+        perror("Error seeking");
+        fclose(file);
+        return;
+    }
+
+    // Read the employee
+    Employee emp;
+    if (fread(&emp, sizeof(Employee), 1, file) != 1) {
+        fprintf(stderr, "Error reading employee\n");
+        fclose(file);
+        return;
+    }
+
+    // Update salary
+    emp.salary = new_salary;
+
+    // Go back to the record position
+    fseek(file, position, SEEK_SET);
+
+    // Write updated record
+    if (fwrite(&emp, sizeof(Employee), 1, file) != 1) {
+        fprintf(stderr, "Error writing employee\n");
+    } else {
+        printf("Updated employee %d: %s, new salary: $%.2f\n",
+               emp.id, emp.name, emp.salary);
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    const char *filename = "employees.dat";
+
+    create_employee_file(filename);
+
+    // Read specific records
+    printf("Reading employee at record 0:\n");
+    Employee *emp = read_employee_by_id(filename, 0);
+    if (emp) {
+        printf("  ID: %d, Name: %s, Salary: $%.2f\n",
+               emp->id, emp->name, emp->salary);
+        free(emp);
+    }
+
+    printf("\nReading employee at record 2:\n");
+    emp = read_employee_by_id(filename, 2);
+    if (emp) {
+        printf("  ID: %d, Name: %s, Salary: $%.2f\n",
+               emp->id, emp->name, emp->salary);
+        free(emp);
+    }
+
+    // Update a record
+    printf("\nUpdating employee at record 1:\n");
+    update_employee_salary(filename, 1, 72000.0);
+
+    return EXIT_SUCCESS;
+}
+```
+
+## Example 3: Getting File Size
+
+A common use of `fseek()` and `ftell()` is determining file size.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+long get_file_size(const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        perror("Error opening file");
+        return -1;
+    }
+
+    // Seek to end
+    if (fseek(file, 0, SEEK_END) != 0) {
+        perror("Error seeking");
+        fclose(file);
+        return -1;
+    }
+
+    // Get position (which is the size)
+    long size = ftell(file);
+
+    fclose(file);
+    return size;
+}
+
+void display_file_info(const char *filename) {
+    long size = get_file_size(filename);
+
+    if (size < 0) {
+        printf("Cannot determine size of %s\n", filename);
+        return;
+    }
+
+    printf("File: %s\n", filename);
+    printf("Size: %ld bytes\n", size);
+
+    if (size < 1024) {
+        printf("      %ld bytes\n", size);
+    } else if (size < 1024 * 1024) {
+        printf("      %.2f KB\n", size / 1024.0);
+    } else {
+        printf("      %.2f MB\n", size / (1024.0 * 1024.0));
+    }
+}
+
+int main(void) {
+    // Create a test file
+    FILE *file = fopen("test.dat", "wb");
+    if (file) {
+        char data[10000] = {0};
+        fwrite(data, 1, sizeof(data), file);
+        fclose(file);
+    }
+
+    display_file_info("test.dat");
+    return EXIT_SUCCESS;
+}
+```
+
+## Example 4: Using rewind()
+
+The `rewind()` function is a convenient way to return to the beginning of a file.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void count_and_display_lines(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    // First pass: count lines
+    int line_count = 0;
+    char buffer[256];
+
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        line_count++;
+    }
+
+    printf("Total lines: %d\n\n", line_count);
+
+    // Return to beginning
+    rewind(file);
+
+    // Second pass: display with line numbers
+    int line_num = 1;
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        printf("%3d: %s", line_num++, buffer);
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    // Create test file
+    FILE *file = fopen("sample.txt", "w");
+    if (file) {
+        fprintf(file, "First line\n");
+        fprintf(file, "Second line\n");
+        fprintf(file, "Third line\n");
+        fprintf(file, "Fourth line\n");
+        fclose(file);
+    }
+
+    count_and_display_lines("sample.txt");
+    return EXIT_SUCCESS;
+}
+```
+
+**Note:** `rewind(file)` is equivalent to `fseek(file, 0, SEEK_SET)`, but also clears the error indicator.
+
+## Error Handling with fseek
+
+Always check if `fseek()` succeeds:
+
+```c
+if (fseek(file, 100, SEEK_SET) != 0) {
+    perror("Seek failed");
+    // Handle error
+}
+```
+
+Common reasons for `fseek()` failure:
+- File is not seekable (e.g., stdin, pipes, network streams)
+- Invalid offset
+- I/O error
+
+## fgetpos() and fsetpos()
+
+For very large files (> 2GB), `ftell()` may not be sufficient. Use `fgetpos()` and `fsetpos()`:
+
+```c
+#include <stdio.h>
+
+void demonstrate_getpos_setpos(void) {
+    FILE *file = fopen("data.txt", "w+");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    fputs("Some data here", file);
+
+    // Save position
+    fpos_t position;
+    if (fgetpos(file, &position) != 0) {
+        perror("fgetpos failed");
+        fclose(file);
+        return;
+    }
+
+    // Write more data
+    fputs("More data", file);
+
+    // Restore saved position
+    if (fsetpos(file, &position) != 0) {
+        perror("fsetpos failed");
+        fclose(file);
+        return;
+    }
+
+    // Read from saved position
+    char buffer[20];
+    if (fgets(buffer, sizeof(buffer), file) != NULL) {
+        printf("Read from saved position: %s\n", buffer);
+    }
+
+    fclose(file);
+}
+```
+
+## Exercises
+
+### Exercise 1: Reverse File Reader
+Write a program that reads a text file backwards (last line first).
+
+```c
+// TODO: Implement print_file_reverse(const char *filename)
+// Hint: Seek to end, then move backwards character by character
+// Print lines in reverse order
+```
+
+### Exercise 2: Binary Search in File
+Implement a binary search function for a sorted binary file of integers.
+
+```c
+// TODO: Implement binary_search_file(const char *filename, int target)
+// File contains sorted integers
+// Return position of target, or -1 if not found
+// Use fseek to jump to middle, then adjust range
+```
+
+### Exercise 3: File Splitter
+Create a program that splits a large file into smaller chunks:
+
+```c
+// TODO: Implement split_file(const char *input, size_t chunk_size)
+// Read input file in chunks using fseek/fread
+// Write each chunk to separate files (input.001, input.002, etc.)
+```
+
+### Exercise 4: Record Editor
+Build a simple record editor that:
+- Displays all records from a binary file
+- Allows user to select a record number
+- Seeks to that record
+- Lets user edit fields
+- Writes the updated record back
+
+## Key Takeaways
+
+- `fseek()` moves the file position indicator to any location in the file
+- `SEEK_SET` seeks from beginning, `SEEK_CUR` from current, `SEEK_END` from end
+- `ftell()` returns the current position as a byte offset from the beginning
+- `rewind()` returns to the beginning and clears error indicators
+- File positioning enables random access to any part of a file
+- Calculating record positions: `position = record_number * sizeof(record)`
+- Mode "r+b" or "w+b" allows both reading and writing with positioning
+- Always check return values from `fseek()` and `ftell()`
+- For large files (>2GB), use `fgetpos()` and `fsetpos()` instead
+- Not all streams are seekable (pipes, stdin, network connections)
+
+File positioning transforms files from sequential storage into random-access databases. Combined with reading and writing, you can build sophisticated file-based data structures. Next, we'll explore the crucial differences between binary and text modes.

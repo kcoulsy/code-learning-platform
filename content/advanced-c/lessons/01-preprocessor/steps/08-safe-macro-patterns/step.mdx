@@ -1,0 +1,389 @@
+---
+id: 08-safe-macro-patterns
+title: Safe Macro Patterns and Idioms
+order: 8
+---
+
+# Safe Macro Patterns and Idioms
+
+Writing safe macros requires discipline and specific patterns. This step covers battle-tested idioms that prevent common pitfalls.
+
+## The Golden Rule: do { ... } while(0)
+
+This is the most important macro safety pattern:
+
+```c
+#define SAFE_INIT(ptr, size) \
+    do { \
+        (ptr) = malloc(size); \
+        if ((ptr) == NULL) { \
+            fprintf(stderr, "Allocation failed\n"); \
+            exit(1); \
+        } \
+        memset((ptr), 0, (size)); \
+    } while (0)
+```
+
+### Why do { ... } while(0)?
+
+**Problem 1: Missing semicolon**
+
+```c
+// Bad: No semicolon at the end
+#define BAD_INIT(ptr, size) \
+    { (ptr) = malloc(size); memset((ptr), 0, (size)); }
+
+if (needs_init)
+    BAD_INIT(ptr, 100)  // No semicolon
+else
+    do_something_else();
+
+// Expands to:
+if (needs_init)
+    { ptr = malloc(100); memset(ptr, 0, 100); }  // No semicolon needed
+else
+    do_something_else();
+
+// This works! But what if we add a semicolon?
+if (needs_init)
+    BAD_INIT(ptr, 100);  // Extra semicolon
+else
+    do_something_else();
+
+// Expands to:
+if (needs_init)
+    { ptr = malloc(100); memset(ptr, 0, 100); };  // Now we have a problem
+else
+    do_something_else();
+
+// The else is now attached to nothing! Syntax error.
+```
+
+**Problem 2: else without braces**
+
+```c
+// Bad
+#define BAD_INIT(ptr, size) { (ptr) = malloc(size); }
+
+if (needs_init)
+    BAD_INIT(ptr, 100)
+else
+    do_something_else();
+
+// Expands to:
+if (needs_init)
+    { ptr = malloc(100); }
+else
+    do_something_else();
+
+// This works! But with a semicolon:
+if (needs_init)
+    BAD_INIT(ptr, 100);
+else
+    do_something_else();
+
+// Expands to:
+if (needs_init)
+    { ptr = malloc(100); };
+else
+    do_something_else();
+
+// The else is orphaned. Error!
+```
+
+**Solution: do { ... } while(0)**
+
+```c
+#define SAFE_INIT(ptr, size) \
+    do { \
+        (ptr) = malloc(size); \
+        memset((ptr), 0, (size)); \
+    } while (0)
+
+// Works with semicolon:
+if (needs_init)
+    SAFE_INIT(ptr, 100);
+else
+    do_something_else();
+
+// Expands to:
+if (needs_init)
+    do {
+        ptr = malloc(100);
+        memset(ptr, 0, 100);
+    } while (0);
+else
+    do_something_else();
+```
+
+The `do { ... } while(0)` creates a single statement that:
+
+- Requires a semicolon
+- Works properly in if/else without braces
+- Creates a scope for local variables
+- Optimizes away completely (zero runtime cost)
+
+## Pattern 1: Swapping Two Values
+
+```c
+#define SWAP(a, b) \
+    do { \
+        typeof(a) _temp = (a); \
+        (a) = (b); \
+        (b) = _temp; \
+    } while (0)
+
+int x = 1, y = 2;
+SWAP(x, y);
+// x = 2, y = 1
+
+// Works with different types
+int i = 10;
+double d = 3.14;
+SWAP(i, d);  // Warning but compiles
+```
+
+For type safety, use `_Generic` (C11):
+
+```c
+#define SWAP(a, b) \
+    do { \
+        typeof(a) _temp = (a); \
+        _Static_assert(sizeof(a) == sizeof(b), "Type mismatch in SWAP"); \
+        (a) = (b); \
+        (b) = _temp; \
+    } while (0)
+```
+
+## Pattern 2: Array Size Macro
+
+```c
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+int values[] = {1, 2, 3, 4, 5};
+size_t n = ARRAY_SIZE(values);  // 5
+```
+
+**Safety improvement**: Prevent use on pointers:
+
+```c
+#define ARRAY_SIZE(arr) \
+    ((sizeof(arr) / sizeof((arr)[0])) + \
+     sizeof(char[1 - 2 * !(sizeof(arr) / sizeof((arr)[0]))]))
+
+// Now this won't compile:
+int *ptr;
+int n = ARRAY_SIZE(ptr);  // Compile error!
+```
+
+Or use `__builtin_types_compatible_p` (GCC):
+
+```c
+#define ARRAY_SIZE(arr) \
+    (__builtin_types_compatible_p(typeof(arr), typeof(&*(arr))) ? \
+     sizeof(arr) / sizeof((arr)[0]) : \
+     (void)0)
+
+int *ptr;
+int n = ARRAY_SIZE(ptr);  // Error: void value not ignored
+```
+
+## Pattern 3: Min/Max with Single Evaluation
+
+```c
+#define MAX(a, b) \
+    ({ \
+        typeof(a) _a = (a); \
+        typeof(b) _b = (b); \
+        _a > _b ? _a : _b; \
+    })
+
+#define MIN(a, b) \
+    ({ \
+        typeof(a) _a = (a); \
+        typeof(b) _b = (b); \
+        _a < _b ? _a : _b; \
+    })
+
+// Safe with side effects:
+int x = 1, y = 2;
+int m = MAX(x++, y++);  // x and y each incremented once
+```
+
+Note: `({...})` is a GCC extension called statement expression. For standard C, use inline functions.
+
+## Pattern 4: Debug Print Macro
+
+```c
+#ifdef DEBUG
+    #define DBG_PRINT(fmt, ...) \
+        do { \
+            fprintf(stderr, "[DEBUG] %s:%d: " fmt "\n", \
+                    __FILE__, __LINE__, ##__VA_ARGS__); \
+        } while (0)
+#else
+    #define DBG_PRINT(fmt, ...) ((void)0)
+#endif
+
+DBG_PRINT("Value: %d", x);
+// Debug: [DEBUG] main.c:42: Value: 5
+
+// Release: completely removed
+```
+
+The `##__VA_ARGS__` removes the comma if `__VA_ARGS__` is empty.
+
+## Pattern 5: Scoped Resource Management
+
+```c
+#define WITH_FILE(name, filename, mode) \
+    for (FILE *name = fopen(filename, mode); \
+         name != NULL; \
+         fclose(name), name = NULL)
+
+WITH_FILE(f, "data.txt", "r") {
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        process(line);
+    }
+}
+// File automatically closed here
+```
+
+## Pattern 6: Cleanup on Error
+
+```c
+#define CLEANUP(function) \
+    __attribute__((cleanup(function)))
+
+void close_file(FILE **f) {
+    if (*f != NULL) {
+        fclose(*f);
+        *f = NULL;
+    }
+}
+
+void read_data(void) {
+    CLEANUP(close_file) FILE *f = fopen("data.txt", "r");
+    // ... use f ...
+    // Automatically closed when function returns
+}
+```
+
+Note: `__attribute__((cleanup))` is a GCC/Clang extension.
+
+## Pattern 7: Offset of Structure Member
+
+```c
+#define OFFSET_OF(type, member) \
+    ((size_t)&(((type *)0)->member))
+
+typedef struct {
+    int a;
+    char b;
+    double c;
+} MyStruct;
+
+size_t offset = OFFSET_OF(MyStruct, c);  // Offset of 'c' in the struct
+```
+
+## Pattern 8: Container of (Linked Lists)
+
+```c
+#define CONTAINER_OF(ptr, type, member) \
+    ((type *)((char *)(ptr) - OFFSET_OF(type, member)))
+
+typedef struct Node {
+    int data;
+    struct Node *next;
+} Node;
+
+typedef struct {
+    Node node;
+    int extra_field;
+} ExtendedNode;
+
+ExtendedNode ext = { .node.data = 42 };
+Node *n = &ext.node;
+
+// Get back to ExtendedNode
+ExtendedNode *e = CONTAINER_OF(n, ExtendedNode, node);
+```
+
+## Pattern 9: Assert Macro
+
+```c
+#ifdef DEBUG
+    #define ASSERT(condition) \
+        do { \
+            if (!(condition)) { \
+                fprintf(stderr, \
+                        "Assertion failed: %s, file %s, line %d\n", \
+                        #condition, __FILE__, __LINE__); \
+                abort(); \
+            } \
+        } while (0)
+#else
+    #define ASSERT(condition) ((void)0)
+#endif
+
+ASSERT(ptr != NULL);
+ASSERT(count > 0);
+```
+
+## Pattern 10: Bit Manipulation
+
+```c
+#define BIT_SET(x, bit)   ((x) |= (1U << (bit)))
+#define BIT_CLR(x, bit)   ((x) &= ~(1U << (bit)))
+#define BIT_TOG(x, bit)   ((x) ^= (1U << (bit)))
+#define BIT_TST(x, bit)   (((x) >> (bit)) & 1U)
+
+unsigned flags = 0;
+BIT_SET(flags, 3);   // Set bit 3
+if (BIT_TST(flags, 3)) {
+    printf("Bit 3 is set\n");
+}
+BIT_CLR(flags, 3);   // Clear bit 3
+```
+
+## Best Practices Summary
+
+1. **Always** use `do { ... } while(0)` for multi-statement macros
+2. **Always** parenthesize macro parameters in expansion
+3. **Always** evaluate parameters once when side effects matter
+4. **Never** use macros when inline functions work
+5. **Always** use `ALL_CAPS` for macro names
+6. **Always** document macros that have side effects
+7. **Consider** statement expressions for complex macros (GCC/Clang)
+8. **Prefer** `inline` + `_Generic` for type-safe generics (C11)
+
+## Practice Exercise
+
+Fix these unsafe macros:
+
+```c
+#define INC(x) x++
+#define MUL_AND_ADD(a, b, c) a * b + c
+#define SAFE_FREE(ptr) if (ptr) free(ptr); ptr = NULL
+```
+
+**Answers**:
+
+1. `INC(x) ++x` or use inline function
+2. `MUL_AND_ADD(a, b, c) (((a) * (b)) + (c))` — parenthesize the whole expression
+3. Missing `do { ... } while(0)`:
+
+```c
+#define SAFE_FREE(ptr) \
+    do { \
+        if (ptr) { \
+            free(ptr); \
+            (ptr) = NULL; \
+        } \
+    } while (0)
+```
+
+---
+
+**Next**: Macros vs inline functions — when to use each.

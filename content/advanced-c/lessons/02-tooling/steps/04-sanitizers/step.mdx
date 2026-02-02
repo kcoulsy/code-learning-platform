@@ -1,0 +1,393 @@
+---
+id: 04-sanitizers
+title: Sanitizers: Runtime Error Detection
+order: 4
+---
+
+# Sanitizers: Runtime Error Detection
+
+Sanitizers are compiler tools that insert runtime checks to catch bugs as they happen. They're incredibly effective at finding memory errors, undefined behavior, and concurrency issues.
+
+## What Sanitizers Do
+
+Sanitizers instrument your code at compile time to detect:
+
+- **Memory errors**: Out-of-bounds access, use-after-free, leaks
+- **Undefined behavior**: Signed overflow, misaligned pointers, null derefs
+- **Thread errors**: Data races, deadlocks
+- **Memory leaks**: Unfreed allocations
+
+They slow down your code (2-10x), but find bugs that are otherwise nearly impossible to track down.
+
+## AddressSanitizer (ASan)
+
+**Detects**: Memory corruption bugs
+
+### Compiling with ASan
+
+```bash
+gcc -fsanitize=address -g program.c -o program
+# or
+clang -fsanitize=address -g program.c -o program
+```
+
+### What ASan Detects
+
+1. **Heap buffer overflow**
+
+```c
+int *arr = malloc(5 * sizeof(int));
+arr[5] = 42;  // Out of bounds!
+```
+
+2. **Stack buffer overflow**
+
+```c
+int arr[5];
+arr[5] = 42;  // Out of bounds!
+```
+
+3. **Global buffer overflow**
+
+```c
+int arr[5];
+arr[5] = 42;  // Out of bounds!
+```
+
+4. **Use after free**
+
+```c
+int *ptr = malloc(sizeof(int));
+free(ptr);
+*ptr = 42;  // Use after free!
+```
+
+5. **Use after return**
+
+```c
+int *func(void) {
+    int x = 42;
+    return &x;  // Return pointer to stack!
+}
+int *p = func();
+*p = 10;  // Use after return!
+```
+
+6. **Double free**
+
+```c
+int *ptr = malloc(sizeof(int));
+free(ptr);
+free(ptr);  // Double free!
+```
+
+7. **Memory leaks**
+
+```c
+void leak(void) {
+    malloc(100);  // Never freed
+}
+```
+
+### ASan Output Example
+
+```
+=================================================================
+==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x607000000050
+WRITE of size 4 at 0x607000000050 thread T0
+    #0 0x4005d7 in main /tmp/test.c:6
+    #1 0x7f8a2b3b2b96 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x21b96)
+
+0x607000000050 is located 0 bytes after 20-byte region
+allocated by thread T0 here:
+    #0 0x7f8a2c3b3b4a in malloc (/usr/lib/x86_64-linux-gnu/libasan.so.2+0x98b4a)
+    #1 0x4005c0 in main /tmp/test.c:4
+    #2 0x7f8a2b3b2b96 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x21b96)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /tmp/test.c:6
+=================================================================
+```
+
+### ASan Options
+
+```bash
+# Detect leaks (default: detect but don't exit)
+ASAN_OPTIONS=detect_leaks=1 ./program
+
+# More detailed reports
+ASAN_OPTIONS=verbosity=1 ./program
+
+# Disable leak detection (faster)
+ASAN_OPTIONS=detect_leaks=0 ./program
+
+# Set quarantine size (for use-after-free detection)
+ASAN_OPTIONS=quarantine_size_mb=256 ./program
+```
+
+### Suppression Files
+
+Create `asan.supp`:
+
+```
+# Suppress false positives
+leak:libpthread.so
+leak:libdl.so
+```
+
+Run with:
+
+```bash
+ASAN_OPTIONS=suppressions=asan.supp ./program
+```
+
+## UndefinedBehaviorSanitizer (UBSan)
+
+**Detects**: Undefined behavior
+
+### Compiling with UBSan
+
+```bash
+gcc -fsanitize=undefined -g program.c -o program
+# or
+clang -fsanitize=undefined -g program.c -o program
+```
+
+### What UBSan Detects
+
+1. **Signed integer overflow**
+
+```c
+int x = INT_MAX;
+int y = x + 1;  // Signed overflow!
+```
+
+2. **Misaligned pointer access**
+
+```c
+char buffer[10];
+int *p = (int *)(buffer + 1);
+*p = 42;  // Misaligned!
+```
+
+3. **Null pointer dereference**
+
+```c
+int *ptr = NULL;
+*ptr = 42;  // Null deref!
+```
+
+4. **Boolean overflow**
+
+```c
+bool b = true;
+b = b + 1;  // Not 0 or 1!
+```
+
+5. **Invalid enum values**
+
+```c
+enum Color { RED, GREEN, BLUE };
+enum Color c = 42;  // Invalid!
+```
+
+6. **Division by zero**
+
+```c
+int x = 10 / 0;  // Division by zero!
+```
+
+7. **Shift out of bounds**
+
+```c
+int x = 1 << 33;  // Shift exceeds width!
+```
+
+### UBSan Output Example
+
+```
+/tmp/test.c:5:10: runtime error: signed integer overflow: 2147483647 + 1 cannot be represented in type 'int'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/test.c:5:10
+```
+
+### Combined Sanitizers
+
+Use multiple sanitizers together:
+
+```bash
+gcc -fsanitize=address,undefined -g program.c -o program
+```
+
+## ThreadSanitizer (TSan)
+
+**Detects**: Data races and threading issues
+
+### Compiling with TSan
+
+```bash
+gcc -fsanitize=thread -g program.c -o program -pthread
+# or
+clang -fsanitize=thread -g program.c -o program -pthread
+```
+
+### What TSan Detects
+
+1. **Data races**
+
+```c
+int shared = 0;
+
+void *thread1(void *arg) {
+    shared = 42;  // Race!
+    return NULL;
+}
+
+void *thread2(void *arg) {
+    shared = 100;  // Race!
+    return NULL;
+}
+```
+
+2. **Thread leaks**
+
+```c
+pthread_t thread;
+pthread_create(&thread, NULL, func, NULL);
+// Never joined or detached
+```
+
+### TSan Output Example
+
+```
+==================
+WARNING: ThreadSanitizer: data race (pid=12345)
+Write of size 4 at 0x7f8a0c000000 by thread T2:
+  #0 thread2 /tmp/test.c:10
+Previous write of size 4 at 0x7f8a0c000000 by thread T1:
+  #0 thread1 /tmp/test.c:6
+==================
+```
+
+**Note**: TSan doesn't work with ASan (they're incompatible).
+
+## MemorySanitizer (MSan)
+
+**Detects**: Uninitialized memory reads
+
+### Compiling with MSan
+
+```bash
+clang -fsanitize=memory -g program.c -o program
+```
+
+### What MSan Detects
+
+```c
+int x;
+int y = x;  // Reading uninitialized memory!
+```
+
+**Note**: MSan requires all libraries (including libc) to be instrumented. Not always practical.
+
+## LeakSanitizer (LSan)
+
+Part of ASan, but can be used separately:
+
+```bash
+gcc -fsanitize=leak -g program.c -o program
+```
+
+### LeakSanitizer Output
+
+```
+=================================================================
+==12345==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 100 byte(s) in 1 object(s) allocated from:
+    #0 0x7f8a2c3b3b4a in malloc (/usr/lib/x86_64-linux-gnu/libasan.so.2+0x98b4a)
+    #1 0x4005c0 in main /tmp/test.c:4
+
+SUMMARY: AddressSanitizer: 100 byte(s) leaked
+=================================================================
+```
+
+## Best Practices
+
+### 1. Use Sanitizers in Development
+
+```bash
+# Debug build with sanitizers
+gcc -g -fsanitize=address,undefined -Wall -Wextra program.c -o program_debug
+
+# Release build without sanitizers
+gcc -O3 -DNDEBUG program.c -o program_release
+```
+
+### 2. CI/CD Integration
+
+```yaml
+# .github/workflows/test.yml
+- name: Build with sanitizers
+  run: |
+    gcc -fsanitize=address,undefined -g test.c -o test
+
+- name: Run tests
+  run: ./test
+```
+
+### 3. Suppression for False Positives
+
+Some libraries have false positives. Use suppression files:
+
+```bash
+ASAN_OPTIONS=suppressions=asan.supp ./program
+```
+
+### 4. Don't Mix Sanitizers
+
+- **ASan** + **UBSan** = OK
+- **TSan** + anything else = NO (incompatible)
+- **MSan** + anything else = NO (incompatible)
+
+### 5. Performance Impact
+
+| Sanitizer | Slowdown | Memory Overhead |
+| --------- | -------- | --------------- |
+| ASan      | 2x       | 3x              |
+| UBSan     | Minimal  | Minimal         |
+| TSan      | 5-20x    | 5-10x           |
+| MSan      | 3x       | 3x              |
+
+## Practice Exercise
+
+Find all bugs using ASan and UBSan:
+
+```c
+// bugs.c
+#include <stdlib.h>
+#include <limits.h>
+
+int main(void) {
+    int *arr = malloc(5 * sizeof(int));
+    arr[5] = 42;
+
+    int x = INT_MAX;
+    int y = x + 1;
+
+    free(arr);
+    arr[0] = 10;
+
+    return 0;
+}
+```
+
+Compile with: `gcc -fsanitize=address,undefined -g bugs.c`
+
+**Answer**:
+
+1. `arr[5] = 42` — heap buffer overflow
+2. `x + 1` — signed integer overflow
+3. `arr[0] = 10` after `free(arr)` — use after free
+
+---
+
+**Next**: Binary inspection with objdump, nm, and strings.

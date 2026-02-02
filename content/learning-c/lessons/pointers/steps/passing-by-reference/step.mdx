@@ -1,0 +1,427 @@
+---
+title: "Passing by Reference"
+order: 5
+---
+
+# Passing by Reference
+
+In C, function parameters are passed **by value** by default—the function receives a copy. To modify the original variable, you must pass its address (pass by reference using pointers). This is one of the most practical applications of pointers.
+
+## The Problem: Pass by Value
+
+When you pass a variable to a function, the function gets a copy. Changes to the copy don't affect the original.
+
+```c
+#include <stdio.h>
+
+void try_to_double(int x) {
+    x = x * 2;
+    printf("Inside function: x = %d\n", x);
+}
+
+int main(void) {
+    int num = 10;
+
+    printf("Before: num = %d\n", num);  // 10
+    try_to_double(num);                 // Inside function: x = 20
+    printf("After: num = %d\n", num);   // 10 (unchanged!)
+
+    return 0;
+}
+```
+
+The function modified its local copy of `num`, not the original.
+
+## The Solution: Pass by Reference
+
+Pass the **address** of the variable. The function receives a pointer and can modify the original.
+
+```c
+#include <stdio.h>
+
+void actually_double(int *ptr) {
+    *ptr = *ptr * 2;  // Modify the value at the address
+    printf("Inside function: *ptr = %d\n", *ptr);
+}
+
+int main(void) {
+    int num = 10;
+
+    printf("Before: num = %d\n", num);     // 10
+    actually_double(&num);                 // Pass address
+    printf("After: num = %d\n", num);      // 20 (modified!)
+
+    return 0;
+}
+```
+
+**Key points:**
+- Parameter is `int *ptr` (pointer to int)
+- Call with `&num` (address of num)
+- Use `*ptr` to access/modify the value
+
+## Classic Example: Swap Function
+
+A swap function exchanges two values. This requires pass by reference.
+
+```c
+#include <stdio.h>
+
+// WRONG: This doesn't work (pass by value)
+void swap_wrong(int a, int b) {
+    int temp = a;
+    a = b;
+    b = temp;
+    // Only swaps the local copies!
+}
+
+// CORRECT: Pass by reference
+void swap(int *a, int *b) {
+    int temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+int main(void) {
+    int x = 5, y = 10;
+
+    printf("Before swap_wrong: x = %d, y = %d\n", x, y);
+    swap_wrong(x, y);
+    printf("After swap_wrong: x = %d, y = %d\n", x, y);  // Unchanged!
+
+    printf("\nBefore swap: x = %d, y = %d\n", x, y);
+    swap(&x, &y);  // Pass addresses
+    printf("After swap: x = %d, y = %d\n", x, y);        // Swapped!
+
+    return 0;
+}
+```
+
+Output:
+```
+Before swap_wrong: x = 5, y = 10
+After swap_wrong: x = 5, y = 10
+
+Before swap: x = 5, y = 10
+After swap: x = 10, y = 5
+```
+
+## Multiple Return Values
+
+Functions can only return one value, but with pointers, you can "return" multiple values by modifying parameters.
+
+```c
+#include <stdio.h>
+
+// Calculate both quotient and remainder
+void divide(int dividend, int divisor, int *quotient, int *remainder) {
+    if (divisor == 0) {
+        return;  // Handle division by zero
+    }
+    *quotient = dividend / divisor;
+    *remainder = dividend % divisor;
+}
+
+int main(void) {
+    int q, r;
+
+    divide(17, 5, &q, &r);
+    printf("17 / 5 = %d remainder %d\n", q, r);  // 3 remainder 2
+
+    divide(100, 7, &q, &r);
+    printf("100 / 7 = %d remainder %d\n", q, r);  // 14 remainder 2
+
+    return 0;
+}
+```
+
+The function modifies both `q` and `r` through their addresses.
+
+## Optional Output Parameters
+
+Use NULL to indicate you don't need a particular output value.
+
+```c
+#include <stdio.h>
+
+// min/max finder with optional outputs
+void find_min_max(int arr[], int size, int *min, int *max) {
+    if (size == 0) return;
+
+    int min_val = arr[0];
+    int max_val = arr[0];
+
+    for (int i = 1; i < size; i++) {
+        if (arr[i] < min_val) min_val = arr[i];
+        if (arr[i] > max_val) max_val = arr[i];
+    }
+
+    // Only set outputs if pointers are not NULL
+    if (min != NULL) *min = min_val;
+    if (max != NULL) *max = max_val;
+}
+
+int main(void) {
+    int numbers[] = {5, 2, 9, 1, 7, 3};
+    int size = sizeof(numbers) / sizeof(numbers[0]);
+
+    int minimum, maximum;
+
+    // Get both min and max
+    find_min_max(numbers, size, &minimum, &maximum);
+    printf("Min: %d, Max: %d\n", minimum, maximum);  // Min: 1, Max: 9
+
+    // Only get max (min is NULL)
+    find_min_max(numbers, size, NULL, &maximum);
+    printf("Max only: %d\n", maximum);  // Max only: 9
+
+    return 0;
+}
+```
+
+Always check for NULL before dereferencing output parameters!
+
+## Error Handling with Return Value
+
+Combine return value for success/failure with pointers for output.
+
+```c
+#include <stdio.h>
+
+// Returns 1 on success, 0 on failure
+int safe_divide(int dividend, int divisor, double *result) {
+    if (divisor == 0) {
+        return 0;  // Failure: division by zero
+    }
+
+    if (result != NULL) {
+        *result = (double)dividend / divisor;
+    }
+
+    return 1;  // Success
+}
+
+int main(void) {
+    double res;
+
+    if (safe_divide(10, 3, &res)) {
+        printf("10 / 3 = %.2f\n", res);  // 3.33
+    } else {
+        printf("Division failed\n");
+    }
+
+    if (safe_divide(10, 0, &res)) {
+        printf("10 / 0 = %.2f\n", res);
+    } else {
+        printf("Division failed\n");  // This executes
+    }
+
+    return 0;
+}
+```
+
+This pattern is very common in C libraries.
+
+## Modifying Array Elements
+
+You can pass pointers to specific array elements.
+
+```c
+#include <stdio.h>
+
+void increment(int *value) {
+    (*value)++;
+}
+
+int main(void) {
+    int arr[] = {10, 20, 30, 40, 50};
+
+    printf("Before: ");
+    for (int i = 0; i < 5; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+
+    // Increment specific elements
+    increment(&arr[0]);
+    increment(&arr[2]);
+    increment(&arr[4]);
+
+    printf("After: ");
+    for (int i = 0; i < 5; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+
+    return 0;
+}
+```
+
+Output:
+```
+Before: 10 20 30 40 50
+After: 11 20 31 40 51
+```
+
+## Const Pointers for Input Parameters
+
+Use `const` to indicate a pointer parameter is for input only (won't be modified).
+
+```c
+#include <stdio.h>
+
+// Input only: can't modify through pointer
+void print_value(const int *ptr) {
+    printf("Value: %d\n", *ptr);
+    // *ptr = 42;  // ERROR: can't modify const
+}
+
+// Output: will be modified
+void set_value(int *ptr, int value) {
+    *ptr = value;
+}
+
+int main(void) {
+    int x = 10;
+
+    print_value(&x);    // Input: read-only
+    set_value(&x, 20);  // Output: writable
+    print_value(&x);    // Input: read-only
+
+    return 0;
+}
+```
+
+**Best practice:** Use `const` for pointer parameters you won't modify. It documents intent and catches bugs.
+
+## Common Pitfalls
+
+### Pitfall 1: Forgetting the &
+
+```c
+void set_to_zero(int *ptr) {
+    *ptr = 0;
+}
+
+int main(void) {
+    int x = 10;
+    set_to_zero(x);     // ERROR: passing int, not int*
+    // Correct:
+    set_to_zero(&x);    // Pass address
+}
+```
+
+**Fix:** Remember to use `&` when passing variables by reference.
+
+### Pitfall 2: Forgetting the * in Function
+
+```c
+void double_it(int *ptr) {
+    ptr = ptr * 2;      // WRONG: modifies pointer, not value
+    // Correct:
+    *ptr = *ptr * 2;    // Modify the value
+}
+```
+
+**Fix:** Use `*ptr` to access the value, not `ptr`.
+
+### Pitfall 3: Not Checking for NULL
+
+```c
+void set_value(int *ptr, int value) {
+    *ptr = value;       // CRASH if ptr is NULL!
+}
+
+// Better:
+void set_value_safe(int *ptr, int value) {
+    if (ptr != NULL) {
+        *ptr = value;
+    }
+}
+```
+
+**Fix:** Always validate pointer parameters aren't NULL.
+
+### Pitfall 4: Returning Pointer to Local Variable
+
+```c
+int* get_value(void) {
+    int x = 42;
+    return &x;          // DANGER! x goes out of scope
+}
+
+int main(void) {
+    int *ptr = get_value();
+    printf("%d\n", *ptr);  // Undefined behavior!
+}
+```
+
+**Fix:** Don't return addresses of local variables. Use dynamic allocation or output parameters.
+
+### Pitfall 5: Modifying String Literals
+
+```c
+void uppercase(char *str) {
+    while (*str) {
+        if (*str >= 'a' && *str <= 'z') {
+            *str = *str - 32;
+        }
+        str++;
+    }
+}
+
+int main(void) {
+    uppercase("hello");  // CRASH! String literal is read-only
+}
+```
+
+**Fix:** Use `char arr[] = "hello";` or `const char*` for read-only strings.
+
+### Pitfall 6: Confusing * in Declaration and Usage
+
+```c
+void process(int *ptr) {     // * means "pointer to"
+    int *copy = ptr;         // * means "pointer to"
+    *copy = 10;              // * means "dereference"
+}
+```
+
+Context matters! Learn to recognize which meaning applies.
+
+## Pass by Reference Summary
+
+| Aspect | Pass by Value | Pass by Reference |
+|--------|---------------|-------------------|
+| Parameter type | `int x` | `int *ptr` |
+| Call syntax | `func(var)` | `func(&var)` |
+| Modifies original | No | Yes |
+| Use case | Input only | Output or modify |
+| Safety | Can't corrupt data | Must validate NULL |
+
+## Key Takeaways
+
+- Pass by value: function gets a copy (can't modify original)
+- Pass by reference: pass address with `&`, receive pointer
+- Use `*ptr` to access/modify the value at the address
+- Classic use: swap function, multiple outputs
+- Always check for NULL before dereferencing
+- Use `const` for input-only pointer parameters
+- Return value for success/failure, pointers for outputs
+- Don't return addresses of local variables
+- Remember: `&` when calling, `*` when using inside function
+
+## Exercises
+
+1. **Three-Way Swap**: Write a function that rotates three values: `a → b → c → a`. Use pass by reference.
+
+2. **Min/Max/Avg**: Write a function that takes an array and calculates minimum, maximum, and average. Return all three via pointer parameters.
+
+3. **String Reverse**: Write a function that reverses a string in place. Pass the string by reference and modify it directly.
+
+4. **Circle Calculator**: Write a function that takes a radius and outputs both area and circumference via pointers. Return 1 on success, 0 if radius is negative.
+
+5. **Array Normalizer**: Write a function that finds the maximum value in an array and divides all elements by it. Modify the array in place.
+
+6. **Safe Input**: Write a function `safe_read_int` that reads an integer from the user and returns 1 on success, 0 on failure (invalid input). Store the value via an `int*` parameter.
+
+7. **Swap Variants**: Write three swap functions: `swap_int`, `swap_float`, `swap_char`. Test all three with different types. Notice the pattern?

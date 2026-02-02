@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react"
 import type { Step } from "@/lib/course-data"
+import { useStepCompletion } from "@/lib/progress-hooks"
 
 interface StepNavigationProps {
   courseId: string
@@ -20,8 +21,10 @@ export function StepNavigation({
   const prevStep = currentIndex > 0 ? steps[currentIndex - 1] : null
   const nextStep = currentIndex < steps.length - 1 ? steps[currentIndex + 1] : null
 
+  const { isComplete, markComplete } = useStepCompletion(courseId, itemId, currentStepId)
+
   return (
-    <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
+    <div className="flex items-center justify-between">
       {prevStep ? (
         <Link to={`/course/${courseId}/${itemId}/${prevStep.id}`}>
           <Button variant="outline" className="gap-2 bg-transparent">
@@ -34,12 +37,13 @@ export function StepNavigation({
         <div />
       )}
 
-      <div className="text-sm text-muted-foreground">
-        Step {currentIndex + 1} of {steps.length}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {isComplete && <CheckCircle className="h-4 w-4 text-primary" />}
+        <span>Step {currentIndex + 1} of {steps.length}</span>
       </div>
 
       {nextStep ? (
-        <Link to={`/course/${courseId}/${itemId}/${nextStep.id}`}>
+        <Link to={`/course/${courseId}/${itemId}/${nextStep.id}`} onClick={markComplete}>
           <Button className="gap-2">
             <span className="hidden sm:inline">{nextStep.title}</span>
             <span className="sm:hidden">Next</span>

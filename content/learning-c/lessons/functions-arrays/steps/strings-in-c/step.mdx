@@ -1,0 +1,482 @@
+---
+title: "Strings in C"
+description: "Master C's unique approach to string handling with character arrays"
+order: 6
+---
+
+# Strings in C
+
+Strings in C are fundamentally different from strings in higher-level languages. Understanding C's string representation is crucial for safe and effective text processing.
+
+## Introduction
+
+Unlike languages where strings are a built-in type, C represents strings as arrays of characters terminated by a special null character (`'\0'`). This simple yet powerful approach requires careful handling but offers maximum flexibility and efficiency.
+
+Key concepts:
+- Strings are character arrays ending with `'\0'`
+- The null terminator marks the end of the string
+- String literals are automatically null-terminated
+- You must manage string memory and bounds carefully
+
+## The Null Terminator
+
+The null terminator (`'\0'`) is a character with ASCII value 0. It tells C functions where the string ends.
+
+Example: The string "Hello" is stored as:
+```
+['H']['e']['l']['l']['o']['\0']
+  0    1    2    3    4    5     <- indices
+```
+
+This requires 6 bytes: 5 for characters + 1 for `'\0'`.
+
+## Code Examples
+
+### Example 1: String Declaration and Initialization
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Method 1: String literal (automatically null-terminated)
+    char str1[] = "Hello";  // Size is 6: {'H','e','l','l','o','\0'}
+
+    // Method 2: Character array (must add '\0' manually)
+    char str2[] = {'W', 'o', 'r', 'l', 'd', '\0'};
+
+    // Method 3: Fixed size (must have space for '\0')
+    char str3[10] = "Hi";  // "Hi\0" + unused space
+
+    // Method 4: Pointer to string literal (read-only!)
+    char *str4 = "Pointer";
+
+    // Print strings
+    printf("str1: %s\n", str1);
+    printf("str2: %s\n", str2);
+    printf("str3: %s\n", str3);
+    printf("str4: %s\n", str4);
+
+    // Print individual characters
+    printf("\nCharacters in str1:\n");
+    for (int i = 0; str1[i] != '\0'; i++) {
+        printf("[%d]: '%c' (ASCII %d)\n", i, str1[i], str1[i]);
+    }
+    printf("[%d]: '\\0' (ASCII %d)\n", 5, str1[5]);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+str1: Hello
+str2: World
+str3: Hi
+str4: Pointer
+
+Characters in str1:
+[0]: 'H' (ASCII 72)
+[1]: 'e' (ASCII 101)
+[2]: 'l' (ASCII 108)
+[3]: 'l' (ASCII 108)
+[4]: 'o' (ASCII 111)
+[5]: '\0' (ASCII 0)
+```
+
+### Example 2: String Input and Output
+
+```c
+#include <stdio.h>
+
+int main() {
+    char name[50];
+    char message[100];
+
+    // Read a word (stops at whitespace)
+    printf("Enter your first name: ");
+    scanf("%s", name);  // Note: no & needed for arrays!
+
+    // Clear input buffer
+    while (getchar() != '\n');
+
+    // Read a line (including spaces)
+    printf("Enter a message: ");
+    fgets(message, sizeof(message), stdin);
+
+    // fgets includes newline, so remove it
+    for (int i = 0; message[i] != '\0'; i++) {
+        if (message[i] == '\n') {
+            message[i] = '\0';
+            break;
+        }
+    }
+
+    printf("\nHello, %s!\n", name);
+    printf("Your message: %s\n", message);
+
+    return 0;
+}
+```
+
+**Sample interaction:**
+```
+Enter your first name: Alice
+Enter a message: Hello, World!
+
+Hello, Alice!
+Your message: Hello, World!
+```
+
+### Example 3: Manual String Operations
+
+```c
+#include <stdio.h>
+
+// Calculate string length
+int stringLength(char str[]) {
+    int length = 0;
+    while (str[length] != '\0') {
+        length++;
+    }
+    return length;
+}
+
+// Copy string
+void stringCopy(char dest[], char src[]) {
+    int i = 0;
+    while (src[i] != '\0') {
+        dest[i] = src[i];
+        i++;
+    }
+    dest[i] = '\0';  // Don't forget the null terminator!
+}
+
+// Compare strings (returns 0 if equal)
+int stringCompare(char str1[], char str2[]) {
+    int i = 0;
+    while (str1[i] != '\0' && str2[i] != '\0') {
+        if (str1[i] != str2[i]) {
+            return str1[i] - str2[i];
+        }
+        i++;
+    }
+    return str1[i] - str2[i];
+}
+
+// Concatenate strings
+void stringConcat(char dest[], char src[]) {
+    int destLen = stringLength(dest);
+    int i = 0;
+    while (src[i] != '\0') {
+        dest[destLen + i] = src[i];
+        i++;
+    }
+    dest[destLen + i] = '\0';
+}
+
+int main() {
+    char str1[50] = "Hello";
+    char str2[50] = "World";
+    char str3[50];
+
+    printf("Length of '%s': %d\n", str1, stringLength(str1));
+
+    stringCopy(str3, str1);
+    printf("Copied string: %s\n", str3);
+
+    int cmp = stringCompare(str1, str2);
+    printf("Compare '%s' and '%s': %d\n", str1, str2, cmp);
+
+    stringConcat(str1, " ");
+    stringConcat(str1, str2);
+    printf("Concatenated: %s\n", str1);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Length of 'Hello': 5
+Copied string: Hello
+Compare 'Hello' and 'World': -15
+Concatenated: Hello World
+```
+
+### Example 4: String Manipulation
+
+```c
+#include <stdio.h>
+#include <ctype.h>  // For character classification functions
+
+// Convert to uppercase
+void toUpperCase(char str[]) {
+    for (int i = 0; str[i] != '\0'; i++) {
+        if (str[i] >= 'a' && str[i] <= 'z') {
+            str[i] = str[i] - 32;  // or: str[i] = toupper(str[i]);
+        }
+    }
+}
+
+// Reverse string in place
+void reverseString(char str[]) {
+    int length = 0;
+    while (str[length] != '\0') length++;
+
+    for (int i = 0; i < length / 2; i++) {
+        char temp = str[i];
+        str[i] = str[length - 1 - i];
+        str[length - 1 - i] = temp;
+    }
+}
+
+// Count vowels
+int countVowels(char str[]) {
+    int count = 0;
+    for (int i = 0; str[i] != '\0'; i++) {
+        char c = tolower(str[i]);
+        if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u') {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Remove spaces
+void removeSpaces(char str[]) {
+    int i = 0, j = 0;
+    while (str[i] != '\0') {
+        if (str[i] != ' ') {
+            str[j] = str[i];
+            j++;
+        }
+        i++;
+    }
+    str[j] = '\0';
+}
+
+int main() {
+    char str1[50] = "Hello World";
+    char str2[50] = "Programming";
+    char str3[50] = "The Quick Brown Fox";
+
+    printf("Original: %s\n", str1);
+    toUpperCase(str1);
+    printf("Uppercase: %s\n", str1);
+
+    printf("\nOriginal: %s\n", str2);
+    reverseString(str2);
+    printf("Reversed: %s\n", str2);
+
+    printf("\nString: %s\n", str3);
+    printf("Vowel count: %d\n", countVowels(str3));
+    removeSpaces(str3);
+    printf("No spaces: %s\n", str3);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Original: Hello World
+Uppercase: HELLO WORLD
+
+Original: Programming
+Reversed: gnimmargorP
+
+String: The Quick Brown Fox
+Vowel count: 5
+No spaces: TheQuickBrownFox
+```
+
+### Example 5: Array of Strings
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Array of strings: 2D character array
+    char fruits[5][20] = {
+        "Apple",
+        "Banana",
+        "Orange",
+        "Grape",
+        "Mango"
+    };
+
+    // Print all fruits
+    printf("Fruits:\n");
+    for (int i = 0; i < 5; i++) {
+        printf("%d. %s\n", i + 1, fruits[i]);
+    }
+
+    // Array of pointers to strings (more memory efficient)
+    char *colors[] = {
+        "Red",
+        "Green",
+        "Blue",
+        "Yellow",
+        "Purple"
+    };
+
+    printf("\nColors:\n");
+    for (int i = 0; i < 5; i++) {
+        printf("- %s\n", colors[i]);
+    }
+
+    // Search for a string
+    char search[20];
+    printf("\nSearch for a fruit: ");
+    scanf("%s", search);
+
+    int found = 0;
+    for (int i = 0; i < 5; i++) {
+        // Simple comparison (case-sensitive)
+        int match = 1;
+        int j = 0;
+        while (fruits[i][j] != '\0' || search[j] != '\0') {
+            if (fruits[i][j] != search[j]) {
+                match = 0;
+                break;
+            }
+            j++;
+        }
+
+        if (match) {
+            printf("Found '%s' at position %d\n", search, i + 1);
+            found = 1;
+            break;
+        }
+    }
+
+    if (!found) {
+        printf("'%s' not found\n", search);
+    }
+
+    return 0;
+}
+```
+
+**Sample output:**
+```
+Fruits:
+1. Apple
+2. Banana
+3. Orange
+4. Grape
+5. Mango
+
+Colors:
+- Red
+- Green
+- Blue
+- Yellow
+- Purple
+
+Search for a fruit: Orange
+Found 'Orange' at position 3
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Forgetting the Null Terminator
+
+```c
+// WRONG: No null terminator!
+char str[5] = {'H', 'e', 'l', 'l', 'o'};
+printf("%s\n", str);  // Undefined - prints garbage until it finds '\0'
+
+// CORRECT:
+char str[6] = {'H', 'e', 'l', 'l', 'o', '\0'};
+// or simply:
+char str[] = "Hello";
+```
+
+### Pitfall 2: Buffer Overflow
+
+```c
+char name[5];  // Only holds 4 chars + '\0'
+
+// WRONG: "Alexander" is 9 chars + '\0' = 10 bytes!
+strcpy(name, "Alexander");  // BUFFER OVERFLOW!
+
+// CORRECT: Ensure buffer is large enough
+char name[20];
+strcpy(name, "Alexander");  // OK, 20 >= 10
+```
+
+**This is a major security vulnerability!** Always ensure buffers are large enough.
+
+### Pitfall 3: Modifying String Literals
+
+```c
+char *str = "Hello";  // Points to read-only memory
+
+// WRONG: Attempting to modify read-only memory!
+str[0] = 'h';  // CRASH or undefined behavior!
+
+// CORRECT: Use array for modifiable strings
+char str[] = "Hello";  // Creates modifiable copy
+str[0] = 'h';  // OK
+```
+
+### Pitfall 4: Not Using `&` with scanf
+
+```c
+char str[50];
+int num;
+
+scanf("%s", str);   // CORRECT: arrays don't need &
+scanf("%d", &num);  // CORRECT: non-arrays need &
+
+// WRONG:
+// scanf("%s", &str);  // Don't use & with arrays!
+```
+
+### Pitfall 5: Off-by-One Errors
+
+```c
+char str[10];
+
+// WRONG: "Hello" needs 6 bytes, but leaving only 4 for rest
+strcpy(str, "Hello");
+strcat(str, "World");  // OVERFLOW! Needs 11 bytes total
+
+// CORRECT: Ensure space for both strings + '\0'
+char str[20];
+strcpy(str, "Hello");
+strcat(str, "World");
+```
+
+## Exercises
+
+### Exercise 1: Palindrome Checker
+Write a function that checks if a string is a palindrome (reads the same forwards and backwards). Ignore spaces and case.
+
+### Exercise 2: Word Counter
+Write a function that counts the number of words in a string (words are separated by spaces).
+
+### Exercise 3: String Trimmer
+Write a function that removes leading and trailing whitespace from a string.
+
+### Exercise 4: Substring Finder
+Write a function that finds the first occurrence of a substring within a string and returns the index (or -1 if not found).
+
+### Exercise 5: Caesar Cipher
+Implement a Caesar cipher that shifts each letter by a given number of positions in the alphabet.
+
+## Key Takeaways
+
+1. **Strings are Arrays**: C strings are character arrays ending with `'\0'`
+2. **Null Terminator**: Always present, marks the end of the string
+3. **Memory**: String "Hello" needs 6 bytes (5 chars + 1 for `'\0'`)
+4. **String Literals**: Automatically null-terminated and read-only
+5. **Array vs Pointer**: `char str[] = "Hi"` is modifiable; `char *str = "Hi"` is not
+6. **Buffer Size**: Always ensure arrays are large enough to prevent overflow
+7. **No `&` with Arrays**: Use `scanf("%s", str)` not `scanf("%s", &str)`
+8. **fgets vs scanf**: `fgets` is safer for reading strings with spaces
+9. **Manual Operations**: You can implement string functions yourself
+10. **Security**: Buffer overflows are serious vulnerabilities - be careful!
+
+Understanding C strings is essential for systems programming, text processing, and avoiding security vulnerabilities. The next step is learning the standard library functions that make string handling safer and easier!

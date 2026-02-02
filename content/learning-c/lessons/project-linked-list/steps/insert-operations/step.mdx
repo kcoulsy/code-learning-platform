@@ -1,0 +1,355 @@
+---
+title: "Insert Operations"
+order: 3
+---
+
+# Insert Operations
+
+Now that you can create nodes, it's time to build lists by implementing insertion operations. You'll implement four types of insertion.
+
+## Understanding Insertion
+
+Insertion in a linked list involves:
+1. Creating a new node
+2. Adjusting pointers to include it in the list
+3. Maintaining the list's integrity
+
+The tricky part? **Pointer order matters!** Change pointers in the wrong order and you lose the list.
+
+## Insert at Head (Front)
+
+The most common and simplest insertion operation.
+
+### Algorithm
+```
+1. Create new node
+2. Set new node's next to current head
+3. Update head to point to new node
+```
+
+### Visual Example
+```
+Before: HEAD -> [10] -> [20] -> NULL
+After:  HEAD -> [5] -> [10] -> [20] -> NULL
+         (new)
+```
+
+### Function Signature
+```c
+void insert_at_head(struct Node **head, int data);
+```
+
+### Why Double Pointer?
+
+Notice the `struct Node **head` parameter. We need a **pointer to a pointer** because:
+- We're modifying the head pointer itself
+- The function needs to update the caller's head variable
+
+### Implementation Hints
+
+```c
+void insert_at_head(struct Node **head, int data) {
+    // Step 1: Create new node
+    struct Node *new_node = create_node(data);
+    if (new_node == NULL) {
+        return;  // Allocation failed
+    }
+
+    // Step 2: Link new node to current head
+    // TODO: Set new_node->next = ???
+
+    // Step 3: Update head to point to new node
+    // TODO: *head = ???
+}
+```
+
+### Critical: Order Matters!
+
+```c
+// WRONG ORDER - loses the list!
+*head = new_node;      // Head now points to new node
+new_node->next = *head;  // Points new node to itself!
+
+// CORRECT ORDER
+new_node->next = *head;  // Save the old head first
+*head = new_node;        // Then update head
+```
+
+## Insert at Tail (End)
+
+Adding to the end requires traversing the entire list.
+
+### Algorithm
+```
+1. Create new node
+2. If list is empty, make new node the head
+3. Otherwise, traverse to last node
+4. Set last node's next to new node
+```
+
+### Visual Example
+```
+Before: HEAD -> [10] -> [20] -> NULL
+After:  HEAD -> [10] -> [20] -> [30] -> NULL
+                                (new)
+```
+
+### Implementation Hints
+
+```c
+void insert_at_tail(struct Node **head, int data) {
+    struct Node *new_node = create_node(data);
+    if (new_node == NULL) {
+        return;
+    }
+
+    // Edge case: empty list
+    if (*head == NULL) {
+        // TODO: What should head point to?
+        return;
+    }
+
+    // Traverse to last node
+    struct Node *current = *head;
+    while (???) {  // What's the condition?
+        current = current->next;
+    }
+
+    // Link last node to new node
+    // TODO: current->next = ???
+}
+```
+
+## Insert at Position
+
+Insert at a specific position (0-indexed).
+
+### Algorithm
+```
+1. Create new node
+2. If position is 0, insert at head
+3. Traverse to node at (position - 1)
+4. Insert new node after that node
+```
+
+### Visual Example
+```
+Insert at position 2:
+Before: HEAD -> [10] -> [20] -> [40] -> NULL
+                  0       1       2
+After:  HEAD -> [10] -> [20] -> [30] -> [40] -> NULL
+                  0       1      (new)     3
+```
+
+### Implementation Hints
+
+```c
+void insert_at_position(struct Node **head, int data, int position) {
+    if (position < 0) {
+        fprintf(stderr, "Invalid position\n");
+        return;
+    }
+
+    // Special case: position 0
+    if (position == 0) {
+        insert_at_head(head, data);  // Reuse existing function
+        return;
+    }
+
+    struct Node *new_node = create_node(data);
+    if (new_node == NULL) {
+        return;
+    }
+
+    // Traverse to position - 1
+    struct Node *current = *head;
+    for (int i = 0; i < position - 1 && current != NULL; i++) {
+        current = current->next;
+    }
+
+    // Check if position is valid
+    if (current == NULL) {
+        fprintf(stderr, "Position out of bounds\n");
+        free(new_node);
+        return;
+    }
+
+    // Insert new node
+    // TODO: new_node->next = ???
+    // TODO: current->next = ???
+}
+```
+
+## Sorted Insert
+
+Insert while maintaining sorted order (ascending).
+
+### Algorithm
+```
+1. Create new node
+2. Find the correct position (where data should go)
+3. Insert at that position
+```
+
+### Visual Example
+```
+Insert 25 into sorted list:
+Before: HEAD -> [10] -> [20] -> [30] -> NULL
+After:  HEAD -> [10] -> [20] -> [25] -> [30] -> NULL
+                                (new)
+```
+
+### Implementation Hints
+
+```c
+void insert_sorted(struct Node **head, int data) {
+    struct Node *new_node = create_node(data);
+    if (new_node == NULL) {
+        return;
+    }
+
+    // Case 1: Empty list or insert before head
+    if (*head == NULL || (*head)->data >= data) {
+        new_node->next = *head;
+        *head = new_node;
+        return;
+    }
+
+    // Case 2: Find position in middle or end
+    struct Node *current = *head;
+    while (current->next != NULL && ???) {  // What condition?
+        current = current->next;
+    }
+
+    // Insert after current
+    // TODO: Link new_node between current and current->next
+}
+```
+
+## Testing Your Insertions
+
+```c
+int main() {
+    struct Node *head = NULL;
+
+    // Test insert at head
+    printf("Inserting at head: 10, 20, 30\n");
+    insert_at_head(&head, 10);
+    insert_at_head(&head, 20);
+    insert_at_head(&head, 30);
+    // Expected: 30 -> 20 -> 10
+
+    // Test insert at tail
+    printf("Inserting at tail: 5\n");
+    insert_at_tail(&head, 5);
+    // Expected: 30 -> 20 -> 10 -> 5
+
+    // Test insert at position
+    printf("Inserting 15 at position 2\n");
+    insert_at_position(&head, 15, 2);
+    // Expected: 30 -> 20 -> 15 -> 10 -> 5
+
+    // You'll need a print function to verify (next step!)
+
+    return 0;
+}
+```
+
+## Exercises
+
+### Exercise 1: Implement insert_at_head
+Complete the function to insert at the beginning. Test with:
+- Empty list
+- List with one element
+- List with multiple elements
+
+### Exercise 2: Implement insert_at_tail
+Complete the function to insert at the end. Handle the empty list case.
+
+### Exercise 3: Implement insert_at_position
+Complete the function with proper bounds checking. What should happen if position is:
+- 0?
+- Negative?
+- Greater than list length?
+
+### Exercise 4: Implement insert_sorted
+Complete the function to maintain sorted order. Test with:
+- Inserting smallest value
+- Inserting largest value
+- Inserting middle values
+- Inserting duplicates (decide: allow or prevent?)
+
+### Exercise 5: Edge Case Testing
+Test each insertion function with:
+- Empty list (head = NULL)
+- Single node list
+- Multiple nodes
+
+## Common Pitfalls
+
+### 1. Losing List References
+```c
+// WRONG - loses the rest of the list!
+current->next = new_node;
+new_node->next = NULL;  // Should be current->next!
+
+// CORRECT
+new_node->next = current->next;  // Save reference first
+current->next = new_node;         // Then link
+```
+
+### 2. Not Handling Empty List
+```c
+// DANGEROUS
+void insert_at_tail(struct Node **head, int data) {
+    struct Node *current = *head;
+    while (current->next != NULL) {  // Crashes if head is NULL!
+        current = current->next;
+    }
+}
+```
+
+### 3. Off-by-One Errors in Position
+```c
+// For position 2, you need to stop at position 1
+// Not at position 2!
+for (int i = 0; i < position - 1; i++) {  // Stop one before
+    current = current->next;
+}
+```
+
+## Key Concepts
+
+- **Double pointer**: Used when function needs to modify the pointer itself
+- **Traversal**: Walking through the list following next pointers
+- **Pointer ordering**: Critical to avoid losing list references
+- **Edge cases**: Empty list and single node require special handling
+- **Bounds checking**: Validate positions before inserting
+
+## Debugging Tips
+
+### Visualize with Prints
+```c
+void print_addresses(struct Node *head) {
+    struct Node *current = head;
+    while (current != NULL) {
+        printf("[%d at %p, next=%p] -> ",
+               current->data,
+               (void*)current,
+               (void*)current->next);
+        current = current->next;
+    }
+    printf("NULL\n");
+}
+```
+
+### Draw It Out
+Before implementing, draw the operation on paper:
+1. Draw the list before insertion
+2. Draw where new node goes
+3. Number the pointer changes in order
+4. Verify no references are lost
+
+## Next Step
+
+You can now build lists! In **Step 4: Delete Operations**, you'll learn to remove nodes while properly managing memory.

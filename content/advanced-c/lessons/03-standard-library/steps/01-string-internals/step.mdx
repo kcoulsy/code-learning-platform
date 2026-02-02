@@ -1,0 +1,124 @@
+---
+id: 01-string-internals
+title: String Handling Internals
+order: 1
+---
+
+# String Handling Internals
+
+Understanding how string functions work internally prevents bugs and improves performance.
+
+## How C Strings Work
+
+C strings are:
+
+- Null-terminated: `'\0'` marks the end
+- Byte arrays: No Unicode by default
+- Memory blocks: No bounds checking
+
+## strlen Implementation
+
+**Naive version**:
+
+```c
+size_t strlen(const char *s) {
+    size_t len = 0;
+    while (s[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+```
+
+**Optimized version** (word-at-a-time):
+
+```c
+size_t strlen(const char *s) {
+    const char *ptr = s;
+
+    // Align to word boundary
+    while ((uintptr_t)ptr % sizeof(size_t) != 0) {
+        if (*ptr == '\0') return ptr - s;
+        ptr++;
+    }
+
+    // Check word at a time
+    const size_t *word_ptr = (const size_t *)ptr;
+    while (1) {
+        if (HAS_ZERO(*word_ptr)) {
+            ptr = (const char *)word_ptr;
+            while (*ptr != '\0') ptr++;
+            return ptr - s;
+        }
+        word_ptr++;
+    }
+}
+```
+
+Key insight: Modern libc checks 4-8 bytes at once.
+
+## strcpy Implementation
+
+```c
+char *strcpy(char *dest, const char *src) {
+    char *d = dest;
+    while ((*d++ = *src++) != '\0');
+    return dest;
+}
+```
+
+**Danger**: No bounds checking! Always use strlcpy or snprintf instead.
+
+## memcpy Implementation
+
+```c
+void *memcpy(void *dest, const void *src, size_t n) {
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+
+    // Copy byte-by-byte
+    while (n--) {
+        *d++ = *s++;
+    }
+
+    return dest;
+}
+```
+
+**Optimized version** handles alignment and uses word-sized copies.
+
+## Common Pitfalls
+
+### 1. Buffer Overflow
+
+```c
+char src[100];
+char dst[10];
+strcpy(dst, src);  // OVERFLOW!
+```
+
+### 2. Off-by-One
+
+```c
+char buf[10];
+strncpy(buf, "123456789", 10);  // No null terminator!
+```
+
+### 3. strlen on Non-Strings
+
+```c
+int arr[5];
+size_t len = strlen((char *)arr);  // Scans until it finds \0!
+```
+
+## Performance Considerations
+
+- **strlen is O(n)**: Not constant-time
+- **strcpy is O(n)**: And can't be optimized without knowing length
+- **memcpy is O(n)**: But faster due to word-sized copies
+
+Always track lengths when you have them. Don't recompute strlen unnecessarily.
+
+---
+
+**Next**: Reimplementing string functions.

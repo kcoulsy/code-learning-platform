@@ -1,0 +1,793 @@
+---
+title: "Callback Functions"
+description: "Master callback patterns including event handlers, sorting with qsort, asynchronous operations, and state machines."
+order: 6
+---
+
+# Callback Functions
+
+A callback is a function that is passed as an argument to another function and is "called back" at a later time. Callbacks are one of the most important patterns in C programming, enabling asynchronous operations, event-driven programming, and flexible library APIs.
+
+Understanding callbacks is essential for working with standard library functions like `qsort`, implementing event systems, creating reusable libraries, and building state machines. They're the foundation of many modern programming patterns.
+
+## Understanding Callbacks
+
+A callback allows you to inject custom behavior into a generic function. Instead of the function knowing exactly what to do, it calls your code back when it needs specific behavior. This inversion of control makes code more flexible and reusable.
+
+## Example 1: Standard Library - qsort
+
+The `qsort` function from `<stdlib.h>` is a perfect example of callbacks in action. It sorts any array by calling your comparison function.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Comparison function for integers (ascending)
+int compare_int_asc(const void *a, const void *b) {
+    int arg1 = *(const int*)a;
+    int arg2 = *(const int*)b;
+
+    if (arg1 < arg2) return -1;
+    if (arg1 > arg2) return 1;
+    return 0;
+}
+
+// Comparison function for integers (descending)
+int compare_int_desc(const void *a, const void *b) {
+    return compare_int_asc(b, a);  // Reverse order
+}
+
+// Comparison function for strings
+int compare_string(const void *a, const void *b) {
+    const char *str1 = *(const char**)a;
+    const char *str2 = *(const char**)b;
+    return strcmp(str1, str2);
+}
+
+// Structure for sorting
+typedef struct {
+    char name[50];
+    int age;
+    float gpa;
+} Student;
+
+// Comparison function for students by GPA (descending)
+int compare_student_gpa(const void *a, const void *b) {
+    const Student *s1 = (const Student*)a;
+    const Student *s2 = (const Student*)b;
+
+    if (s1->gpa > s2->gpa) return -1;
+    if (s1->gpa < s2->gpa) return 1;
+    return 0;
+}
+
+// Comparison function for students by name
+int compare_student_name(const void *a, const void *b) {
+    const Student *s1 = (const Student*)a;
+    const Student *s2 = (const Student*)b;
+    return strcmp(s1->name, s2->name);
+}
+
+void print_int_array(const int *arr, size_t size, const char *label) {
+    printf("%s: ", label);
+    for (size_t i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+void print_students(const Student *students, size_t count) {
+    printf("%-20s %5s %6s\n", "Name", "Age", "GPA");
+    printf("-------------------------------------\n");
+    for (size_t i = 0; i < count; i++) {
+        printf("%-20s %5d %6.2f\n",
+               students[i].name, students[i].age, students[i].gpa);
+    }
+}
+
+int main(void) {
+    // Sort integers
+    int numbers[] = {42, 17, 93, 8, 56, 31, 72, 4};
+    size_t num_count = sizeof(numbers) / sizeof(numbers[0]);
+
+    print_int_array(numbers, num_count, "Original");
+
+    qsort(numbers, num_count, sizeof(int), compare_int_asc);
+    print_int_array(numbers, num_count, "Ascending");
+
+    qsort(numbers, num_count, sizeof(int), compare_int_desc);
+    print_int_array(numbers, num_count, "Descending");
+
+    printf("\n");
+
+    // Sort strings
+    const char *names[] = {"Charlie", "Alice", "Diana", "Bob"};
+    size_t name_count = sizeof(names) / sizeof(names[0]);
+
+    printf("Original names: ");
+    for (size_t i = 0; i < name_count; i++) printf("%s ", names[i]);
+    printf("\n");
+
+    qsort(names, name_count, sizeof(char*), compare_string);
+
+    printf("Sorted names:   ");
+    for (size_t i = 0; i < name_count; i++) printf("%s ", names[i]);
+    printf("\n\n");
+
+    // Sort students
+    Student students[] = {
+        {"Alice Johnson", 20, 3.8},
+        {"Bob Smith", 21, 3.9},
+        {"Carol White", 19, 3.7},
+        {"David Brown", 22, 4.0},
+        {"Eve Davis", 20, 3.85}
+    };
+    size_t student_count = sizeof(students) / sizeof(students[0]);
+
+    printf("Original student list:\n");
+    print_students(students, student_count);
+
+    printf("\nSorted by GPA (descending):\n");
+    qsort(students, student_count, sizeof(Student), compare_student_gpa);
+    print_students(students, student_count);
+
+    printf("\nSorted by name:\n");
+    qsort(students, student_count, sizeof(Student), compare_student_name);
+    print_students(students, student_count);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Original: 42 17 93 8 56 31 72 4
+Ascending: 4 8 17 31 42 56 72 93
+Descending: 93 72 56 42 31 17 8 4
+
+Original names: Charlie Alice Diana Bob
+Sorted names:   Alice Bob Charlie Diana
+
+Original student list:
+Name                   Age    GPA
+-------------------------------------
+Alice Johnson           20   3.80
+Bob Smith               21   3.90
+Carol White             19   3.70
+David Brown             22   4.00
+Eve Davis               20   3.85
+
+Sorted by GPA (descending):
+Name                   Age    GPA
+-------------------------------------
+David Brown             22   4.00
+Bob Smith               21   3.90
+Eve Davis               20   3.85
+Alice Johnson           20   3.80
+Carol White             19   3.70
+
+Sorted by name:
+Name                   Age    GPA
+-------------------------------------
+Alice Johnson           20   3.80
+Bob Smith               21   3.90
+Carol White             19   3.70
+David Brown             22   4.00
+Eve Davis               20   3.85
+```
+
+**Key Points:**
+- `qsort` calls your comparison function for each pair of elements
+- Comparison returns negative (less), zero (equal), or positive (greater)
+- Same sorting algorithm works with any data type
+- Your callback provides the type-specific comparison logic
+
+## Example 2: Event Handler System
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+#define MAX_HANDLERS 10
+
+// Event types
+typedef enum {
+    EVENT_NONE,
+    EVENT_KEY_PRESS,
+    EVENT_MOUSE_CLICK,
+    EVENT_TIMER,
+    EVENT_NETWORK
+} EventType;
+
+// Event data structure
+typedef struct {
+    EventType type;
+    void *data;
+} Event;
+
+// Event handler callback type
+typedef void (*EventHandler)(const Event *event);
+
+// Event system structure
+typedef struct {
+    EventType type;
+    EventHandler handlers[MAX_HANDLERS];
+    int handler_count;
+} EventDispatcher;
+
+// Global event dispatchers (one per event type)
+static EventDispatcher dispatchers[5];  // One for each EventType
+
+// Initialize event system
+void event_system_init(void) {
+    for (int i = 0; i < 5; i++) {
+        dispatchers[i].type = i;
+        dispatchers[i].handler_count = 0;
+    }
+}
+
+// Register an event handler
+int register_handler(EventType type, EventHandler handler) {
+    if (type <= EVENT_NONE || type >= 5) return 0;
+
+    EventDispatcher *dispatcher = &dispatchers[type];
+    if (dispatcher->handler_count >= MAX_HANDLERS) {
+        fprintf(stderr, "Too many handlers for event type %d\n", type);
+        return 0;
+    }
+
+    dispatcher->handlers[dispatcher->handler_count++] = handler;
+    return 1;
+}
+
+// Dispatch an event to all registered handlers
+void dispatch_event(const Event *event) {
+    if (event->type <= EVENT_NONE || event->type >= 5) return;
+
+    EventDispatcher *dispatcher = &dispatchers[event->type];
+    for (int i = 0; i < dispatcher->handler_count; i++) {
+        dispatcher->handlers[i](event);
+    }
+}
+
+// Event handler callbacks
+void on_key_press(const Event *event) {
+    const char *key = (const char*)event->data;
+    printf("  [KeyHandler] Key pressed: %s\n", key);
+}
+
+void on_key_logger(const Event *event) {
+    const char *key = (const char*)event->data;
+    printf("  [Logger] Logging key press: %s\n", key);
+}
+
+void on_mouse_click(const Event *event) {
+    const int *coords = (const int*)event->data;
+    printf("  [MouseHandler] Mouse clicked at (%d, %d)\n", coords[0], coords[1]);
+}
+
+void on_timer(const Event *event) {
+    const int *elapsed = (const int*)event->data;
+    printf("  [TimerHandler] Timer tick: %d seconds elapsed\n", *elapsed);
+}
+
+void on_timer_cleanup(const Event *event) {
+    printf("  [CleanupHandler] Performing periodic cleanup\n");
+}
+
+void on_network(const Event *event) {
+    const char *message = (const char*)event->data;
+    printf("  [NetworkHandler] Received: %s\n", message);
+}
+
+int main(void) {
+    printf("Initializing event system...\n\n");
+    event_system_init();
+
+    // Register multiple handlers for same event type
+    printf("Registering event handlers...\n");
+    register_handler(EVENT_KEY_PRESS, on_key_press);
+    register_handler(EVENT_KEY_PRESS, on_key_logger);
+    register_handler(EVENT_MOUSE_CLICK, on_mouse_click);
+    register_handler(EVENT_TIMER, on_timer);
+    register_handler(EVENT_TIMER, on_timer_cleanup);
+    register_handler(EVENT_NETWORK, on_network);
+    printf("Handlers registered.\n\n");
+
+    // Simulate events
+    printf("Simulating events:\n\n");
+
+    printf("Event: Key Press\n");
+    Event key_event = {EVENT_KEY_PRESS, "Enter"};
+    dispatch_event(&key_event);
+    printf("\n");
+
+    printf("Event: Mouse Click\n");
+    int coords[] = {150, 200};
+    Event mouse_event = {EVENT_MOUSE_CLICK, coords};
+    dispatch_event(&mouse_event);
+    printf("\n");
+
+    printf("Event: Timer Tick\n");
+    int elapsed = 5;
+    Event timer_event = {EVENT_TIMER, &elapsed};
+    dispatch_event(&timer_event);
+    printf("\n");
+
+    printf("Event: Network Message\n");
+    Event network_event = {EVENT_NETWORK, "Hello, Server!"};
+    dispatch_event(&network_event);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Initializing event system...
+
+Registering event handlers...
+Handlers registered.
+
+Simulating events:
+
+Event: Key Press
+  [KeyHandler] Key pressed: Enter
+  [Logger] Logging key press: Enter
+
+Event: Mouse Click
+  [MouseHandler] Mouse clicked at (150, 200)
+
+Event: Timer Tick
+  [TimerHandler] Timer tick: 5 seconds elapsed
+  [CleanupHandler] Performing periodic cleanup
+
+Event: Network Message
+  [NetworkHandler] Received: Hello, Server!
+```
+
+**Key Points:**
+- Multiple callbacks can be registered for the same event
+- Event dispatcher calls all registered handlers
+- Decouples event producers from event consumers
+- Foundation of GUI and game engine event systems
+
+## Example 3: Asynchronous Operation Callbacks
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+// Callback types for async operations
+typedef void (*success_callback)(void *result, void *user_data);
+typedef void (*error_callback)(const char *error, void *user_data);
+
+// Simulated async operation
+typedef struct {
+    char operation_name[50];
+    success_callback on_success;
+    error_callback on_error;
+    void *user_data;
+    int should_fail;  // For simulation
+} AsyncOperation;
+
+// Execute an async operation (simulated)
+void execute_async(AsyncOperation *op) {
+    printf("Starting async operation: %s\n", op->operation_name);
+
+    // Simulate work...
+    if (op->should_fail) {
+        if (op->on_error) {
+            op->on_error("Operation failed", op->user_data);
+        }
+    } else {
+        if (op->on_success) {
+            // Simulate result
+            static char result[100];
+            snprintf(result, sizeof(result), "Result of %s", op->operation_name);
+            op->on_success(result, op->user_data);
+        }
+    }
+}
+
+// Success handlers
+void on_fetch_success(void *result, void *user_data) {
+    const char *data = (const char*)result;
+    printf("  SUCCESS: Fetched data: %s\n", data);
+}
+
+void on_save_success(void *result, void *user_data) {
+    printf("  SUCCESS: Data saved successfully\n");
+}
+
+void on_process_success(void *result, void *user_data) {
+    const char *data = (const char*)result;
+    int *count = (int*)user_data;
+    (*count)++;
+    printf("  SUCCESS: Processed item #%d: %s\n", *count, data);
+}
+
+// Error handlers
+void on_error_default(const char *error, void *user_data) {
+    printf("  ERROR: %s\n", error);
+}
+
+void on_error_with_retry(const char *error, void *user_data) {
+    int *retry_count = (int*)user_data;
+    (*retry_count)++;
+    printf("  ERROR: %s (Retry attempt: %d)\n", error, *retry_count);
+}
+
+// Chained operations example
+typedef struct {
+    success_callback next_operation;
+    void *context;
+} ChainContext;
+
+void step1_success(void *result, void *user_data) {
+    printf("  Step 1 completed: %s\n", (char*)result);
+    printf("  Starting step 2...\n");
+
+    // In real code, this would trigger the next async operation
+    AsyncOperation step2 = {
+        .operation_name = "Step 2",
+        .on_success = NULL,  // Would be step2_success
+        .on_error = on_error_default,
+        .user_data = NULL,
+        .should_fail = 0
+    };
+}
+
+int main(void) {
+    printf("=== Simple Async Operations ===\n\n");
+
+    // Operation that succeeds
+    AsyncOperation fetch_op = {
+        .operation_name = "Fetch User Data",
+        .on_success = on_fetch_success,
+        .on_error = on_error_default,
+        .user_data = NULL,
+        .should_fail = 0
+    };
+    execute_async(&fetch_op);
+    printf("\n");
+
+    // Operation that fails
+    AsyncOperation save_op = {
+        .operation_name = "Save Configuration",
+        .on_success = on_save_success,
+        .on_error = on_error_default,
+        .user_data = NULL,
+        .should_fail = 1
+    };
+    execute_async(&save_op);
+    printf("\n");
+
+    printf("=== Processing Multiple Items ===\n\n");
+
+    // Process multiple items with shared state
+    int process_count = 0;
+    const char *operations[] = {"Item A", "Item B", "Item C"};
+
+    for (size_t i = 0; i < 3; i++) {
+        AsyncOperation process_op = {
+            .on_success = on_process_success,
+            .on_error = on_error_default,
+            .user_data = &process_count,
+            .should_fail = 0
+        };
+        snprintf(process_op.operation_name,
+                 sizeof(process_op.operation_name),
+                 "Process %s", operations[i]);
+        execute_async(&process_op);
+    }
+    printf("Total items processed: %d\n\n", process_count);
+
+    printf("=== Error Handling with Retry ===\n\n");
+
+    int retry_count = 0;
+    AsyncOperation retry_op = {
+        .operation_name = "Network Request",
+        .on_success = on_fetch_success,
+        .on_error = on_error_with_retry,
+        .user_data = &retry_count,
+        .should_fail = 1
+    };
+    execute_async(&retry_op);
+    execute_async(&retry_op);
+    execute_async(&retry_op);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=== Simple Async Operations ===
+
+Starting async operation: Fetch User Data
+  SUCCESS: Fetched data: Result of Fetch User Data
+
+Starting async operation: Save Configuration
+  ERROR: Operation failed
+
+=== Processing Multiple Items ===
+
+Starting async operation: Process Item A
+  SUCCESS: Processed item #1: Result of Process Item A
+Starting async operation: Process Item B
+  SUCCESS: Processed item #2: Result of Process Item B
+Starting async operation: Process Item C
+  SUCCESS: Processed item #3: Result of Process Item C
+Total items processed: 3
+
+=== Error Handling with Retry ===
+
+Starting async operation: Network Request
+  ERROR: Operation failed (Retry attempt: 1)
+Starting async operation: Network Request
+  ERROR: Operation failed (Retry attempt: 2)
+Starting async operation: Network Request
+  ERROR: Operation failed (Retry attempt: 3)
+```
+
+**Key Points:**
+- Callbacks enable asynchronous programming patterns
+- Success and error callbacks handle different outcomes
+- Can pass context data through `user_data` parameter
+- Foundation for event-driven and non-blocking I/O
+
+## Example 4: State Machine with Callbacks
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// State machine states
+typedef enum {
+    STATE_IDLE,
+    STATE_RUNNING,
+    STATE_PAUSED,
+    STATE_STOPPED
+} State;
+
+// Event types
+typedef enum {
+    EVENT_START,
+    EVENT_PAUSE,
+    EVENT_RESUME,
+    EVENT_STOP,
+    EVENT_RESET
+} EventEnum;
+
+// Forward declarations
+typedef struct StateMachine StateMachine;
+
+// State handler callback
+typedef void (*StateHandler)(StateMachine *sm, EventEnum event);
+
+// State machine structure
+struct StateMachine {
+    State current_state;
+    StateHandler state_handlers[4];  // One for each state
+    int execution_count;
+};
+
+// State handler functions
+void handle_idle(StateMachine *sm, EventEnum event) {
+    printf("  [IDLE] Received event: ");
+    switch (event) {
+        case EVENT_START:
+            printf("START -> Transitioning to RUNNING\n");
+            sm->current_state = STATE_RUNNING;
+            break;
+        default:
+            printf("%d -> No action\n", event);
+            break;
+    }
+}
+
+void handle_running(StateMachine *sm, EventEnum event) {
+    printf("  [RUNNING] Received event: ");
+    switch (event) {
+        case EVENT_PAUSE:
+            printf("PAUSE -> Transitioning to PAUSED\n");
+            sm->current_state = STATE_PAUSED;
+            break;
+        case EVENT_STOP:
+            printf("STOP -> Transitioning to STOPPED\n");
+            sm->current_state = STATE_STOPPED;
+            sm->execution_count++;
+            printf("  Execution count: %d\n", sm->execution_count);
+            break;
+        default:
+            printf("%d -> No action\n", event);
+            break;
+    }
+}
+
+void handle_paused(StateMachine *sm, EventEnum event) {
+    printf("  [PAUSED] Received event: ");
+    switch (event) {
+        case EVENT_RESUME:
+            printf("RESUME -> Transitioning to RUNNING\n");
+            sm->current_state = STATE_RUNNING;
+            break;
+        case EVENT_STOP:
+            printf("STOP -> Transitioning to STOPPED\n");
+            sm->current_state = STATE_STOPPED;
+            sm->execution_count++;
+            printf("  Execution count: %d\n", sm->execution_count);
+            break;
+        default:
+            printf("%d -> No action\n", event);
+            break;
+    }
+}
+
+void handle_stopped(StateMachine *sm, EventEnum event) {
+    printf("  [STOPPED] Received event: ");
+    switch (event) {
+        case EVENT_RESET:
+            printf("RESET -> Transitioning to IDLE\n");
+            sm->current_state = STATE_IDLE;
+            break;
+        default:
+            printf("%d -> No action\n", event);
+            break;
+    }
+}
+
+// Initialize state machine
+void sm_init(StateMachine *sm) {
+    sm->current_state = STATE_IDLE;
+    sm->state_handlers[STATE_IDLE] = handle_idle;
+    sm->state_handlers[STATE_RUNNING] = handle_running;
+    sm->state_handlers[STATE_PAUSED] = handle_paused;
+    sm->state_handlers[STATE_STOPPED] = handle_stopped;
+    sm->execution_count = 0;
+}
+
+// Process event
+void sm_process_event(StateMachine *sm, EventEnum event) {
+    StateHandler handler = sm->state_handlers[sm->current_state];
+    if (handler) {
+        handler(sm, event);
+    }
+}
+
+const char* state_to_string(State state) {
+    switch (state) {
+        case STATE_IDLE: return "IDLE";
+        case STATE_RUNNING: return "RUNNING";
+        case STATE_PAUSED: return "PAUSED";
+        case STATE_STOPPED: return "STOPPED";
+        default: return "UNKNOWN";
+    }
+}
+
+int main(void) {
+    StateMachine sm;
+    sm_init(&sm);
+
+    printf("State Machine Demo\n");
+    printf("Initial state: %s\n\n", state_to_string(sm.current_state));
+
+    // Scenario 1: Normal execution flow
+    printf("Scenario 1: Normal execution\n");
+    sm_process_event(&sm, EVENT_START);
+    printf("Current state: %s\n\n", state_to_string(sm.current_state));
+
+    sm_process_event(&sm, EVENT_STOP);
+    printf("Current state: %s\n\n", state_to_string(sm.current_state));
+
+    sm_process_event(&sm, EVENT_RESET);
+    printf("Current state: %s\n\n", state_to_string(sm.current_state));
+
+    // Scenario 2: Pause and resume
+    printf("Scenario 2: Pause and resume\n");
+    sm_process_event(&sm, EVENT_START);
+    printf("Current state: %s\n\n", state_to_string(sm.current_state));
+
+    sm_process_event(&sm, EVENT_PAUSE);
+    printf("Current state: %s\n\n", state_to_string(sm.current_state));
+
+    sm_process_event(&sm, EVENT_RESUME);
+    printf("Current state: %s\n\n", state_to_string(sm.current_state));
+
+    sm_process_event(&sm, EVENT_STOP);
+    printf("Current state: %s\n\n", state_to_string(sm.current_state));
+
+    // Scenario 3: Invalid transitions
+    printf("Scenario 3: Invalid event handling\n");
+    sm_process_event(&sm, EVENT_START);  // Invalid in STOPPED state
+    printf("Current state: %s\n", state_to_string(sm.current_state));
+
+    return 0;
+}
+```
+
+**Output:**
+```
+State Machine Demo
+Initial state: IDLE
+
+Scenario 1: Normal execution
+  [IDLE] Received event: START -> Transitioning to RUNNING
+Current state: RUNNING
+
+  [RUNNING] Received event: STOP -> Transitioning to STOPPED
+  Execution count: 1
+Current state: STOPPED
+
+  [STOPPED] Received event: RESET -> Transitioning to IDLE
+Current state: IDLE
+
+Scenario 2: Pause and resume
+  [IDLE] Received event: START -> Transitioning to RUNNING
+Current state: RUNNING
+
+  [RUNNING] Received event: PAUSE -> Transitioning to PAUSED
+Current state: PAUSED
+
+  [PAUSED] Received event: RESUME -> Transitioning to RUNNING
+Current state: RUNNING
+
+  [RUNNING] Received event: STOP -> Transitioning to STOPPED
+  Execution count: 2
+Current state: STOPPED
+
+Scenario 3: Invalid event handling
+  [STOPPED] Received event: 0 -> No action
+Current state: STOPPED
+```
+
+## Best Practices
+
+1. **Check for NULL**: Always verify callback pointer before calling
+2. **Provide context**: Use `void *user_data` to pass state to callbacks
+3. **Document callback contracts**: Specify when and how callbacks are invoked
+4. **Handle errors**: Don't assume callbacks always succeed
+5. **Avoid blocking**: Keep callbacks short in event-driven systems
+6. **Thread safety**: Consider synchronization if callbacks are multithreaded
+
+## Common Use Cases
+
+1. **Standard library**: `qsort`, `bsearch`, signal handlers
+2. **Event systems**: GUI events, game events, system events
+3. **Async I/O**: Network requests, file operations
+4. **State machines**: Protocol handlers, parsers, game AI
+5. **Plugin systems**: Extensible applications
+6. **Custom iterators**: `foreach`, `map`, `filter` operations
+
+## Common Pitfalls
+
+1. **Forgetting NULL checks**: Calling NULL callback causes crash
+2. **Scope issues**: Callback references local variables that go out of scope
+3. **Reentrancy**: Callback calls function that triggers same callback
+4. **Memory management**: Unclear who owns callback parameters
+5. **Error propagation**: How do callbacks report errors?
+
+## Exercises
+
+1. **Generic Iterator**: Implement a generic linked list with `foreach`, `map`, and `filter` functions that take callbacks.
+
+2. **Timer System**: Create a timer system that allows registering callbacks to be called after a certain delay. Support one-shot and repeating timers.
+
+3. **Parser with Callbacks**: Build a simple CSV parser that calls callbacks for each field and row, allowing custom processing.
+
+4. **Pub/Sub System**: Implement a publish/subscribe system where subscribers register callbacks for specific message topics.
+
+## Key Takeaways
+
+- **Callbacks invert control** - generic code calls your specific code
+- **Enable flexible APIs** - behavior can be customized without modifying library
+- **Foundation of event-driven programming** - decouples event producers from consumers
+- **Used extensively in standard library** - `qsort`, `bsearch`, signal handlers
+- **Always check for NULL** before calling callback
+- **Pass context with `void *user_data`** to maintain state
+- **Essential pattern for asynchronous operations** and non-blocking I/O
+
+In the next step, you'll learn about proper error handling in C, including return codes, errno, and cleanup patterns.

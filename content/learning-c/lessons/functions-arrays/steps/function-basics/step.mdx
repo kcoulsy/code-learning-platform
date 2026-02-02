@@ -1,0 +1,287 @@
+---
+title: "Function Basics"
+description: "Learn how to write and call functions with parameters and return values"
+order: 1
+---
+
+# Function Basics
+
+Functions are the building blocks of modular C programming. They allow you to organize code into reusable, named units that perform specific tasks.
+
+## Introduction
+
+A function in C is a self-contained block of code that performs a specific task. Functions can accept input (parameters), process that input, and optionally return a result. Well-designed functions make your code more readable, maintainable, and reusable.
+
+## Anatomy of a Function
+
+Every C function has four key components:
+
+1. **Return type**: The data type of the value the function returns (or `void` for no return)
+2. **Name**: The identifier you use to call the function
+3. **Parameters**: Input values the function receives (can be empty)
+4. **Body**: The code block that executes when the function is called
+
+## Code Examples
+
+### Example 1: Simple Function with Return Value
+
+```c
+#include <stdio.h>
+
+// Function that adds two integers
+int add(int a, int b) {
+    int sum = a + b;
+    return sum;
+}
+
+int main() {
+    int result = add(5, 3);
+    printf("5 + 3 = %d\n", result);
+
+    // Can call directly in expressions
+    printf("10 + 20 = %d\n", add(10, 20));
+
+    return 0;
+}
+```
+
+**Output:**
+```
+5 + 3 = 8
+10 + 20 = 30
+```
+
+**Key points:**
+- The `add` function takes two `int` parameters
+- It returns an `int` value
+- The `return` statement sends the result back to the caller
+
+### Example 2: Void Functions (No Return Value)
+
+```c
+#include <stdio.h>
+
+// Function that prints a greeting
+void greet(char name[]) {
+    printf("Hello, %s!\n", name);
+    printf("Welcome to C programming.\n");
+    // No return statement needed (or use 'return;')
+}
+
+// Function with no parameters and no return
+void printSeparator() {
+    printf("------------------------\n");
+}
+
+int main() {
+    greet("Alice");
+    printSeparator();
+    greet("Bob");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Hello, Alice!
+Welcome to C programming.
+------------------------
+Hello, Bob!
+Welcome to C programming.
+```
+
+### Example 3: Functions with Multiple Parameters
+
+```c
+#include <stdio.h>
+
+// Calculate rectangle area
+int calculateArea(int length, int width) {
+    return length * width;
+}
+
+// Calculate rectangle perimeter
+int calculatePerimeter(int length, int width) {
+    return 2 * (length + width);
+}
+
+// Print rectangle information
+void printRectangleInfo(int length, int width) {
+    printf("Rectangle: %d x %d\n", length, width);
+    printf("Area: %d\n", calculateArea(length, width));
+    printf("Perimeter: %d\n", calculatePerimeter(length, width));
+}
+
+int main() {
+    int len = 5, wid = 3;
+
+    printRectangleInfo(len, wid);
+    printf("\n");
+    printRectangleInfo(10, 7);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Rectangle: 5 x 3
+Area: 15
+Perimeter: 16
+
+Rectangle: 10 x 7
+Area: 70
+Perimeter: 34
+```
+
+### Example 4: Functions Calling Other Functions
+
+```c
+#include <stdio.h>
+
+// Check if a number is even
+int isEven(int num) {
+    return num % 2 == 0;
+}
+
+// Print whether a number is even or odd
+void printNumberType(int num) {
+    printf("%d is ", num);
+
+    if (isEven(num)) {
+        printf("even\n");
+    } else {
+        printf("odd\n");
+    }
+}
+
+// Process a range of numbers
+void analyzeRange(int start, int end) {
+    printf("Analyzing numbers from %d to %d:\n", start, end);
+
+    for (int i = start; i <= end; i++) {
+        printNumberType(i);
+    }
+}
+
+int main() {
+    analyzeRange(1, 5);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Analyzing numbers from 1 to 5:
+1 is odd
+2 is even
+3 is odd
+4 is even
+5 is odd
+```
+
+## Common Pitfalls
+
+### Pitfall 1: Forgetting to Return a Value
+
+```c
+// WRONG: Function declared to return int but doesn't
+int getBadValue() {
+    int x = 42;
+    // Missing return statement!
+}
+
+// CORRECT:
+int getGoodValue() {
+    int x = 42;
+    return x;
+}
+```
+
+**Problem**: Compiler may warn you, and the return value will be undefined.
+
+### Pitfall 2: Type Mismatch in Return
+
+```c
+// WRONG: Returning wrong type
+int divide(int a, int b) {
+    return a / (double)b;  // Returns double, but function expects int
+}
+
+// CORRECT: Match return type
+double divide(int a, int b) {
+    return a / (double)b;
+}
+```
+
+### Pitfall 3: Modifying Parameters (Pass by Value)
+
+```c
+void tryToDouble(int num) {
+    num = num * 2;  // Only modifies local copy!
+}
+
+int main() {
+    int x = 5;
+    tryToDouble(x);
+    printf("%d\n", x);  // Still prints 5, not 10!
+    return 0;
+}
+```
+
+**Problem**: C passes arguments by value (copies them), so modifications don't affect the original. We'll learn how to fix this with pointers later.
+
+### Pitfall 4: Not Using Return Value
+
+```c
+int square(int n) {
+    return n * n;
+}
+
+int main() {
+    int num = 5;
+    square(num);  // Calculates but doesn't use result!
+
+    // CORRECT:
+    int result = square(num);
+    printf("Square: %d\n", result);
+
+    return 0;
+}
+```
+
+## Exercises
+
+### Exercise 1: Temperature Converter
+Write a function `celsiusToFahrenheit` that converts Celsius to Fahrenheit using the formula: F = (C × 9/5) + 32
+
+### Exercise 2: Maximum of Three
+Write a function `max3` that takes three integers and returns the largest one.
+
+### Exercise 3: Power Function
+Write a function `power` that takes a base and exponent (both integers) and returns base raised to the exponent. Use a loop, not recursion.
+
+### Exercise 4: Print Pattern
+Write a function `printStars` that takes an integer n and prints n stars on a line. Then write `printTriangle` that uses `printStars` to print a triangle pattern.
+
+Example: `printTriangle(4)` should output:
+```
+*
+**
+***
+****
+```
+
+## Key Takeaways
+
+1. **Function Structure**: Return type, name, parameters, and body
+2. **Return Statement**: Use `return` to send a value back to the caller (except in void functions)
+3. **Pass by Value**: Parameters are copies; modifications don't affect originals
+4. **Modularity**: Break complex tasks into smaller, focused functions
+5. **Reusability**: Write functions once, call them multiple times
+6. **Function Calls**: Functions can call other functions, enabling layered logic
+7. **Void Functions**: Use when you need to perform actions without returning data
+
+Functions are essential to writing clean, maintainable C code. Master them, and you'll be well on your way to becoming a proficient C programmer!

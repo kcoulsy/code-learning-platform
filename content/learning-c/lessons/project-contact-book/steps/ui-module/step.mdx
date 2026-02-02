@@ -1,0 +1,611 @@
+---
+title: "Step 5: UI Module"
+description: "Create the user interface and menu system for contact management"
+order: 5
+---
+
+# Step 5: UI Module
+
+Now it's time to build the user-facing interface! The UI module handles all interaction with the user, including the menu system, input prompts, and formatted output displays.
+
+## Overview
+
+In this step, you'll create:
+- `ui.h` - Header file with UI function declarations
+- `ui.c` - Implementation of menu and display functions
+- A clean, user-friendly command-line interface
+- Input validation and error handling
+
+## Design Principles for Good CLI UX
+
+### 1. Clear and Consistent
+- Use consistent formatting throughout
+- Number menu options clearly
+- Provide helpful prompts
+
+### 2. Forgiving
+- Accept both uppercase and lowercase input
+- Trim whitespace from user input
+- Handle unexpected input gracefully
+
+### 3. Informative
+- Confirm actions ("Contact added successfully!")
+- Show what went wrong ("Error: Name cannot be empty")
+- Display progress for operations
+
+### 4. Responsive
+- Operations should feel instant
+- Show counts ("3 contacts found")
+- Provide clear exit options
+
+## UI Header File (ui.h)
+
+```c
+#ifndef UI_H
+#define UI_H
+
+#include "contact.h"
+
+// Display the main menu and return user's choice
+// Returns: menu choice (1-6), or -1 on error
+int ui_show_menu(void);
+
+// Display all contacts in a formatted list
+void ui_list_contacts(const ContactBook *book);
+
+// Handle the "add contact" workflow
+// Returns: 0 on success, -1 on cancel/error
+int ui_add_contact(ContactBook *book);
+
+// Handle the "search contacts" workflow
+void ui_search_contacts(const ContactBook *book);
+
+// Handle the "delete contact" workflow
+// Returns: 0 if deleted, -1 if canceled/error
+int ui_delete_contact(ContactBook *book);
+
+// Get a line of input from user with a prompt
+// Returns: number of characters read, or -1 on error
+int ui_get_input(const char *prompt, char *buffer, int size);
+
+// Clear the screen (cross-platform)
+void ui_clear_screen(void);
+
+// Display a message with formatting
+void ui_show_message(const char *message);
+
+// Display an error message
+void ui_show_error(const char *message);
+
+// Prompt for yes/no confirmation
+// Returns: 1 for yes, 0 for no
+int ui_confirm(const char *prompt);
+
+#endif
+```
+
+## UI Implementation (ui.c)
+
+### Required Includes
+
+```c
+#include "ui.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <unistd.h>
+#endif
+```
+
+### Display Main Menu
+
+```c
+int ui_show_menu(void) {
+    printf("\n");
+    printf("========================================\n");
+    printf("        CONTACT BOOK MANAGER\n");
+    printf("========================================\n");
+    printf("\n");
+    printf("  1. Add new contact\n");
+    printf("  2. List all contacts\n");
+    printf("  3. Search contacts\n");
+    printf("  4. Delete contact\n");
+    printf("  5. Save and exit\n");
+    printf("  6. Exit without saving\n");
+    printf("\n");
+    printf("========================================\n");
+    printf("Enter your choice (1-6): ");
+
+    int choice;
+    if (scanf("%d", &choice) != 1) {
+        // Clear invalid input
+        while (getchar() != '\n');
+        return -1;
+    }
+
+    // Clear input buffer
+    while (getchar() != '\n');
+
+    return choice;
+}
+```
+
+**Enhancement Ideas**:
+- Show contact count in menu
+- Add color using ANSI escape codes
+- Show last operation result
+
+### Get User Input
+
+```c
+int ui_get_input(const char *prompt, char *buffer, int size) {
+    printf("%s", prompt);
+
+    if (fgets(buffer, size, stdin) == NULL) {
+        return -1;
+    }
+
+    // Remove trailing newline
+    buffer[strcspn(buffer, "\n")] = '\0';
+
+    // Trim leading whitespace
+    char *start = buffer;
+    while (isspace((unsigned char)*start)) {
+        start++;
+    }
+
+    // Trim trailing whitespace
+    char *end = start + strlen(start) - 1;
+    while (end > start && isspace((unsigned char)*end)) {
+        *end = '\0';
+        end--;
+    }
+
+    // Move trimmed string to beginning of buffer
+    if (start != buffer) {
+        memmove(buffer, start, strlen(start) + 1);
+    }
+
+    return strlen(buffer);
+}
+```
+
+### List All Contacts
+
+```c
+void ui_list_contacts(const ContactBook *book) {
+    if (book == NULL || book->count == 0) {
+        printf("\nNo contacts in the book.\n");
+        return;
+    }
+
+    printf("\n========================================\n");
+    printf("       ALL CONTACTS (%d total)\n", book->count);
+    printf("========================================\n\n");
+
+    for (int i = 0; i < book->count; i++) {
+        Contact *contact = contactbook_get((ContactBook*)book, i);
+
+        printf("[%d] ", i + 1);
+        printf("%s\n", contact->name);
+
+        if (strlen(contact->phone) > 0) {
+            printf("    Phone: %s\n", contact->phone);
+        } else {
+            printf("    Phone: N/A\n");
+        }
+
+        if (strlen(contact->email) > 0) {
+            printf("    Email: %s\n", contact->email);
+        } else {
+            printf("    Email: N/A\n");
+        }
+
+        printf("\n");
+    }
+
+    printf("========================================\n");
+}
+```
+
+**Your Task**: Enhance this to make the output even more readable.
+
+**Ideas**:
+- Add horizontal dividers between contacts
+- Align fields in columns
+- Add icons or symbols (📞 ✉️)
+
+### Add Contact Workflow
+
+```c
+int ui_add_contact(ContactBook *book) {
+    printf("\n========================================\n");
+    printf("          ADD NEW CONTACT\n");
+    printf("========================================\n\n");
+
+    char name[MAX_NAME_LEN + 1];
+    char phone[MAX_PHONE_LEN + 1];
+    char email[MAX_EMAIL_LEN + 1];
+
+    // Get name (required)
+    while (1) {
+        int len = ui_get_input("Name (required): ", name, sizeof(name));
+
+        if (len == 0) {
+            printf("Error: Name cannot be empty.\n");
+            printf("Enter 'cancel' to go back, or try again.\n");
+            continue;
+        }
+
+        if (strcmp(name, "cancel") == 0) {
+            return -1;  // User canceled
+        }
+
+        break;  // Valid name
+    }
+
+    // Get phone (optional)
+    printf("Phone (optional, press Enter to skip): ");
+    ui_get_input("", phone, sizeof(phone));
+
+    // Get email (optional)
+    printf("Email (optional, press Enter to skip): ");
+    ui_get_input("", email, sizeof(email));
+
+    // Create and add contact
+    Contact *contact = contact_create(name, phone, email);
+    if (contact == NULL) {
+        ui_show_error("Failed to create contact");
+        return -1;
+    }
+
+    if (contactbook_add(book, contact) != 0) {
+        ui_show_error("Failed to add contact (book may be full)");
+        contact_destroy(contact);
+        return -1;
+    }
+
+    printf("\n✓ Contact added successfully!\n");
+    return 0;
+}
+```
+
+**Your Task**: Test this thoroughly with various inputs.
+
+**Test Cases**:
+- Normal input
+- Very long names
+- Empty optional fields
+- Special characters in names
+- Typing "cancel"
+
+### Search Contacts
+
+```c
+void ui_search_contacts(const ContactBook *book) {
+    if (book->count == 0) {
+        printf("\nNo contacts to search.\n");
+        return;
+    }
+
+    printf("\n========================================\n");
+    printf("          SEARCH CONTACTS\n");
+    printf("========================================\n\n");
+
+    char search_term[100];
+    ui_get_input("Enter search term: ", search_term, sizeof(search_term));
+
+    if (strlen(search_term) == 0) {
+        return;
+    }
+
+    printf("\nSearching for '%s'...\n\n", search_term);
+
+    int found_count = 0;
+    for (int i = 0; i < book->count; i++) {
+        Contact *contact = contactbook_get((ContactBook*)book, i);
+
+        if (contact_matches(contact, search_term)) {
+            printf("[%d] ", i + 1);
+            contact_print(contact);
+            found_count++;
+        }
+    }
+
+    if (found_count == 0) {
+        printf("No contacts found matching '%s'.\n", search_term);
+    } else {
+        printf("Found %d contact(s).\n", found_count);
+    }
+}
+```
+
+**Enhancement**: Also search in phone and email fields.
+
+### Delete Contact
+
+```c
+int ui_delete_contact(ContactBook *book) {
+    if (book->count == 0) {
+        printf("\nNo contacts to delete.\n");
+        return -1;
+    }
+
+    printf("\n========================================\n");
+    printf("         DELETE CONTACT\n");
+    printf("========================================\n\n");
+
+    // Show all contacts with numbers
+    ui_list_contacts(book);
+
+    printf("\nEnter contact number to delete (1-%d), or 0 to cancel: ",
+           book->count);
+
+    int choice;
+    if (scanf("%d", &choice) != 1) {
+        while (getchar() != '\n');
+        ui_show_error("Invalid input");
+        return -1;
+    }
+    while (getchar() != '\n');
+
+    if (choice == 0) {
+        return -1;  // Canceled
+    }
+
+    if (choice < 1 || choice > book->count) {
+        ui_show_error("Invalid contact number");
+        return -1;
+    }
+
+    // Convert to 0-based index
+    int index = choice - 1;
+
+    // Show contact being deleted
+    Contact *contact = contactbook_get(book, index);
+    printf("\nAre you sure you want to delete:\n");
+    contact_print(contact);
+
+    if (!ui_confirm("Delete this contact? (y/n): ")) {
+        printf("Deletion canceled.\n");
+        return -1;
+    }
+
+    // Perform deletion
+    if (contactbook_remove(book, index) == 0) {
+        printf("\n✓ Contact deleted successfully!\n");
+        return 0;
+    } else {
+        ui_show_error("Failed to delete contact");
+        return -1;
+    }
+}
+```
+
+### Helper Functions
+
+```c
+void ui_clear_screen(void) {
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
+}
+
+void ui_show_message(const char *message) {
+    printf("\n✓ %s\n", message);
+}
+
+void ui_show_error(const char *message) {
+    printf("\n✗ Error: %s\n", message);
+}
+
+int ui_confirm(const char *prompt) {
+    char response[10];
+    printf("%s", prompt);
+
+    if (fgets(response, sizeof(response), stdin) == NULL) {
+        return 0;
+    }
+
+    // Check first character (y/Y for yes)
+    char c = tolower((unsigned char)response[0]);
+    return (c == 'y');
+}
+```
+
+## Input Validation Strategies
+
+### Validating Phone Numbers
+
+```c
+int is_valid_phone(const char *phone) {
+    if (strlen(phone) == 0) {
+        return 1;  // Empty is OK (optional field)
+    }
+
+    // Allow digits, spaces, dashes, parentheses, plus
+    for (int i = 0; phone[i]; i++) {
+        char c = phone[i];
+        if (!isdigit(c) && c != ' ' && c != '-' &&
+            c != '(' && c != ')' && c != '+') {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+```
+
+### Validating Email Addresses
+
+```c
+int is_valid_email(const char *email) {
+    if (strlen(email) == 0) {
+        return 1;  // Empty is OK
+    }
+
+    // Simple validation: must contain @ and .
+    const char *at = strchr(email, '@');
+    if (at == NULL) return 0;
+
+    const char *dot = strchr(at, '.');
+    if (dot == NULL) return 0;
+
+    return 1;
+}
+```
+
+**Your Task**: Integrate these validation functions into `ui_add_contact()`.
+
+## Enhanced UI Features
+
+### 1. Status Bar
+
+Show context information at the top:
+
+```c
+void ui_show_status_bar(const ContactBook *book) {
+    printf("========================================\n");
+    printf(" Contacts: %d | Capacity: %d\n",
+           book->count, MAX_CONTACTS);
+    printf("========================================\n");
+}
+```
+
+### 2. Pagination for Long Lists
+
+If many contacts, show them page by page:
+
+```c
+void ui_list_contacts_paginated(const ContactBook *book) {
+    const int PAGE_SIZE = 10;
+    int current_page = 0;
+    int total_pages = (book->count + PAGE_SIZE - 1) / PAGE_SIZE;
+
+    while (1) {
+        ui_clear_screen();
+        printf("Page %d of %d\n\n", current_page + 1, total_pages);
+
+        int start = current_page * PAGE_SIZE;
+        int end = start + PAGE_SIZE;
+        if (end > book->count) end = book->count;
+
+        for (int i = start; i < end; i++) {
+            // Display contact
+        }
+
+        printf("\n[N]ext [P]rev [Q]uit: ");
+        // Handle navigation
+        break;  // Simplified for example
+    }
+}
+```
+
+### 3. Sorting Options
+
+Add a submenu for sorting:
+
+```c
+void ui_sort_menu(ContactBook *book) {
+    printf("\nSort by:\n");
+    printf("  1. Name (A-Z)\n");
+    printf("  2. Name (Z-A)\n");
+    printf("  3. Recently added\n");
+
+    // Get choice and sort accordingly
+}
+```
+
+## Testing Your UI Module
+
+Create a test program `test_ui.c`:
+
+```c
+#include "contact.h"
+#include "ui.h"
+#include <stdio.h>
+
+int main() {
+    ContactBook book;
+    contactbook_init(&book);
+
+    // Add some test contacts
+    contactbook_add(&book,
+        contact_create("Alice Anderson", "555-0001", "alice@test.com"));
+    contactbook_add(&book,
+        contact_create("Bob Baker", "555-0002", "bob@test.com"));
+    contactbook_add(&book,
+        contact_create("Charlie Chen", "", "charlie@test.com"));
+
+    // Test UI functions
+    printf("Testing ui_list_contacts:\n");
+    ui_list_contacts(&book);
+
+    printf("\nTesting ui_search_contacts:\n");
+    ui_search_contacts(&book);
+
+    printf("\nTesting ui_show_message:\n");
+    ui_show_message("Operation completed successfully");
+
+    printf("\nTesting ui_show_error:\n");
+    ui_show_error("Something went wrong");
+
+    contactbook_destroy(&book);
+    return 0;
+}
+```
+
+### Manual Testing Checklist
+
+- [ ] Menu displays correctly
+- [ ] All menu options are accessible
+- [ ] Input is trimmed of whitespace
+- [ ] Empty input is handled gracefully
+- [ ] Long names don't crash the program
+- [ ] Special characters display correctly
+- [ ] Error messages are clear and helpful
+- [ ] Confirmation prompts work properly
+
+## Accessibility Considerations
+
+### Screen Reader Friendly
+- Use clear, descriptive text
+- Avoid ASCII art that confuses screen readers
+- Provide text alternatives for symbols
+
+### Keyboard Only
+- No mouse required (it's CLI!)
+- Clear instructions for all actions
+- Easy to navigate with Tab/Enter
+
+### Internationalization
+- Use UTF-8 for international characters
+- Don't assume ASCII-only names
+- Handle accents, umlauts, etc.
+
+## Milestone Checklist
+
+- [ ] ui.h has all function declarations
+- [ ] Menu system works and displays clearly
+- [ ] Add contact workflow is intuitive
+- [ ] List contacts shows formatted output
+- [ ] Search contacts finds matches
+- [ ] Delete contact confirms before deleting
+- [ ] Input validation prevents errors
+- [ ] All user feedback is clear
+- [ ] Tested with various inputs
+
+## Next Step
+
+With your UI module complete, you're ready for **Step 6: Main Integration**, where you'll bring all modules together into a complete, working application!
+
+---
+
+**Pro Tip**: Test your UI with a real user (friend, family member) who hasn't seen the code. Their feedback will reveal usability issues you might have missed!

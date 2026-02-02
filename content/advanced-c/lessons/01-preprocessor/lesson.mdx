@@ -1,0 +1,50 @@
+---
+id: 01-preprocessor
+title: The C Preprocessor & Build Model
+description: Master the C preprocessor: macros, conditional compilation, header guards, and build-time configuration.
+type: lesson
+order: 1
+---
+
+import { LearningObjectives } from '@/components/learning-objectives'
+
+# The C Preprocessor & Build Model
+
+The C preprocessor is a text substitution tool that runs before actual compilation. It's powerful but dangerous — understanding it deeply is essential for writing robust, portable C code.
+
+<LearningObjectives>
+
+- Understand how the preprocessor transforms code before compilation
+- Write safe function-like macros without common pitfalls
+- Use conditional compilation for cross-platform code
+- Implement proper header guards and include patterns
+- Compare macros vs inline functions and know when to use each
+- Use feature flags for compile-time configuration
+
+</LearningObjectives>
+
+## Why This Matters
+
+Large C codebases (Linux kernel, SQLite, PostgreSQL) rely heavily on the preprocessor for:
+
+- Platform-specific code paths
+- Compile-time configuration
+- Debugging and instrumentation
+- Generic programming without templates
+
+Misusing macros causes subtle bugs that are hard to track down. This phase teaches you to use the preprocessor safely and effectively.
+
+## What You'll Learn
+
+We'll cover both the mechanics and the best practices:
+
+1. **Object-like vs function-like macros** — When to use each form
+2. **Macro pitfalls** — Double evaluation, operator precedence, side effects
+3. **Conditional compilation** — `#ifdef`, `#ifndef`, `#if`, and defined()
+4. **Header guards** — Preventing multiple inclusion
+5. **Compile-time configuration** — Feature flags and build variants
+6. **Pragma directives** — Compiler-specific controls
+7. **Safe macro patterns** — `do { ... } while(0)` and other idioms
+8. **Macros vs inline functions** — Tradeoffs and when to choose
+
+Let's start with understanding what the preprocessor actually does.

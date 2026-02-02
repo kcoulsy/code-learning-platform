@@ -1,0 +1,579 @@
+---
+title: "Testing & Debugging"
+order: 7
+---
+
+# Testing & Debugging
+
+A working implementation is only half the battle. Professional code must be thoroughly tested and debuggable. In this final step, you'll create a comprehensive test suite and learn debugging techniques.
+
+## Testing Philosophy
+
+Good tests should:
+- **Cover normal cases**: Expected usage patterns
+- **Cover edge cases**: Empty lists, single nodes, boundaries
+- **Cover error cases**: Invalid inputs, out-of-bounds operations
+- **Be automated**: Can run quickly and repeatedly
+- **Be clear**: Easy to see what failed and why
+
+## Building a Test Framework
+
+Create a simple testing framework in your code:
+
+```c
+// test_helpers.h
+#ifndef TEST_HELPERS_H
+#define TEST_HELPERS_H
+
+#include <stdio.h>
+#include <stdbool.h>
+
+// Test statistics
+static int tests_run = 0;
+static int tests_passed = 0;
+static int tests_failed = 0;
+
+// Color codes for output
+#define COLOR_GREEN "\x1b[32m"
+#define COLOR_RED "\x1b[31m"
+#define COLOR_RESET "\x1b[0m"
+
+// Test macros
+#define TEST(name) \
+    void test_##name(); \
+    printf("\nRunning test: %s\n", #name); \
+    tests_run++; \
+    test_##name(); \
+    void test_##name()
+
+#define ASSERT(condition, message) \
+    do { \
+        if (condition) { \
+            printf(COLOR_GREEN "  ✓ " COLOR_RESET "%s\n", message); \
+            tests_passed++; \
+        } else { \
+            printf(COLOR_RED "  ✗ " COLOR_RESET "%s\n", message); \
+            tests_failed++; \
+        } \
+    } while(0)
+
+#define ASSERT_EQUAL(actual, expected, message) \
+    ASSERT((actual) == (expected), message)
+
+#define PRINT_TEST_SUMMARY() \
+    printf("\n" "=" "==================\n"); \
+    printf("Tests run: %d\n", tests_run); \
+    printf(COLOR_GREEN "Passed: %d\n" COLOR_RESET, tests_passed); \
+    if (tests_failed > 0) { \
+        printf(COLOR_RED "Failed: %d\n" COLOR_RESET, tests_failed); \
+    } else { \
+        printf("Failed: %d\n", tests_failed); \
+    } \
+    printf("=" "==================\n")
+
+#endif
+```
+
+### Using the Test Framework
+
+```c
+#include "linked_list.h"
+#include "test_helpers.h"
+
+TEST(create_node) {
+    struct Node *node = create_node(42);
+    ASSERT(node != NULL, "Node was created");
+    ASSERT_EQUAL(node->data, 42, "Node has correct data");
+    ASSERT(node->next == NULL, "Node next is NULL");
+    free(node);
+}
+
+int main() {
+    test_create_node();
+    // ... more tests ...
+    PRINT_TEST_SUMMARY();
+    return tests_failed > 0 ? 1 : 0;
+}
+```
+
+## Test Cases to Implement
+
+### Test 1: Node Creation
+
+```c
+TEST(create_node) {
+    // Test creating a node
+    struct Node *node = create_node(100);
+    ASSERT(node != NULL, "Node created successfully");
+    ASSERT_EQUAL(node->data, 100, "Data is correct");
+    ASSERT(node->next == NULL, "Next pointer is NULL");
+
+    // Test with different values
+    struct Node *node2 = create_node(-50);
+    ASSERT_EQUAL(node2->data, -50, "Negative value works");
+
+    struct Node *node3 = create_node(0);
+    ASSERT_EQUAL(node3->data, 0, "Zero value works");
+
+    // Cleanup
+    free(node);
+    free(node2);
+    free(node3);
+}
+```
+
+### Test 2: Insert at Head
+
+```c
+TEST(insert_at_head) {
+    struct Node *head = NULL;
+
+    // Insert into empty list
+    insert_at_head(&head, 10);
+    ASSERT(head != NULL, "Head is not NULL after insert");
+    ASSERT_EQUAL(head->data, 10, "First node has correct data");
+
+    // Insert multiple nodes
+    insert_at_head(&head, 20);
+    insert_at_head(&head, 30);
+    ASSERT_EQUAL(head->data, 30, "Head has newest data");
+    ASSERT_EQUAL(head->next->data, 20, "Second node correct");
+    ASSERT_EQUAL(head->next->next->data, 10, "Third node correct");
+
+    delete_list(&head);
+}
+```
+
+### Test 3: Insert at Tail
+
+```c
+TEST(insert_at_tail) {
+    struct Node *head = NULL;
+
+    // Insert into empty list
+    insert_at_tail(&head, 10);
+    ASSERT(head != NULL, "Head is not NULL");
+    ASSERT_EQUAL(head->data, 10, "First element correct");
+
+    // Insert multiple
+    insert_at_tail(&head, 20);
+    insert_at_tail(&head, 30);
+
+    // Verify order
+    ASSERT_EQUAL(head->data, 10, "Head is first inserted");
+    ASSERT_EQUAL(head->next->data, 20, "Second element correct");
+    ASSERT_EQUAL(head->next->next->data, 30, "Third element correct");
+
+    delete_list(&head);
+}
+```
+
+### Test 4: Delete Operations
+
+```c
+TEST(delete_by_value) {
+    struct Node *head = NULL;
+
+    // Test on empty list
+    int result = delete_by_value(&head, 10);
+    ASSERT_EQUAL(result, 0, "Delete from empty list returns 0");
+
+    // Build list: 10 -> 20 -> 30
+    insert_at_tail(&head, 10);
+    insert_at_tail(&head, 20);
+    insert_at_tail(&head, 30);
+
+    // Delete middle element
+    result = delete_by_value(&head, 20);
+    ASSERT_EQUAL(result, 1, "Delete existing element returns 1");
+    ASSERT_EQUAL(count_nodes(head), 2, "List has 2 nodes");
+
+    // Delete head
+    result = delete_by_value(&head, 10);
+    ASSERT_EQUAL(result, 1, "Delete head returns 1");
+    ASSERT_EQUAL(head->data, 30, "New head is correct");
+
+    // Delete non-existent
+    result = delete_by_value(&head, 99);
+    ASSERT_EQUAL(result, 0, "Delete non-existent returns 0");
+
+    delete_list(&head);
+}
+```
+
+### Test 5: Search and Count
+
+```c
+TEST(search_and_count) {
+    struct Node *head = NULL;
+
+    // Test on empty list
+    ASSERT_EQUAL(search(head, 10), 0, "Search in empty list returns 0");
+    ASSERT_EQUAL(count_nodes(head), 0, "Empty list has 0 nodes");
+
+    // Build list
+    for (int i = 10; i <= 50; i += 10) {
+        insert_at_tail(&head, i);
+    }
+
+    // Test search
+    ASSERT_EQUAL(search(head, 30), 1, "Found existing element");
+    ASSERT_EQUAL(search(head, 99), 0, "Non-existent element not found");
+
+    // Test count
+    ASSERT_EQUAL(count_nodes(head), 5, "List has 5 nodes");
+
+    delete_list(&head);
+}
+```
+
+### Test 6: Edge Cases
+
+```c
+TEST(edge_cases) {
+    struct Node *head = NULL;
+
+    // Single node list
+    insert_at_head(&head, 42);
+    ASSERT_EQUAL(count_nodes(head), 1, "Single node count");
+    ASSERT_EQUAL(search(head, 42), 1, "Found in single node");
+
+    delete_by_value(&head, 42);
+    ASSERT(head == NULL, "List is NULL after deleting only node");
+
+    // Delete from position 0
+    insert_at_head(&head, 10);
+    delete_by_position(&head, 0);
+    ASSERT(head == NULL, "Delete position 0 works");
+
+    // Insert at invalid position
+    insert_at_position(&head, 10, 5);
+    ASSERT(head == NULL, "Insert at invalid position doesn't crash");
+
+    // Operations on empty list
+    print_list(head);  // Should not crash
+    ASSERT_EQUAL(find_position(head, 10), -1, "Find in empty list");
+
+    delete_list(&head);
+}
+```
+
+### Test 7: Sorted Insert
+
+```c
+TEST(insert_sorted) {
+    struct Node *head = NULL;
+
+    // Insert in sorted order
+    insert_sorted(&head, 30);
+    insert_sorted(&head, 10);
+    insert_sorted(&head, 40);
+    insert_sorted(&head, 20);
+
+    // Verify sorted: 10 -> 20 -> 30 -> 40
+    struct Node *current = head;
+    ASSERT_EQUAL(current->data, 10, "First element is smallest");
+    current = current->next;
+    ASSERT_EQUAL(current->data, 20, "Second element correct");
+    current = current->next;
+    ASSERT_EQUAL(current->data, 30, "Third element correct");
+    current = current->next;
+    ASSERT_EQUAL(current->data, 40, "Fourth element is largest");
+
+    delete_list(&head);
+}
+```
+
+### Test 8: Memory Management
+
+```c
+TEST(memory_management) {
+    struct Node *head = NULL;
+
+    // Create and destroy many nodes
+    for (int i = 0; i < 1000; i++) {
+        insert_at_head(&head, i);
+    }
+    ASSERT_EQUAL(count_nodes(head), 1000, "Created 1000 nodes");
+
+    delete_list(&head);
+    ASSERT(head == NULL, "Head is NULL after delete_list");
+
+    // Test delete_all_by_value
+    for (int i = 0; i < 100; i++) {
+        insert_at_tail(&head, i % 10);  // Creates duplicates
+    }
+
+    int deleted = delete_all_by_value(&head, 5);
+    ASSERT_EQUAL(deleted, 10, "Deleted all occurrences");
+
+    delete_list(&head);
+}
+```
+
+## Debugging Techniques
+
+### Technique 1: Print Debugging
+
+Add a detailed print function:
+
+```c
+void print_list_detailed(struct Node *head) {
+    printf("List structure:\n");
+    if (head == NULL) {
+        printf("  (empty)\n");
+        return;
+    }
+
+    struct Node *current = head;
+    int position = 0;
+
+    while (current != NULL) {
+        printf("  [%d] Data: %d, Address: %p, Next: %p\n",
+               position,
+               current->data,
+               (void*)current,
+               (void*)current->next);
+        current = current->next;
+        position++;
+    }
+}
+```
+
+### Technique 2: Assertions
+
+Add assertions for invariants:
+
+```c
+#include <assert.h>
+
+void insert_at_head(struct Node **head, int data) {
+    assert(head != NULL);  // head pointer must be valid
+
+    struct Node *new_node = create_node(data);
+    assert(new_node != NULL);  // allocation must succeed
+
+    new_node->next = *head;
+    *head = new_node;
+
+    // Verify head is not NULL after insertion
+    assert(*head != NULL);
+}
+```
+
+### Technique 3: Using GDB
+
+Common GDB commands for linked list debugging:
+
+```bash
+# Compile with debug symbols
+gcc -g -Wall -Wextra linked_list.c main.c -o linked_list
+
+# Start GDB
+gdb ./linked_list
+
+# Useful commands:
+(gdb) break insert_at_head     # Break at function
+(gdb) run                       # Start program
+(gdb) print head                # Print head pointer
+(gdb) print *head               # Print head node
+(gdb) print head->next->data    # Navigate list
+(gdb) next                      # Step to next line
+(gdb) step                      # Step into function
+(gdb) continue                  # Continue execution
+(gdb) backtrace                 # Show call stack
+```
+
+### Technique 4: Visual Inspection
+
+Create a function to generate DOT format for visualization:
+
+```c
+void print_dot(struct Node *head) {
+    printf("digraph LinkedList {\n");
+    printf("  rankdir=LR;\n");
+    printf("  node [shape=record];\n");
+
+    struct Node *current = head;
+    int id = 0;
+
+    while (current != NULL) {
+        printf("  node%d [label=\"{%d|%p}\"];\n",
+               id, current->data, (void*)current->next);
+
+        if (current->next != NULL) {
+            printf("  node%d -> node%d;\n", id, id + 1);
+        }
+
+        current = current->next;
+        id++;
+    }
+
+    printf("}\n");
+}
+
+// Save output to file and visualize:
+// ./linked_list > list.dot
+// dot -Tpng list.dot -o list.png
+```
+
+## Performance Testing
+
+Test with large datasets:
+
+```c
+void performance_test() {
+    printf("\n=== Performance Test ===\n");
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    struct Node *head = NULL;
+
+    // Test insertion speed
+    start = clock();
+    for (int i = 0; i < 10000; i++) {
+        insert_at_head(&head, i);
+    }
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Inserted 10,000 nodes in %.3f seconds\n", cpu_time_used);
+
+    // Test search speed
+    start = clock();
+    for (int i = 0; i < 1000; i++) {
+        search(head, i);
+    }
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Performed 1,000 searches in %.3f seconds\n", cpu_time_used);
+
+    // Cleanup
+    delete_list(&head);
+}
+```
+
+## Exercises
+
+### Exercise 1: Implement All Test Cases
+Create a comprehensive test file with all the test cases shown above. Run and verify they all pass.
+
+### Exercise 2: Add More Edge Cases
+Think of and test:
+- Very large numbers (INT_MAX, INT_MIN)
+- Deleting all nodes one by one
+- Alternating inserts and deletes
+- Lists with all identical values
+
+### Exercise 3: Create Automated Test Script
+Write a bash script that:
+- Compiles the code
+- Runs tests
+- Runs valgrind
+- Reports results
+
+Example:
+```bash
+#!/bin/bash
+gcc -Wall -Wextra -g linked_list.c main.c -o linked_list
+if [ $? -eq 0 ]; then
+    echo "Compilation successful"
+    ./linked_list
+    echo ""
+    echo "Running valgrind..."
+    valgrind --leak-check=full ./linked_list
+else
+    echo "Compilation failed"
+    exit 1
+fi
+```
+
+### Exercise 4: Test with Valgrind
+Run every test under valgrind. Ensure all are leak-free.
+
+### Exercise 5: Debug a Planted Bug
+Intentionally introduce bugs and practice finding them with:
+- Print debugging
+- GDB
+- Valgrind
+
+## Common Bugs and How to Find Them
+
+### Bug 1: Infinite Loop
+**Symptom**: Program hangs
+
+**Cause**: Not advancing pointer in loop
+
+**Debug**:
+```c
+// Add print in loop
+while (current != NULL) {
+    printf("Current: %p\n", (void*)current);  // See if it changes
+    // ...
+}
+```
+
+### Bug 2: Segmentation Fault
+**Symptom**: Crash with "Segmentation fault"
+
+**Cause**: NULL pointer dereference
+
+**Debug with GDB**:
+```bash
+gdb ./linked_list
+(gdb) run
+# Program crashes
+(gdb) backtrace      # See where it crashed
+(gdb) print current  # Check if pointer is NULL
+```
+
+### Bug 3: Memory Leak
+**Symptom**: Valgrind reports "definitely lost"
+
+**Cause**: Forgot to free a node
+
+**Debug**: Follow valgrind's stack trace to the allocation site
+
+### Bug 4: Use After Free
+**Symptom**: Valgrind reports "Invalid read"
+
+**Cause**: Using pointer after freeing it
+
+**Debug**: Use AddressSanitizer or valgrind to find exact location
+
+## Project Completion Checklist
+
+Before considering your project complete, verify:
+
+- [ ] All core operations implemented and working
+- [ ] All test cases pass
+- [ ] No valgrind errors or leaks
+- [ ] Edge cases handled gracefully
+- [ ] Code is well-commented
+- [ ] Functions have clear names and purposes
+- [ ] No compiler warnings with `-Wall -Wextra`
+- [ ] Memory stress test with 10,000+ nodes passes
+- [ ] Performance is reasonable
+- [ ] Code is organized (separate .h and .c files)
+
+## Congratulations!
+
+You've completed the Linked List Implementation project! You now have:
+
+- A working linked list data structure
+- Understanding of dynamic memory management
+- Experience with pointers and structs
+- Knowledge of testing and debugging techniques
+- A reusable component for future projects
+
+## Next Steps
+
+Consider extending your project:
+
+1. **Doubly Linked List**: Add prev pointers for bidirectional traversal
+2. **Generics**: Use void pointers to store any data type
+3. **More Operations**: Reverse list, merge lists, split list
+4. **Iterator Pattern**: Create an iterator interface
+5. **Thread Safety**: Add mutex locks for concurrent access
+
+Keep building on what you've learned!

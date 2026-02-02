@@ -1,0 +1,446 @@
+---
+id: 07-optimization
+title: Compiler Optimization Levels
+order: 7
+---
+
+# Compiler Optimization Levels
+
+Understanding compiler optimization helps you write better code and understand performance tradeoffs.
+
+## Optimization Levels
+
+### -O0: No Optimization (Default)
+
+```bash
+gcc -O0 program.c -o program
+```
+
+**Characteristics**:
+
+- Fast compilation
+- Slow execution
+- Full debuggability
+- No code transformation
+- All variables preserved
+
+**When to use**: Debugging, development
+
+### -O1: Basic Optimization
+
+```bash
+gcc -O1 program.c -o program
+```
+
+**Optimizations**:
+
+- Dead code elimination
+- Register allocation
+- Basic instruction scheduling
+- Simple loop optimizations
+
+**When to use**: Debugging with some optimization
+
+### -O2: Recommended Optimization
+
+```bash
+gcc -O2 program.c -o program
+```
+
+**Optimizations** (includes -O1 plus):
+
+- Inline functions
+- Loop unrolling
+- Instruction reordering
+- Vectorization (some)
+- Frame pointer omission
+
+**When to use**: Production builds (default recommendation)
+
+### -O3: Aggressive Optimization
+
+```bash
+gcc -O3 program.c -o program
+```
+
+**Optimizations** (includes -O2 plus):
+
+- More aggressive inlining
+- More loop unrolling
+- More vectorization
+- Function cloning
+- Auto-vectorization
+
+**When to use**: Performance-critical code, benchmarking
+
+### -Os: Optimize for Size
+
+```bash
+gcc -Os program.c -o program
+```
+
+**Optimizations**:
+
+- All -O2 optimizations that don't increase size
+- Disable optimizations that increase code size
+
+**When to use**: Embedded systems, firmware
+
+### -Og: Optimize for Debugging
+
+```bash
+gcc -Og program.c -o program
+```
+
+**Optimizations**:
+
+- Optimizations that improve debugging experience
+- Preserves debug info quality
+- Better than -O0 for debugging
+
+**When to use**: Debugging optimized code
+
+### -Ofast: Disregard Standards
+
+```bash
+gcc -Ofast program.c -o program
+```
+
+**Optimizations** (includes -O3 plus):
+
+- Aggressive floating-point optimizations
+- Non-IEEE compliant math
+- May break standards compliance
+
+**Warning**: Can change floating-point semantics
+
+## Optimization Examples
+
+### Example 1: Dead Code Elimination
+
+```c
+int func(void) {
+    int x = 5;
+    int y = 10;
+    return x + y;
+}
+```
+
+**-O0 assembly**:
+
+```asm
+push rbp
+mov rbp, rsp
+mov DWORD PTR [rbp-4], 5    # x = 5
+mov DWORD PTR [rbp-8], 10   # y = 10
+mov eax, DWORD PTR [rbp-4]
+add eax, DWORD PTR [rbp-8]  # x + y
+pop rbp
+ret
+```
+
+**-O2 assembly**:
+
+```asm
+mov eax, 15   # Direct constant!
+ret
+```
+
+The compiler computed 5 + 10 = 15 at compile time.
+
+### Example 2: Function Inlining
+
+```c
+static inline int square(int x) {
+    return x * x;
+}
+
+int compute(int n) {
+    return square(n) + square(n + 1);
+}
+```
+
+**-O0**: Calls `square()` function
+**-O2**: Inlines `square()` twice
+
+### Example 3: Loop Unrolling
+
+```c
+int sum = 0;
+for (int i = 0; i < 4; i++) {
+    sum += arr[i];
+}
+```
+
+**-O2**:
+
+```c
+int sum = arr[0] + arr[1] + arr[2] + arr[3];
+```
+
+### Example 4: Constant Propagation
+
+```c
+#define SIZE 100
+int arr[SIZE];
+int total = 0;
+for (int i = 0; i < SIZE; i++) {
+    total += arr[i];
+}
+```
+
+**-O2**: Replaces `SIZE` with 100, may unroll loop
+
+### Example 5: Register Allocation
+
+```c
+int compute(int a, int b, int c) {
+    int x = a + b;
+    int y = x * c;
+    int z = y - a;
+    return z;
+}
+```
+
+**-O0**: All variables in stack memory
+**-O2**: All variables in registers
+
+## Optimization Flags
+
+### Architecture-Specific
+
+```bash
+# Optimize for current machine
+gcc -march=native program.c
+
+# Optimize for specific architecture
+gcc -march=x86-64-v3 program.c
+
+# Generate position-independent code
+gcc -fPIC program.c
+```
+
+### Link-Time Optimization (LTO)
+
+```bash
+gcc -flto -O2 program.c -o program
+```
+
+Optimizes across translation units (multiple .c files).
+
+### Profile-Guided Optimization (PGO)
+
+**Step 1**: Compile with profiling:
+
+```bash
+gcc -O2 -fprofile-generate program.c -o program
+./program  # Run with typical workload
+```
+
+**Step 2**: Recompile with profile data:
+
+```bash
+gcc -O2 -fprofile-use program.c -o program
+```
+
+The compiler optimizes based on actual runtime behavior.
+
+## Comparing Optimization Levels
+
+Test code:
+
+```c
+#include <stdio.h>
+
+static int fibonacci(int n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+int main(void) {
+    printf("fib(40) = %d\n", fibonacci(40));
+    return 0;
+}
+```
+
+**Benchmark**:
+
+```bash
+gcc -O0 fib.c -o fib_O0 && time ./fib_O0
+gcc -O2 fib.c -o fib_O2 && time ./fib_O2
+gcc -O3 fib.c -o fib_O3 && time ./fib_O3
+```
+
+**Typical results**:
+
+- -O0: ~2.5 seconds
+- -O2: ~0.6 seconds
+- -O3: ~0.5 seconds
+
+## Optimization and Debugging
+
+### Issue: Variables Optimized Away
+
+```c
+int x = 5;
+int y = 10;
+return x + y;
+```
+
+With -O2:
+
+- Variables `x` and `y` don't exist in generated code
+- GDB can't print them
+
+**Solution**: Use `volatile`:
+
+```c
+volatile int x = 5;
+```
+
+Or compile with `-O0` for debugging.
+
+### Issue: Inlined Functions
+
+```c
+static inline int square(int x) { return x * x; }
+```
+
+With -O2:
+
+- `square()` is inlined
+- Can't set breakpoint in `square()`
+
+**Solution**: Use `-Og` or disable inlining:
+
+```bash
+gcc -O2 -fno-inline program.c
+```
+
+## Measuring Optimization Effects
+
+### Compare Assembly
+
+```bash
+# Disassemble with -O0
+gcc -O2 -S program.c -o program_O2.s
+gcc -O0 -S program.c -o program_O0.s
+
+# Compare
+diff -u program_O0.s program_O2.s
+```
+
+### Compare Binary Size
+
+```bash
+size program_O0 program_O2 program_O3
+```
+
+### Compare Performance
+
+```bash
+hyperfine './program_O0' './program_O2' './program_O3'
+```
+
+## Best Practices
+
+### 1. Use Different Builds
+
+```makefile
+# Debug build
+CFLAGS_DEBUG = -g -O0 -Wall -Wextra
+
+# Release build
+CFLAGS_RELEASE = -O2 -DNDEBUG -Wall -Wextra
+
+# Profile build
+CFLAGS_PROFILE = -O2 -g -fprofile-generate
+```
+
+### 2. Profile Before Optimizing
+
+```bash
+# Profile
+gcc -O2 -pg program.c -o program
+./program
+gprof program gmon.out > profile.txt
+```
+
+Find hot functions, optimize those.
+
+### 3. Benchmark Real Workloads
+
+```bash
+# Use realistic inputs
+./program < large_input.txt
+```
+
+Don't benchmark with toy examples.
+
+### 4. Measure, Don't Guess
+
+```bash
+# Measure
+time ./program
+
+# Use profilers
+perf record ./program
+perf report
+```
+
+### 5. Check Compiler Output
+
+```bash
+# See what compiler generated
+gcc -O2 -S -fverbose-asm program.c
+```
+
+## Common Misconceptions
+
+### "Always use -O3"
+
+False: -O3 can be slower than -O2 due to:
+
+- Code bloat (more cache misses)
+- Over-inlining
+- Over-unrolling
+
+### "Optimization breaks debugging"
+
+False with -Og: Optimized but debuggable
+
+### "Optimization changes program behavior"
+
+True only with:
+
+- -Ofast (floating-point)
+- Undefined behavior in code
+- Bugs in compiler (rare)
+
+## Practice Exercise
+
+Compile this function at different optimization levels:
+
+```c
+int sum_array(int *arr, int n) {
+    int sum = 0;
+    for (int i = 0; i < n; i++) {
+        sum += arr[i];
+    }
+    return sum;
+}
+```
+
+Compare assembly:
+
+```bash
+gcc -O0 -S test.c && cat test.s
+gcc -O2 -S test.c && cat test.s
+gcc -O3 -S test.c && cat test.s
+```
+
+What differences do you see?
+
+---
+
+**Next**: Profiling your code.

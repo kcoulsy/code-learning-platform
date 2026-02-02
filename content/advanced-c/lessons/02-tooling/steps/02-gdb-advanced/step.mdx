@@ -1,0 +1,397 @@
+---
+id: 02-gdb-advanced
+title: Advanced GDB Techniques
+order: 2
+---
+
+# Advanced GDB Techniques
+
+Beyond the basics, GDB has powerful features for complex debugging scenarios.
+
+## Convenience Variables
+
+GDB has its own variables:
+
+```bash
+(gdb) set $i = 0
+(gdb) set $ptr = &main
+(gdb) print $i
+$1 = 0
+```
+
+Useful for:
+
+- Storing values for later
+- Complex conditional breakpoints
+- Looping in GDB commands
+
+## Conditional Breakpoints (Advanced)
+
+```bash
+# Break when a counter reaches a value
+(gdb) break 42 if loop_count == 100
+
+# Break on specific pointer value
+(gdb) break 37 if ptr == NULL
+
+# Complex condition
+(gdb) break 52 if (x > 100) && (y < 0)
+
+# Call function in condition
+(gdb) break validate if check_error() != 0
+```
+
+## Breakpoint Commands
+
+Execute commands automatically when a breakpoint hits:
+
+```bash
+(gdb) break 38
+(gdb) commands
+> silent
+> printf "x = %d, y = %d\n", x, y
+> continue
+> end
+
+(gdb) break main
+(gdb) commands
+> set $start_time = timestamp()
+> continue
+> end
+```
+
+## Catchpoints
+
+Catch events like signals or system calls:
+
+```bash
+(gdb) catch syscall           # Catch any system call
+(gdb) catch syscall open      # Catch open() syscall
+(gdb) catch syscall openat    # Catch openat() syscall
+(gdb) catch signal SIGSEGV    # Catch segfaults
+(gdb) catch throw             # Catch C++ exceptions
+(gdb) catch load              # Catch library loading
+```
+
+Example: Trace file operations:
+
+```bash
+(gdb) catch syscall open
+(gdb) commands
+> silent
+> backtrace 1
+> continue
+> end
+(gdb) run
+```
+
+## Defining Macros
+
+Define custom GDB functions:
+
+```bash
+(gdb) define print_array
+> set $idx = 0
+> printf "["
+> while $idx < $arg0
+>   printf "%d, ", $arg1[$idx]
+>   set $idx = $idx + 1
+> end
+> printf "]\n"
+> end
+
+(gdb) print_array 5 my_array
+[0, 1, 2, 3, 4, ]
+```
+
+## Examining Registers
+
+```bash
+(gdb) info registers           # Show all registers (or 'i r')
+(gdb) info registers rax rsp   # Show specific registers
+(gdb) print $rax               # Print register value
+(gdb) print/x $rip             # Print instruction pointer in hex
+```
+
+### x86-64 Registers
+
+- `rax`, `rbx`, `rcx`, `rdx` — General purpose
+- `rsp` — Stack pointer
+- `rbp` — Base pointer
+- `rsi`, `rdi` — Source/destination indices
+- `r8`-`r15` — Additional general purpose
+- `rip` — Instruction pointer
+- `rflags` — Flags register
+
+## Disassembly
+
+```bash
+(gdb) disassemble              # Disassemble current function
+(gdb) disassemble main         # Disassemble main
+(gdb) disassemble 0x400500     # Disassemble at address
+(gdb) set disassembly-flavor intel  # Use Intel syntax
+```
+
+### Step by Instruction
+
+```bash
+(gdb) stepi                    # Step one instruction
+(gdb) nexti                    # Next instruction (skip calls)
+(gdb) x/10i $pc                # Show next 10 instructions
+```
+
+## Setting Memory
+
+```bash
+(gdb) set variable x = 42
+(gdb) set *ptr = 0
+(gdb) set {int}0x7fffffffddec = 100
+
+(gdb) call malloc(100)
+$1 = (void *) 0x5555555562a0
+(gdb) call strcpy($1, "Hello")
+$2 = 1684828783
+```
+
+## Thread Debugging
+
+```bash
+(gdb) info threads             # List all threads
+(gdb) thread 2                 # Switch to thread 2
+(gdb) thread apply all bt      # Backtrace all threads
+(gdb) break 42 thread 2        # Break only in thread 2
+```
+
+## Fork Debugging
+
+```bash
+(gdb) set follow-fork-mode child    # Follow child process
+(gdb) set follow-fork-mode parent   # Follow parent (default)
+(gdb) set detach-on-fork off        # Debug both
+```
+
+## Core File Analysis
+
+When a program crashes in production:
+
+```bash
+# Ensure core dumps are enabled
+ulimit -c unlimited
+
+# Run program
+./myserver
+# [1] 12345
+# Segmentation fault (core dumped)
+
+# Analyze core file
+gdb ./myserver core.12345
+(gdb) backtrace
+(gdb) info threads
+(gdb) print global_state
+```
+
+## GDB Scripts
+
+Create a `.gdbinit` file:
+
+```bash
+# ~/.gdbinit or project .gdbinit
+set pagination off
+set disassembly-flavor intel
+handle SIGPIPE nostop noprint
+handle SIGUSR1 nostop noprint
+
+# Custom shortcuts
+define pstr
+  print (char *)$arg0
+end
+
+define phex
+  print/x $arg0
+end
+```
+
+Or load scripts:
+
+```bash
+(gdb) source custom_commands.gdb
+```
+
+## Python Integration
+
+GDB embeds Python for scripting:
+
+```bash
+(gdb) python
+> import gdb
+> def print_dict(d):
+>     for key, value in d.items():
+>         print(f"{key}: {value}")
+> end
+```
+
+Or in `.gdbinit`:
+
+```python
+python
+import gdb
+
+class PrintVec(gdb.Command):
+    def __init__(self):
+        super(PrintVec, self).__init__("printvec", gdb.COMMAND_DATA)
+
+    def invoke(self, arg, from_tty):
+        vec = gdb.parse_and_eval(arg)
+        size = vec['size']
+        data = vec['data']
+        print("[", end="")
+        for i in range(size):
+            print(f"{data[i]}", end="")
+            if i < size - 1:
+                print(", ", end="")
+        print("]")
+
+PrintVec()
+end
+```
+
+Usage: `(gdb) printvec my_vector`
+
+## Reverse Debugging
+
+With recording enabled, you can step backward:
+
+```bash
+(gdb) target record-full
+(gdb) continue
+# ... run until bug ...
+(gdb) reverse-step          # Step backward
+(gdb) reverse-next          # Go backward over calls
+(gdb) reverse-finish        # Return to caller (backward)
+(gdb) record goto 100       # Go to instruction #100
+```
+
+## Debugging Optimized Code
+
+Optimized code is harder to debug:
+
+```bash
+# Compile with optimization
+gcc -O2 -g program.c -o program
+
+# In GDB
+(gdb) print optimized_out_var
+$1 = <optimized out>
+```
+
+Tips:
+
+- Use `info registers` to see values
+- Disassemble to understand what's happening
+- Look at memory: `x/10x &variable`
+- Sometimes inline functions disappear
+
+## Remote Debugging
+
+Debug embedded systems or remote processes:
+
+```bash
+# On remote machine
+gdbserver :1234 ./program
+
+# On local machine
+gdb ./program
+(gdb) target remote remote-ip:1234
+(gdb) continue
+```
+
+## Attach to Running Process
+
+Debug a running process:
+
+```bash
+$ ps aux | grep myprogram
+user  12345  ... ./myprogram
+
+$ gdb -p 12345
+(gdb) continue
+```
+
+Or within GDB:
+
+```bash
+(gdb) attach 12345
+```
+
+## GDB Tips and Tricks
+
+### 1. Pretty Printing
+
+Enable pretty printing for containers:
+
+```bash
+(gdb) set print pretty on
+(gdb) print my_struct
+```
+
+### 2. History
+
+```bash
+(gdb) show commands           # Show command history
+(gdb) Ctrl+R                  # Search history (like bash)
+```
+
+### 3. Shell Commands
+
+```bash
+(gdb) shell ls -l
+(gdb) pipe print x | wc -l
+```
+
+### 4. TTY
+
+When debugging interactive programs:
+
+```bash
+(gdb) tty /dev/pts/5
+```
+
+### 5. Save Breakpoints
+
+```bash
+(gdb) save breakpoints my_breakpoints.gdb
+(gdb) source my_breakpoints.gdb
+```
+
+## Practice Exercise
+
+Create a GDB macro that:
+
+1. Takes a pointer and a count
+2. Prints the array elements
+3. Shows memory addresses
+
+**Answer**:
+
+```bash
+(gdb) define print_array_with_addr
+> set $i = 0
+> printf "Array at %p:\n", $arg0
+> while $i < $arg1
+>   printf "  [%2d] %p: %d\n", $i, &$arg0[$i], $arg0[$i]
+>   set $i = $i + 1
+> end
+> end
+
+(gdb) print_array_with_addr my_array 5
+Array at 0x7fffffffddec:
+  [ 0] 0x7fffffffddec: 10
+  [ 1] 0x7fffffffdde0: 20
+  [ 2] 0x7fffffffdde4: 30
+  [ 3] 0x7fffffffdde8: 40
+  [ 4] 0x7fffffffddec: 50
+```
+
+---
+
+**Next**: Compiler warnings and treating warnings as errors.

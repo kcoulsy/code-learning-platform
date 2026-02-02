@@ -1,0 +1,600 @@
+---
+title: "Dangling Pointers"
+order: 6
+---
+
+# Dangling Pointers
+
+A dangling pointer points to memory that has been freed or is otherwise invalid. Using dangling pointers leads to undefined behavior, crashes, and security vulnerabilities. This step teaches you how to recognize, prevent, and debug dangling pointer issues.
+
+## What is a Dangling Pointer?
+
+A dangling pointer is a pointer that points to memory that is no longer valid:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return 1;
+
+    *ptr = 42;
+    printf("Value: %d\n", *ptr);  // OK
+
+    free(ptr);  // Memory is freed
+
+    // ptr is now a DANGLING POINTER
+    // It still contains the address, but that memory is no longer ours
+
+    // printf("Value: %d\n", *ptr);  // DANGER! Use-after-free
+    // *ptr = 100;  // DANGER! Writing to freed memory
+
+    return 0;
+}
+```
+
+## Common Causes of Dangling Pointers
+
+### 1. Use After Free
+
+The most common dangling pointer problem:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void use_after_free_example() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    *ptr = 42;
+    printf("Before free: %d\n", *ptr);  // OK
+
+    free(ptr);
+
+    // DANGER! Use after free
+    // printf("After free: %d\n", *ptr);  // Undefined behavior
+    // *ptr = 100;  // Undefined behavior
+
+    // May crash, may work, may corrupt data
+}
+
+// SAFE VERSION
+void use_after_free_safe() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    *ptr = 42;
+    printf("Before free: %d\n", *ptr);
+
+    free(ptr);
+    ptr = NULL;  // Set to NULL after freeing
+
+    // Now this is safe - will just skip
+    if (ptr != NULL) {
+        printf("After free: %d\n", *ptr);
+    }
+}
+
+int main() {
+    use_after_free_example();
+    use_after_free_safe();
+    return 0;
+}
+```
+
+### 2. Multiple Pointers to Same Memory
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void multiple_pointers_problem() {
+    int *ptr1 = malloc(sizeof(int));
+    if (ptr1 == NULL) return;
+
+    int *ptr2 = ptr1;  // Both point to same memory
+    *ptr1 = 42;
+
+    printf("ptr1: %d\n", *ptr1);
+    printf("ptr2: %d\n", *ptr2);
+
+    free(ptr1);  // Free through ptr1
+    ptr1 = NULL;  // Set ptr1 to NULL
+
+    // DANGER! ptr2 is now dangling
+    // printf("ptr2 after free: %d\n", *ptr2);  // Undefined behavior
+}
+
+// SAFE VERSION
+void multiple_pointers_safe() {
+    int *ptr1 = malloc(sizeof(int));
+    if (ptr1 == NULL) return;
+
+    int *ptr2 = ptr1;
+    *ptr1 = 42;
+
+    printf("ptr1: %d\n", *ptr1);
+    printf("ptr2: %d\n", *ptr2);
+
+    free(ptr1);
+    ptr1 = NULL;
+    ptr2 = NULL;  // Set all aliases to NULL
+}
+
+int main() {
+    multiple_pointers_problem();
+    multiple_pointers_safe();
+    return 0;
+}
+```
+
+### 3. Returning Pointer to Local Variable
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// DANGER! Returns dangling pointer
+int *return_local_bad() {
+    int x = 42;
+    return &x;  // x is destroyed when function returns
+}
+
+// SAFE VERSION 1: Return heap-allocated memory
+int *return_heap_safe() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr != NULL) {
+        *ptr = 42;
+    }
+    return ptr;  // Caller must free
+}
+
+// SAFE VERSION 2: Use output parameter
+void return_via_param(int *output) {
+    if (output != NULL) {
+        *output = 42;
+    }
+}
+
+int main() {
+    // DANGER! Using dangling pointer
+    // int *bad = return_local_bad();
+    // printf("%d\n", *bad);  // Undefined behavior
+
+    // SAFE: Heap allocation
+    int *good = return_heap_safe();
+    if (good != NULL) {
+        printf("Heap value: %d\n", *good);
+        free(good);
+    }
+
+    // SAFE: Output parameter
+    int value;
+    return_via_param(&value);
+    printf("Output param: %d\n", value);
+
+    return 0;
+}
+```
+
+### 4. Pointer in Freed Structure
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char *name;
+    int age;
+} Person;
+
+void structure_pointer_problem() {
+    Person *p = malloc(sizeof(Person));
+    if (p == NULL) return;
+
+    p->name = malloc(50);
+    if (p->name == NULL) {
+        free(p);
+        return;
+    }
+
+    strcpy(p->name, "Alice");
+    p->age = 30;
+
+    char *name_ptr = p->name;  // Save pointer to name
+
+    // Free the structure
+    free(p->name);
+    free(p);
+
+    // DANGER! name_ptr is now dangling
+    // printf("Name: %s\n", name_ptr);  // Undefined behavior
+}
+
+// SAFE VERSION: Copy the data instead
+void structure_pointer_safe() {
+    Person *p = malloc(sizeof(Person));
+    if (p == NULL) return;
+
+    p->name = malloc(50);
+    if (p->name == NULL) {
+        free(p);
+        return;
+    }
+
+    strcpy(p->name, "Alice");
+    p->age = 30;
+
+    // Copy the data before freeing
+    char name_copy[50];
+    strcpy(name_copy, p->name);
+
+    free(p->name);
+    free(p);
+
+    // Safe to use copy
+    printf("Name: %s\n", name_copy);
+}
+
+int main() {
+    structure_pointer_problem();
+    structure_pointer_safe();
+    return 0;
+}
+```
+
+## Double Free: Special Case of Dangling Pointers
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void double_free_problem() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    *ptr = 42;
+
+    free(ptr);
+    // free(ptr);  // CRASH! Double free
+}
+
+void double_free_with_aliases() {
+    int *ptr1 = malloc(sizeof(int));
+    if (ptr1 == NULL) return;
+
+    int *ptr2 = ptr1;  // Alias
+
+    free(ptr1);
+    // free(ptr2);  // CRASH! Double free through alias
+}
+
+// SAFE VERSION
+void double_free_safe() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    *ptr = 42;
+
+    free(ptr);
+    ptr = NULL;  // Set to NULL
+
+    free(ptr);  // Safe - freeing NULL is a no-op
+}
+
+int main() {
+    double_free_problem();
+    double_free_safe();
+    return 0;
+}
+```
+
+## Detecting Dangling Pointers
+
+### Technique 1: Set to NULL After Freeing
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// Helper macro
+#define SAFE_FREE(ptr) do { \
+    free(ptr); \
+    ptr = NULL; \
+} while(0)
+
+int main() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return 1;
+
+    *ptr = 42;
+
+    SAFE_FREE(ptr);
+
+    // Now checks will catch the error
+    if (ptr != NULL) {
+        printf("Value: %d\n", *ptr);
+    } else {
+        printf("Pointer is NULL - safe!\n");
+    }
+
+    return 0;
+}
+```
+
+### Technique 2: Debug Mode Poison Pattern
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef DEBUG_MEMORY
+void *debug_malloc(size_t size) {
+    void *ptr = malloc(size);
+    if (ptr != NULL) {
+        // Fill with recognizable pattern
+        memset(ptr, 0xAA, size);
+    }
+    return ptr;
+}
+
+void debug_free(void *ptr, size_t size) {
+    if (ptr != NULL) {
+        // Poison memory before freeing
+        memset(ptr, 0xDD, size);  // 0xDD = "dead"
+        free(ptr);
+    }
+}
+
+#define MALLOC(size) debug_malloc(size)
+#define FREE(ptr, size) debug_free(ptr, size)
+#else
+#define MALLOC(size) malloc(size)
+#define FREE(ptr, size) free(ptr)
+#endif
+
+int main() {
+    int *ptr = MALLOC(sizeof(int));
+    if (ptr == NULL) return 1;
+
+    *ptr = 42;
+    printf("Value: %d\n", *ptr);
+
+    FREE(ptr, sizeof(int));
+
+    // In debug mode, memory is now 0xDDDDDDDD
+    // Making it easier to spot use-after-free in debugger
+
+    return 0;
+}
+```
+
+### Technique 3: Using Valgrind
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int *ptr = malloc(sizeof(int));
+    *ptr = 42;
+
+    free(ptr);
+
+    // Valgrind will catch this!
+    printf("Use after free: %d\n", *ptr);
+
+    return 0;
+}
+```
+
+Run with: `valgrind --track-origins=yes ./program`
+
+## Real-World Example: Linked List
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Node {
+    char *data;
+    struct Node *next;
+} Node;
+
+// DANGEROUS VERSION
+Node *list_remove_buggy(Node *head, const char *data) {
+    if (head == NULL) return NULL;
+
+    Node *current = head;
+    Node *prev = NULL;
+
+    while (current != NULL) {
+        if (strcmp(current->data, data) == 0) {
+            if (prev == NULL) {
+                head = current->next;
+            } else {
+                prev->next = current->next;
+            }
+
+            free(current->data);
+            free(current);
+            // DANGER! current is now dangling
+            // If we try to use current->next, we crash
+            break;
+        }
+        prev = current;
+        current = current->next;
+    }
+
+    return head;
+}
+
+// SAFE VERSION
+Node *list_remove_safe(Node *head, const char *data) {
+    if (head == NULL) return NULL;
+
+    Node *current = head;
+    Node *prev = NULL;
+
+    while (current != NULL) {
+        if (strcmp(current->data, data) == 0) {
+            Node *to_delete = current;
+
+            if (prev == NULL) {
+                head = current->next;
+            } else {
+                prev->next = current->next;
+            }
+
+            current = current->next;  // Move forward first
+
+            free(to_delete->data);
+            free(to_delete);
+            to_delete = NULL;  // Set to NULL
+
+            break;
+        }
+        prev = current;
+        current = current->next;
+    }
+
+    return head;
+}
+
+Node *list_create(const char *data) {
+    Node *node = malloc(sizeof(Node));
+    if (node == NULL) return NULL;
+
+    node->data = malloc(strlen(data) + 1);
+    if (node->data == NULL) {
+        free(node);
+        return NULL;
+    }
+
+    strcpy(node->data, data);
+    node->next = NULL;
+    return node;
+}
+
+void list_free(Node *head) {
+    while (head != NULL) {
+        Node *next = head->next;  // Save next before freeing
+        free(head->data);
+        free(head);
+        head = next;
+    }
+}
+
+int main() {
+    Node *list = list_create("First");
+    if (list == NULL) return 1;
+
+    list->next = list_create("Second");
+    if (list->next) {
+        list->next->next = list_create("Third");
+    }
+
+    list = list_remove_safe(list, "Second");
+
+    Node *current = list;
+    while (current != NULL) {
+        printf("%s\n", current->data);
+        current = current->next;
+    }
+
+    list_free(list);
+
+    return 0;
+}
+```
+
+## Best Practices to Avoid Dangling Pointers
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// Practice 1: Always set to NULL after freeing
+void practice1() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    free(ptr);
+    ptr = NULL;  // Always!
+}
+
+// Practice 2: Use wrapper functions
+void safe_free_wrapper(void **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        free(*ptr);
+        *ptr = NULL;
+    }
+}
+
+void practice2() {
+    int *ptr = malloc(sizeof(int));
+    if (ptr == NULL) return;
+
+    safe_free_wrapper((void**)&ptr);
+    // ptr is now NULL
+}
+
+// Practice 3: Clear all aliases
+void practice3() {
+    int *ptr1 = malloc(sizeof(int));
+    if (ptr1 == NULL) return;
+
+    int *ptr2 = ptr1;
+    int *ptr3 = ptr1;
+
+    free(ptr1);
+    ptr1 = NULL;
+    ptr2 = NULL;  // Clear all aliases
+    ptr3 = NULL;
+}
+
+// Practice 4: Check before use
+void practice4() {
+    int *ptr = NULL;
+
+    // Always check
+    if (ptr != NULL) {
+        *ptr = 42;
+    }
+}
+
+int main() {
+    practice1();
+    practice2();
+    practice3();
+    practice4();
+    return 0;
+}
+```
+
+## Key Takeaways
+
+1. **Dangling pointers point to freed or invalid memory**
+2. **Set pointers to NULL immediately after freeing**
+3. **Never use memory after freeing it** (use-after-free)
+4. **Never free the same memory twice** (double-free)
+5. **Update all aliases when freeing memory**
+6. **Don't return pointers to local variables**
+7. **Use Valgrind to detect use-after-free errors**
+8. **In complex code, save next pointers before freeing nodes**
+
+## Exercises
+
+1. Write a program that demonstrates each type of dangling pointer
+2. Create a safe wrapper function that prevents dangling pointers
+3. Debug a linked list implementation that has dangling pointer issues
+4. Implement a reference counting system to prevent premature frees
+5. Write a program that uses Valgrind to detect use-after-free
+6. Create a memory arena allocator that eliminates dangling pointers
+
+In the next step, we'll learn how to use Valgrind, the most powerful tool for detecting memory errors.

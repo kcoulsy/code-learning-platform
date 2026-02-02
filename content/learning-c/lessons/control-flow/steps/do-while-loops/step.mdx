@@ -1,0 +1,345 @@
+---
+id: do-while-loops
+title: Do-While Loops
+order: 5
+---
+
+# Do-While Loops
+
+The do-while loop is similar to the while loop, but with one crucial difference: it checks the condition AFTER each iteration, guaranteeing at least one execution of the loop body.
+
+## Basic Do-While Loop
+
+**Syntax:**
+```c
+do {
+    // code block
+} while (condition);
+```
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int count = 1;
+
+    do {
+        printf("Count: %d\n", count);
+        count++;
+    } while (count <= 5);
+
+    return 0;
+}
+```
+
+Output:
+```
+Count: 1
+Count: 2
+Count: 3
+Count: 4
+Count: 5
+```
+
+## Do-While vs While
+
+### Key Difference: Guaranteed Execution
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int x = 10;
+
+    // While loop: condition checked FIRST
+    printf("While loop:\n");
+    while (x < 5) {
+        printf("This will NOT print\n");
+    }
+
+    // Do-while loop: condition checked AFTER
+    printf("Do-while loop:\n");
+    do {
+        printf("This WILL print once\n");
+    } while (x < 5);
+
+    return 0;
+}
+```
+
+Output:
+```
+While loop:
+Do-while loop:
+This WILL print once
+```
+
+## Common Use Cases
+
+### Menu Systems
+
+Do-while is perfect for menu-driven programs where you want to show the menu at least once.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int choice;
+
+    do {
+        printf("\n=== Menu ===\n");
+        printf("1. Option 1\n");
+        printf("2. Option 2\n");
+        printf("3. Option 3\n");
+        printf("4. Exit\n");
+        printf("Enter choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1:
+                printf("You selected Option 1\n");
+                break;
+            case 2:
+                printf("You selected Option 2\n");
+                break;
+            case 3:
+                printf("You selected Option 3\n");
+                break;
+            case 4:
+                printf("Goodbye!\n");
+                break;
+            default:
+                printf("Invalid choice!\n");
+        }
+    } while (choice != 4);
+
+    return 0;
+}
+```
+
+### Input Validation
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int age;
+
+    do {
+        printf("Enter your age (1-120): ");
+        scanf("%d", &age);
+
+        if (age < 1 || age > 120) {
+            printf("Invalid age! Try again.\n");
+        }
+    } while (age < 1 || age > 120);
+
+    printf("Age accepted: %d\n", age);
+
+    return 0;
+}
+```
+
+### Yes/No Confirmation
+
+```c
+#include <stdio.h>
+#include <ctype.h>
+
+int main(void) {
+    char response;
+
+    do {
+        printf("Do you want to continue? (Y/N): ");
+        scanf(" %c", &response);  // Space before %c to skip whitespace
+        response = toupper(response);
+
+        if (response != 'Y' && response != 'N') {
+            printf("Invalid input! Please enter Y or N.\n");
+        }
+    } while (response != 'Y' && response != 'N');
+
+    if (response == 'Y') {
+        printf("Continuing...\n");
+    } else {
+        printf("Exiting...\n");
+    }
+
+    return 0;
+}
+```
+
+### Password Verification
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+int main(void) {
+    char password[50];
+    const char correct[] = "secret123";
+    int attempts = 0;
+    int max_attempts = 3;
+
+    do {
+        printf("Enter password: ");
+        scanf("%s", password);
+        attempts++;
+
+        if (strcmp(password, correct) == 0) {
+            printf("Access granted!\n");
+            break;
+        } else {
+            printf("Incorrect password. ");
+            printf("Attempts remaining: %d\n", max_attempts - attempts);
+        }
+    } while (attempts < max_attempts);
+
+    if (attempts >= max_attempts && strcmp(password, correct) != 0) {
+        printf("Access denied. Too many failed attempts.\n");
+    }
+
+    return 0;
+}
+```
+
+## Number Guessing with Limited Attempts
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+int main(void) {
+    srand(time(NULL));
+    int secret = rand() % 100 + 1;
+    int guess;
+    int attempts = 0;
+    int max_attempts = 7;
+
+    printf("I'm thinking of a number between 1 and 100.\n");
+    printf("You have %d attempts to guess it.\n\n", max_attempts);
+
+    do {
+        attempts++;
+        printf("Attempt %d: Enter your guess: ", attempts);
+        scanf("%d", &guess);
+
+        if (guess < secret) {
+            printf("Too low!\n");
+        } else if (guess > secret) {
+            printf("Too high!\n");
+        } else {
+            printf("Correct! You found it in %d attempts!\n", attempts);
+            break;
+        }
+
+    } while (attempts < max_attempts);
+
+    if (guess != secret) {
+        printf("\nGame over! The number was %d.\n", secret);
+    }
+
+    return 0;
+}
+```
+
+## When to Use Do-While
+
+**Use do-while when:**
+- The loop body MUST execute at least once
+- Menu-driven programs
+- Input validation (prompt at least once)
+- "Repeat until correct" scenarios
+- Confirmation dialogs
+
+**Use while instead when:**
+- The loop might not execute at all
+- Condition should be checked before first execution
+- Reading data that might be empty
+
+```c
+// Good use of do-while: Menu must show at least once
+do {
+    display_menu();
+    choice = get_input();
+} while (choice != EXIT);
+
+// Good use of while: File might be empty
+while (fscanf(file, "%d", &num) == 1) {
+    process(num);
+}
+```
+
+## Common Pitfalls
+
+### Missing Semicolon After While
+
+```c
+// WRONG: Missing semicolon
+do {
+    printf("Hello\n");
+} while (condition)  // Missing semicolon!
+
+// CORRECT: Semicolon required
+do {
+    printf("Hello\n");
+} while (condition);  // Semicolon here!
+```
+
+### Infinite Loops
+
+```c
+// WRONG: Condition never becomes false
+int x = 1;
+do {
+    printf("%d\n", x);
+    // Forgot to modify x!
+} while (x > 0);  // Always true - infinite loop!
+
+// CORRECT: Update loop variable
+int x = 1;
+do {
+    printf("%d\n", x);
+    x++;
+} while (x <= 5);  // Will eventually become false
+```
+
+### Misunderstanding Execution Order
+
+```c
+int x = 10;
+
+// Beginners might expect this to not execute
+do {
+    printf("Executes once!\n");  // This WILL print
+} while (x < 5);  // Even though condition is false
+
+// If you don't want it to execute, use while instead
+while (x < 5) {
+    printf("Won't execute\n");  // Doesn't print
+}
+```
+
+## Exercises
+
+1. **Calculator Loop**: Create a calculator that keeps running until the user chooses to exit. Display a menu after each calculation.
+
+2. **Dice Rolling Game**: Simulate rolling two dice. Keep asking the user if they want to roll again (Y/N). Display the sum of each roll.
+
+3. **PIN Verification**: Create a program that asks for a 4-digit PIN and gives the user 3 attempts. Lock the account after failed attempts.
+
+4. **Average Until Zero**: Keep reading numbers from the user and calculate the running average. Stop when they enter 0. Use do-while to ensure at least one number is entered.
+
+5. **Countdown Timer**: Create a countdown from a user-specified number. After each second, ask if they want to pause (P), resume (R), or quit (Q).
+
+## Key Takeaways
+
+- Do-while checks the condition AFTER the loop body executes
+- Guarantees at least one execution of the loop body
+- Perfect for menu systems and input validation
+- Don't forget the semicolon after `while (condition);`
+- Use do-while when the loop must run at least once
+- Use regular while when the loop might not need to execute at all
+- Common pattern: prompt user, validate input, repeat if invalid
+- Still need to avoid infinite loops by updating loop variables

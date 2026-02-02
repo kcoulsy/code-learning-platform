@@ -1,0 +1,293 @@
+---
+title: "Structure Basics"
+description: "Learn how to define structures, initialize them, and access their members to group related data."
+order: 1
+---
+
+# Structure Basics
+
+A **structure** (or struct) is a user-defined data type that groups related variables under a single name. Unlike arrays that store multiple values of the same type, structures can hold values of different types.
+
+Think of a structure as a container that holds related information. For example, a student has a name, ID number, and GPA. Instead of managing these as separate variables, we can group them into a single structure.
+
+## Declaring a Structure
+
+The basic syntax for declaring a structure is:
+
+```c
+struct structure_name {
+    data_type member1;
+    data_type member2;
+    // ... more members
+};
+```
+
+The `struct` keyword begins the declaration, followed by the structure name (also called a "tag"), and the members enclosed in braces.
+
+## Example 1: Basic Structure Declaration and Usage
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Define a structure for a student
+struct Student {
+    char name[50];
+    int id;
+    float gpa;
+};
+
+int main(void) {
+    // Declare a struct variable
+    struct Student student1;
+
+    // Initialize members
+    strcpy(student1.name, "Alice Johnson");
+    student1.id = 12345;
+    student1.gpa = 3.85;
+
+    // Access and print members
+    printf("Student Information:\n");
+    printf("Name: %s\n", student1.name);
+    printf("ID: %d\n", student1.id);
+    printf("GPA: %.2f\n", student1.gpa);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Student Information:
+Name: Alice Johnson
+ID: 12345
+GPA: 3.85
+```
+
+**Key Points:**
+- The structure is defined before `main()` so it's available throughout the file
+- We use the dot operator (`.`) to access structure members
+- Each member is accessed like: `variable.member`
+
+## Example 2: Structure Initialization
+
+There are several ways to initialize structures:
+
+```c
+#include <stdio.h>
+
+struct Point {
+    int x;
+    int y;
+};
+
+int main(void) {
+    // Method 1: Initialize during declaration
+    struct Point p1 = {10, 20};
+
+    // Method 2: Initialize with member names (C99 designated initializers)
+    struct Point p2 = {.x = 5, .y = 15};
+
+    // Method 3: Partial initialization (unspecified members set to 0)
+    struct Point p3 = {30};  // x=30, y=0
+
+    // Method 4: Initialize to zero
+    struct Point p4 = {0};
+
+    printf("p1: (%d, %d)\n", p1.x, p1.y);
+    printf("p2: (%d, %d)\n", p2.x, p2.y);
+    printf("p3: (%d, %d)\n", p3.x, p3.y);
+    printf("p4: (%d, %d)\n", p4.x, p4.y);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+p1: (10, 20)
+p2: (5, 15)
+p3: (30, 0)
+p4: (0, 0)
+```
+
+**Key Points:**
+- Designated initializers (`.member = value`) make code clearer and order-independent
+- Uninitialized members are automatically set to zero
+- Using `= {0}` is a common idiom to zero-initialize all members
+
+## Example 3: Passing Structures to Functions
+
+Structures can be passed to functions by value or by pointer:
+
+```c
+#include <stdio.h>
+#include <math.h>
+
+struct Point {
+    double x;
+    double y;
+};
+
+// Pass by value - function receives a copy
+void printPoint(struct Point p) {
+    printf("Point: (%.2f, %.2f)\n", p.x, p.y);
+}
+
+// Pass by pointer - function can modify the original
+void movePoint(struct Point *p, double dx, double dy) {
+    p->x += dx;  // Arrow operator for pointer-to-member access
+    p->y += dy;
+}
+
+// Return a structure from a function
+struct Point createPoint(double x, double y) {
+    struct Point p = {x, y};
+    return p;
+}
+
+// Calculate distance between two points
+double distance(struct Point p1, struct Point p2) {
+    double dx = p2.x - p1.x;
+    double dy = p2.y - p1.y;
+    return sqrt(dx * dx + dy * dy);
+}
+
+int main(void) {
+    struct Point origin = {0, 0};
+    struct Point p = createPoint(3.0, 4.0);
+
+    printPoint(p);
+
+    printf("Distance from origin: %.2f\n", distance(origin, p));
+
+    // Move the point
+    movePoint(&p, 1.0, 1.0);
+    printf("After moving: ");
+    printPoint(p);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Point: (3.00, 4.00)
+Distance from origin: 5.00
+After moving: Point: (4.00, 5.00)
+```
+
+**Key Points:**
+- Use the dot operator (`.`) for direct structure access
+- Use the arrow operator (`->`) for pointer-to-structure access
+- Pass by pointer when you need to modify the structure or avoid copying large structures
+- Structures can be returned from functions (the entire structure is copied)
+
+## Example 4: Array of Structures
+
+Structures really shine when you need to manage multiple related records:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+struct Book {
+    char title[100];
+    char author[50];
+    int year;
+    float price;
+};
+
+int main(void) {
+    // Declare an array of structures
+    struct Book library[3] = {
+        {"The C Programming Language", "Kernighan & Ritchie", 1978, 59.99},
+        {"Expert C Programming", "Peter van der Linden", 1994, 44.95},
+        {"C: A Reference Manual", "Harbison & Steele", 2002, 54.99}
+    };
+
+    // Print all books
+    printf("Library Catalog:\n");
+    printf("%-35s %-25s %6s %8s\n", "Title", "Author", "Year", "Price");
+    printf("-------------------------------------------------------------------"
+           "----------\n");
+
+    for (int i = 0; i < 3; i++) {
+        printf("%-35s %-25s %6d $%7.2f\n",
+               library[i].title,
+               library[i].author,
+               library[i].year,
+               library[i].price);
+    }
+
+    // Find the most expensive book
+    int maxIndex = 0;
+    for (int i = 1; i < 3; i++) {
+        if (library[i].price > library[maxIndex].price) {
+            maxIndex = i;
+        }
+    }
+
+    printf("\nMost expensive book: %s ($%.2f)\n",
+           library[maxIndex].title,
+           library[maxIndex].price);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Library Catalog:
+Title                               Author                    Year    Price
+-----------------------------------------------------------------------------
+The C Programming Language          Kernighan & Ritchie       1978  $ 59.99
+Expert C Programming                Peter van der Linden      1994  $ 44.95
+C: A Reference Manual               Harbison & Steele         2002  $ 54.99
+
+Most expensive book: The C Programming Language ($59.99)
+```
+
+## Best Practices
+
+1. **Choose Descriptive Names**: Use clear names for both the structure and its members
+2. **Group Related Data**: Only include members that logically belong together
+3. **Initialize Structures**: Always initialize structures to avoid garbage values
+4. **Use Pointers for Large Structures**: Passing by pointer is more efficient for large structures
+5. **Const Correctness**: Use `const` when functions shouldn't modify the structure:
+   ```c
+   void printStudent(const struct Student *s);
+   ```
+6. **Consider Alignment**: Structure members are aligned in memory, which can affect size (more on this in advanced topics)
+
+## Common Pitfalls
+
+1. **Forgetting the Semicolon**: Structure definitions must end with a semicolon
+2. **Using = Instead of strcpy**: For string members, use `strcpy()`, not `=`
+3. **Comparing Structures with ==**: You must compare members individually; `==` doesn't work on structures
+4. **Arrow vs Dot Operator**: Use `->` for pointers, `.` for direct access
+
+## Exercises
+
+1. **Temperature Logger**: Create a structure to store temperature readings with fields for time (hour), temperature (float), and location (string). Create an array of 5 readings and calculate the average temperature.
+
+2. **Rectangle Calculator**: Define a structure for a rectangle with width and height. Write functions to calculate area, perimeter, and to determine if two rectangles are equal in size.
+
+3. **Student Grade Manager**: Create a structure for students with name, three test scores (array), and average. Write functions to:
+   - Calculate the average score
+   - Find the highest scoring student
+   - Print a formatted report
+
+4. **Date Calculator**: Create a structure for a date (day, month, year). Write a function to check if a date is valid, considering leap years.
+
+## Key Takeaways
+
+- **Structures group related data** of different types under a single name
+- Use the **dot operator (.)** to access members of a structure variable
+- Use the **arrow operator (->)** to access members through a pointer
+- Structures can be **initialized in multiple ways**, including designated initializers
+- Structures can be **passed to functions** by value or by pointer
+- **Arrays of structures** are powerful for managing collections of related records
+- Always **initialize structures** to avoid working with garbage values
+
+In the next step, you'll learn how to simplify structure syntax using `typedef`, making your code cleaner and more readable.

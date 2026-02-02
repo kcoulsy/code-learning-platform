@@ -1,0 +1,576 @@
+---
+title: "Function Pointers"
+description: "Master function pointers to create flexible, reusable code with callbacks, strategy patterns, and pluggable behavior."
+order: 5
+---
+
+# Function Pointers
+
+Function pointers are one of C's most powerful features, enabling you to treat functions as first-class values that can be passed as arguments, stored in data structures, and called indirectly. They're essential for implementing callbacks, plugin systems, event handlers, and other patterns that require dynamic behavior.
+
+While function pointers can seem intimidating at first, they unlock programming techniques that make code more flexible and reusable. They're used extensively in libraries, operating systems, and any code that needs pluggable behavior.
+
+## Understanding Function Pointers
+
+Just as a regular pointer holds the address of a variable, a function pointer holds the address of a function. You can use this address to call the function indirectly, making your code more flexible and dynamic.
+
+The syntax for function pointers is notoriously complex, but we'll break it down step by step.
+
+## Example 1: Basic Function Pointer Syntax
+
+```c
+#include <stdio.h>
+
+// Regular functions
+int add(int a, int b) {
+    return a + b;
+}
+
+int subtract(int a, int b) {
+    return a - b;
+}
+
+int multiply(int a, int b) {
+    return a * b;
+}
+
+int divide(int a, int b) {
+    if (b == 0) {
+        fprintf(stderr, "Error: Division by zero\n");
+        return 0;
+    }
+    return a / b;
+}
+
+int main(void) {
+    // Declare a function pointer
+    // Read as: "ptr_to_func is a pointer to a function that takes two ints and returns an int"
+    int (*ptr_to_func)(int, int);
+
+    // Assign function address to pointer
+    ptr_to_func = add;  // Or: ptr_to_func = &add;
+
+    // Call function through pointer
+    int result = ptr_to_func(10, 5);
+    printf("add(10, 5) = %d\n", result);
+
+    // Change which function the pointer references
+    ptr_to_func = subtract;
+    result = ptr_to_func(10, 5);
+    printf("subtract(10, 5) = %d\n", result);
+
+    ptr_to_func = multiply;
+    result = ptr_to_func(10, 5);
+    printf("multiply(10, 5) = %d\n", result);
+
+    ptr_to_func = divide;
+    result = ptr_to_func(10, 5);
+    printf("divide(10, 5) = %d\n", result);
+
+    // Alternative calling syntax (explicit dereference)
+    result = (*ptr_to_func)(10, 5);
+    printf("divide(10, 5) again = %d\n", result);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+add(10, 5) = 15
+subtract(10, 5) = 5
+multiply(10, 5) = 50
+divide(10, 5) = 2
+divide(10, 5) again = 2
+```
+
+**Key Points:**
+- Syntax: `return_type (*pointer_name)(parameter_types)`
+- Parentheses around `*pointer_name` are crucial: `int *func()` is different from `int (*func)()`
+- Can assign function address with or without `&`: `ptr = func` or `ptr = &func`
+- Can call with or without explicit dereference: `ptr()` or `(*ptr)()`
+- Function name decays to pointer (like arrays)
+
+## Example 2: Using Typedef for Cleaner Syntax
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Define function pointer type using typedef
+// Makes the syntax much cleaner and more readable
+typedef int (*operation_func)(int, int);
+typedef int (*comparison_func)(const void*, const void*);
+
+// Mathematical operations
+int add(int a, int b) { return a + b; }
+int subtract(int a, int b) { return a - b; }
+int multiply(int a, int b) { return a * b; }
+
+// Function that takes a function pointer as parameter
+int apply_operation(int x, int y, operation_func op, const char *op_name) {
+    printf("Performing %s on %d and %d: ", op_name, x, y);
+    int result = op(x, y);
+    printf("%d\n", result);
+    return result;
+}
+
+// Array of function pointers
+const char* get_operation_name(int index) {
+    static const char *names[] = {"add", "subtract", "multiply"};
+    return (index >= 0 && index < 3) ? names[index] : "unknown";
+}
+
+// Calculator using function pointer table
+int calculate(int x, int y, int operation) {
+    // Table of operations (function pointers)
+    operation_func operations[] = {add, subtract, multiply};
+
+    if (operation < 0 || operation > 2) {
+        fprintf(stderr, "Invalid operation\n");
+        return 0;
+    }
+
+    return operations[operation](x, y);
+}
+
+int main(void) {
+    // Using typedef makes declarations much cleaner
+    operation_func my_op;
+
+    printf("Using function pointers with typedef:\n");
+    my_op = add;
+    apply_operation(15, 7, my_op, "addition");
+
+    my_op = multiply;
+    apply_operation(15, 7, my_op, "multiplication");
+
+    printf("\nUsing function pointer table:\n");
+    for (int i = 0; i < 3; i++) {
+        int result = calculate(20, 4, i);
+        printf("%s(20, 4) = %d\n", get_operation_name(i), result);
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Using function pointers with typedef:
+Performing addition on 15 and 7: 22
+Performing multiplication on 15 and 7: 105
+
+Using function pointer table:
+add(20, 4) = 24
+subtract(20, 4) = 16
+multiply(20, 4) = 80
+```
+
+**Key Points:**
+- Typedef makes function pointer declarations much more readable
+- Can create arrays of function pointers for jump tables
+- Function pointers enable strategy pattern (choose algorithm at runtime)
+- Useful for command tables and dispatch mechanisms
+
+## Example 3: Function Pointers as Function Parameters
+
+```c
+#include <stdio.h>
+
+typedef void (*iterator_func)(int value, int index);
+
+// Apply a function to each element of an array
+void foreach(int *array, size_t size, iterator_func func) {
+    for (size_t i = 0; i < size; i++) {
+        func(array[i], i);
+    }
+}
+
+// Various iterator functions
+void print_value(int value, int index) {
+    printf("  [%d] = %d\n", index, value);
+}
+
+void print_squared(int value, int index) {
+    printf("  [%d] = %d^2 = %d\n", index, value, value * value);
+}
+
+void print_even_odd(int value, int index) {
+    printf("  [%d] = %d is %s\n", index, value, (value % 2 == 0) ? "even" : "odd");
+}
+
+// Transform function type
+typedef int (*transform_func)(int);
+
+// Map function - transforms each element
+void map(int *array, size_t size, transform_func func) {
+    for (size_t i = 0; i < size; i++) {
+        array[i] = func(array[i]);
+    }
+}
+
+// Transform functions
+int square(int x) { return x * x; }
+int double_value(int x) { return x * 2; }
+int negate(int x) { return -x; }
+
+// Filter function type
+typedef int (*predicate_func)(int);
+
+// Count elements matching a condition
+int count_if(const int *array, size_t size, predicate_func predicate) {
+    int count = 0;
+    for (size_t i = 0; i < size; i++) {
+        if (predicate(array[i])) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Predicate functions
+int is_even(int x) { return x % 2 == 0; }
+int is_positive(int x) { return x > 0; }
+int is_greater_than_ten(int x) { return x > 10; }
+
+int main(void) {
+    int numbers[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    size_t size = sizeof(numbers) / sizeof(numbers[0]);
+
+    printf("Original array:\n");
+    foreach(numbers, size, print_value);
+
+    printf("\nSquared values:\n");
+    foreach(numbers, size, print_squared);
+
+    printf("\nEven/Odd check:\n");
+    foreach(numbers, size, print_even_odd);
+
+    printf("\nApplying transformations:\n");
+    int copy[] = {1, 2, 3, 4, 5};
+    size_t copy_size = sizeof(copy) / sizeof(copy[0]);
+
+    printf("Original: ");
+    for (size_t i = 0; i < copy_size; i++) printf("%d ", copy[i]);
+    printf("\n");
+
+    map(copy, copy_size, square);
+    printf("Squared: ");
+    for (size_t i = 0; i < copy_size; i++) printf("%d ", copy[i]);
+    printf("\n");
+
+    int copy2[] = {1, 2, 3, 4, 5};
+    map(copy2, copy_size, double_value);
+    printf("Doubled: ");
+    for (size_t i = 0; i < copy_size; i++) printf("%d ", copy2[i]);
+    printf("\n");
+
+    printf("\nCounting with predicates:\n");
+    printf("Even numbers: %d\n", count_if(numbers, size, is_even));
+    printf("Positive numbers: %d\n", count_if(numbers, size, is_positive));
+    printf("Greater than 10: %d\n", count_if(numbers, size, is_greater_than_ten));
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Original array:
+  [0] = 1
+  [1] = 2
+  [2] = 3
+  [3] = 4
+  [4] = 5
+  [5] = 6
+  [6] = 7
+  [7] = 8
+  [8] = 9
+  [9] = 10
+
+Squared values:
+  [0] = 1^2 = 1
+  [1] = 2^2 = 4
+  [2] = 3^2 = 9
+  [3] = 4^2 = 16
+  [4] = 5^2 = 25
+  [5] = 6^2 = 36
+  [6] = 7^2 = 49
+  [7] = 8^2 = 64
+  [8] = 9^2 = 81
+  [9] = 10^2 = 100
+
+Even/Odd check:
+  [0] = 1 is odd
+  [1] = 2 is even
+  [2] = 3 is odd
+  [3] = 4 is even
+  [4] = 5 is odd
+  [5] = 6 is even
+  [6] = 7 is odd
+  [7] = 8 is even
+  [8] = 9 is odd
+  [9] = 10 is even
+
+Applying transformations:
+Original: 1 2 3 4 5
+Squared: 1 4 9 16 25
+Doubled: 2 4 6 8 10
+
+Counting with predicates:
+Even numbers: 5
+Positive numbers: 10
+Greater than 10: 0
+```
+
+**Key Points:**
+- Function pointers enable higher-order functions (functions that take functions)
+- Implements functional programming patterns: map, filter, foreach
+- Makes code more flexible and reusable
+- Separates algorithm from data processing logic
+
+## Example 4: Plugin System and Command Dispatcher
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Command function type
+typedef void (*command_func)(const char *args);
+
+// Command structure
+typedef struct {
+    const char *name;
+    const char *description;
+    command_func handler;
+} Command;
+
+// Command handler functions
+void cmd_help(const char *args) {
+    printf("Available commands:\n");
+    printf("  help     - Show this help message\n");
+    printf("  greet    - Print a greeting\n");
+    printf("  echo     - Echo the arguments\n");
+    printf("  calc     - Perform basic calculation\n");
+    printf("  quit     - Exit the program\n");
+}
+
+void cmd_greet(const char *args) {
+    if (args && strlen(args) > 0) {
+        printf("Hello, %s!\n", args);
+    } else {
+        printf("Hello, World!\n");
+    }
+}
+
+void cmd_echo(const char *args) {
+    if (args && strlen(args) > 0) {
+        printf("Echo: %s\n", args);
+    } else {
+        printf("Echo: (nothing to echo)\n");
+    }
+}
+
+void cmd_calc(const char *args) {
+    if (!args || strlen(args) == 0) {
+        printf("Usage: calc <num1> <operator> <num2>\n");
+        printf("Example: calc 10 + 5\n");
+        return;
+    }
+
+    int a, b;
+    char op;
+    if (sscanf(args, "%d %c %d", &a, &op, &b) == 3) {
+        int result;
+        switch (op) {
+            case '+': result = a + b; break;
+            case '-': result = a - b; break;
+            case '*': result = a * b; break;
+            case '/':
+                if (b == 0) {
+                    printf("Error: Division by zero\n");
+                    return;
+                }
+                result = a / b;
+                break;
+            default:
+                printf("Error: Unknown operator '%c'\n", op);
+                return;
+        }
+        printf("Result: %d %c %d = %d\n", a, op, b, result);
+    } else {
+        printf("Error: Invalid format\n");
+    }
+}
+
+void cmd_quit(const char *args) {
+    printf("Goodbye!\n");
+}
+
+// Command table
+Command commands[] = {
+    {"help",  "Show help message", cmd_help},
+    {"greet", "Print greeting", cmd_greet},
+    {"echo",  "Echo arguments", cmd_echo},
+    {"calc",  "Calculate expression", cmd_calc},
+    {"quit",  "Exit program", cmd_quit},
+    {NULL, NULL, NULL}  // Sentinel
+};
+
+// Find and execute command
+int execute_command(const char *cmd_line) {
+    if (!cmd_line || strlen(cmd_line) == 0) {
+        return 0;
+    }
+
+    // Parse command and arguments
+    char cmd_name[50];
+    const char *args = NULL;
+
+    // Find first space
+    const char *space = strchr(cmd_line, ' ');
+    if (space) {
+        size_t cmd_len = space - cmd_line;
+        if (cmd_len >= sizeof(cmd_name)) cmd_len = sizeof(cmd_name) - 1;
+        strncpy(cmd_name, cmd_line, cmd_len);
+        cmd_name[cmd_len] = '\0';
+        args = space + 1;
+    } else {
+        strncpy(cmd_name, cmd_line, sizeof(cmd_name) - 1);
+        cmd_name[sizeof(cmd_name) - 1] = '\0';
+    }
+
+    // Find command in table
+    for (int i = 0; commands[i].name != NULL; i++) {
+        if (strcmp(cmd_name, commands[i].name) == 0) {
+            commands[i].handler(args);
+            return strcmp(cmd_name, "quit") != 0;  // Return 0 if quit
+        }
+    }
+
+    printf("Unknown command: %s\n", cmd_name);
+    printf("Type 'help' for available commands.\n");
+    return 1;
+}
+
+int main(void) {
+    printf("Simple Command Interpreter\n");
+    printf("Type 'help' for available commands.\n\n");
+
+    // Simulate command execution (in a real program, you'd read from stdin)
+    const char *test_commands[] = {
+        "help",
+        "greet Alice",
+        "echo Hello, World!",
+        "calc 15 + 7",
+        "calc 20 * 3",
+        "calc 100 / 4",
+        "invalid_command",
+        "quit"
+    };
+
+    for (size_t i = 0; i < sizeof(test_commands) / sizeof(test_commands[0]); i++) {
+        printf("> %s\n", test_commands[i]);
+        int continue_running = execute_command(test_commands[i]);
+        printf("\n");
+        if (!continue_running) {
+            break;
+        }
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Simple Command Interpreter
+Type 'help' for available commands.
+
+> help
+Available commands:
+  help     - Show this help message
+  greet    - Print a greeting
+  echo     - Echo the arguments
+  calc     - Perform basic calculation
+  quit     - Exit the program
+
+> greet Alice
+Hello, Alice!
+
+> echo Hello, World!
+Echo: Hello, World!
+
+> calc 15 + 7
+Result: 15 + 7 = 22
+
+> calc 20 * 3
+Result: 20 * 3 = 60
+
+> calc 100 / 4
+Result: 100 / 4 = 25
+
+> invalid_command
+Unknown command: invalid_command
+Type 'help' for available commands.
+
+> quit
+Goodbye!
+```
+
+**Key Points:**
+- Command tables map strings to function pointers
+- Easy to add new commands without modifying dispatcher
+- Plugin architecture pattern
+- Decouples command parsing from command execution
+
+## Best Practices
+
+1. **Use typedef**: Makes syntax cleaner and more maintainable
+2. **Check for NULL**: Always verify function pointers before calling
+3. **Document signatures**: Comment what parameters and return values mean
+4. **Group related functions**: Use structures to associate functions with data
+5. **Consider vtables**: For object-oriented patterns in C
+6. **Const correctness**: Use `const` for parameters that shouldn't change
+
+## Common Use Cases
+
+1. **Callbacks**: Notify caller when operation completes
+2. **Event handlers**: GUI and game event systems
+3. **Plugin systems**: Dynamically load and call functions
+4. **Strategy pattern**: Choose algorithm at runtime
+5. **State machines**: Table-driven state transitions
+6. **Command dispatchers**: Map commands to handlers
+7. **Sorting/searching**: Custom comparison functions
+
+## Common Pitfalls
+
+1. **Syntax confusion**: `int *f()` vs `int (*f)()`  - parentheses matter!
+2. **Type mismatch**: Function signature must match pointer type exactly
+3. **NULL pointer calls**: Always check before calling through pointer
+4. **Forgetting typedef**: Makes code harder to read and maintain
+5. **Scope issues**: Function must be visible where pointer is assigned
+
+## Exercises
+
+1. **Menu System**: Create a restaurant menu system where each menu item has an associated function pointer that "prepares" the item. Include functions to add items, display menu, and order items.
+
+2. **Generic Sort**: Implement your own `qsort`-like function that takes a comparison function pointer. Test it with arrays of integers, strings, and structures.
+
+3. **Event System**: Build a simple event system where different parts of code can register callback functions to be notified when specific events occur.
+
+4. **State Machine**: Implement a state machine for a traffic light controller using function pointers for state transitions and actions.
+
+## Key Takeaways
+
+- **Function pointers** store addresses of functions and enable indirect calls
+- **Syntax**: `return_type (*pointer_name)(param_types)`
+- **Use typedef** to simplify function pointer declarations
+- **Enable callbacks** and pluggable behavior patterns
+- **Arrays of function pointers** create dispatch tables and jump tables
+- **Pass as parameters** to implement higher-order functions
+- **Check for NULL** before calling through function pointer
+- **Essential for flexible, extensible code** in C
+
+In the next step, you'll learn about callback functions and see function pointers in action with real-world patterns like event handlers and state machines.

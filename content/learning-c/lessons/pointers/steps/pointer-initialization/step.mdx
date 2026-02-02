@@ -1,0 +1,327 @@
+---
+title: "Pointer Initialization"
+order: 2
+---
+
+# Pointer Initialization
+
+Uninitialized pointers are one of the most common sources of bugs and crashes in C. This step teaches you how to initialize pointers safely and avoid the dangers of wild pointers.
+
+## The NULL Pointer
+
+`NULL` is a special pointer value that means "points to nothing." It's defined in `<stddef.h>` (and included by `<stdio.h>`) and typically equals `0` or `(void*)0`.
+
+### Safe Initialization Patterns
+
+```c
+#include <stdio.h>
+#include <stddef.h>  // For NULL (also in stdio.h)
+
+int main(void) {
+    int x = 42;
+
+    // Good: Initialize to a valid address
+    int *ptr1 = &x;
+
+    // Good: Initialize to NULL
+    int *ptr2 = NULL;
+
+    // Good: Declare now, initialize later
+    int *ptr3;
+    ptr3 = &x;
+
+    // BAD: Uninitialized pointer (wild pointer)
+    int *ptr4;         // Contains garbage - DO NOT USE!
+
+    printf("ptr1 points to: %d\n", *ptr1);       // Safe: 42
+
+    // Always check NULL before dereferencing
+    if (ptr2 != NULL) {
+        printf("ptr2 points to: %d\n", *ptr2);
+    } else {
+        printf("ptr2 is NULL\n");                // This executes
+    }
+
+    // NEVER dereference without initialization
+    // printf("%d\n", *ptr4);  // CRASH! Undefined behavior!
+
+    return 0;
+}
+```
+
+**Rule of thumb:** If you don't have an address to assign immediately, initialize to `NULL`.
+
+## Checking for NULL
+
+Always check pointers before dereferencing them, especially when they come from functions or external sources.
+
+```c
+#include <stdio.h>
+
+void print_value(int *ptr) {
+    // Defensive programming: check for NULL
+    if (ptr == NULL) {
+        printf("Error: NULL pointer passed\n");
+        return;
+    }
+
+    printf("Value: %d\n", *ptr);
+}
+
+int main(void) {
+    int x = 100;
+    int *valid_ptr = &x;
+    int *null_ptr = NULL;
+
+    print_value(valid_ptr);     // Safe: prints 100
+    print_value(null_ptr);      // Safe: prints error message
+    print_value(NULL);          // Safe: prints error message
+
+    return 0;
+}
+```
+
+This defensive style prevents crashes and makes debugging much easier.
+
+## Initialization Best Practices
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    // BEST: Initialize at declaration
+    int x = 10;
+    int *ptr1 = &x;
+
+    // GOOD: Initialize to NULL if no address yet
+    int *ptr2 = NULL;
+
+    // ACCEPTABLE: Initialize shortly after declaration
+    int *ptr3;
+    int y = 20;
+    ptr3 = &y;
+
+    // BAD: Large gap between declaration and initialization
+    int *ptr4;
+    printf("Doing lots of work...\n");
+    // ... many lines later ...
+    // Did we initialize ptr4? Easy to forget!
+
+    // VERY BAD: Never initialized
+    int *ptr5;
+    // *ptr5 = 30;  // CRASH INCOMING!
+
+    // Reassigning pointers is fine
+    ptr2 = &x;                  // ptr2 was NULL, now points to x
+    printf("ptr2: %d\n", *ptr2);  // 10
+
+    ptr2 = ptr1;                // Both point to same location
+    printf("ptr2: %d\n", *ptr2);  // Still 10
+
+    return 0;
+}
+```
+
+## NULL vs. Uninitialized: Critical Difference
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int *null_ptr = NULL;           // Points to nothing (address 0)
+    int *wild_ptr;                  // Points to ??? (random garbage)
+
+    // Checking NULL pointer: safe
+    if (null_ptr == NULL) {
+        printf("null_ptr is NULL - safe to check\n");
+    }
+
+    // Checking wild pointer: technically works but dangerous
+    // The pointer contains garbage, so this comparison is meaningless
+    if (wild_ptr == NULL) {
+        printf("Lucky: wild_ptr happened to be NULL\n");
+    } else {
+        printf("wild_ptr contains garbage address\n");
+        // DO NOT dereference wild_ptr here!
+    }
+
+    // Dereferencing NULL: crashes immediately (good for debugging)
+    // *null_ptr = 42;  // Segmentation fault - fails fast
+
+    // Dereferencing wild pointer: might crash, might corrupt data
+    // *wild_ptr = 42;  // Undefined behavior - VERY DANGEROUS
+    //                  // Might crash, might corrupt memory, might seem to work
+
+    return 0;
+}
+```
+
+**Key insight:** `NULL` crashes predictably when dereferenced. Uninitialized pointers cause unpredictable behavior. Always prefer `NULL` over leaving pointers uninitialized!
+
+## Conditional Pointer Usage
+
+```c
+#include <stdio.h>
+
+// Returns pointer to first even number, or NULL if none found
+int* find_first_even(int arr[], int size) {
+    for (int i = 0; i < size; i++) {
+        if (arr[i] % 2 == 0) {
+            return &arr[i];
+        }
+    }
+    return NULL;  // Not found
+}
+
+int main(void) {
+    int numbers[] = {1, 3, 7, 8, 9};
+    int odds[] = {1, 3, 5, 7, 9};
+
+    int *result1 = find_first_even(numbers, 5);
+    if (result1 != NULL) {
+        printf("Found even number: %d\n", *result1);  // 8
+    } else {
+        printf("No even numbers found\n");
+    }
+
+    int *result2 = find_first_even(odds, 5);
+    if (result2 != NULL) {
+        printf("Found even number: %d\n", *result2);
+    } else {
+        printf("No even numbers found\n");  // This executes
+    }
+
+    return 0;
+}
+```
+
+Returning `NULL` is a common pattern for "not found" or "error" conditions.
+
+## Common Pitfalls
+
+### Pitfall 1: Forgetting to Initialize
+
+```c
+int *ptr;                   // DANGER: uninitialized
+
+printf("%p\n", ptr);        // Prints garbage address
+printf("%d\n", *ptr);       // CRASH or corruption!
+```
+
+**Fix:** Always initialize: `int *ptr = NULL;`
+
+### Pitfall 2: Dereferencing NULL Without Checking
+
+```c
+int *ptr = NULL;
+*ptr = 42;                  // CRASH! NULL dereference
+```
+
+**Fix:** Check before use:
+```c
+if (ptr != NULL) {
+    *ptr = 42;
+}
+```
+
+### Pitfall 3: Assuming NULL Check Is Enough
+
+```c
+int *ptr;                   // Uninitialized
+
+if (ptr != NULL) {          // ptr might randomly be NULL or not
+    *ptr = 42;              // Still dangerous!
+}
+```
+
+**Fix:** Initialize before checking: `int *ptr = NULL;`
+
+### Pitfall 4: Using Pointers After They're Invalidated
+
+```c
+int *ptr = NULL;
+
+{
+    int x = 10;
+    ptr = &x;               // ptr points to x
+}   // x goes out of scope here
+
+// ptr now points to invalid memory (dangling pointer)
+printf("%d\n", *ptr);       // Undefined behavior!
+```
+
+**Fix:** Set to NULL when the target goes away: `ptr = NULL;` (We'll cover this more in the pitfalls step.)
+
+### Pitfall 5: Confusing NULL with 0
+
+```c
+int *ptr = 0;               // OK: 0 and NULL are equivalent for pointers
+int value = 0;
+int *ptr2 = value;          // WARNING: implicit conversion
+
+// But NULL makes intent clearer
+int *ptr3 = NULL;           // BETTER: explicit null pointer
+```
+
+**Fix:** Use `NULL` for pointers, `0` for integers. It documents your intent.
+
+### Pitfall 6: Not Re-Checking After Modification
+
+```c
+int *ptr = NULL;
+
+if (ptr != NULL) {
+    printf("Safe\n");
+}
+
+// ... lots of code ...
+
+// Did someone set ptr? Need to check again!
+if (ptr != NULL) {
+    *ptr = 42;
+}
+```
+
+**Fix:** Check before each dereference, especially in long functions.
+
+## Initialization Patterns Summary
+
+| Pattern | Safety | Use Case |
+|---------|--------|----------|
+| `int *p = &var;` | Safe | Have address immediately |
+| `int *p = NULL;` | Safe | No address yet |
+| `int *p; p = &var;` | Safe if close | Initialize shortly after |
+| `int *p;` (uninitialized) | UNSAFE | Never do this |
+
+## Valgrind Tip
+
+If you're on Linux, use Valgrind to catch uninitialized pointer usage:
+
+```bash
+gcc -g program.c -o program
+valgrind ./program
+```
+
+Valgrind will report when you use uninitialized memory, including pointers.
+
+## Key Takeaways
+
+- **Always initialize pointers** when you declare them
+- Use `NULL` when you don't have a valid address yet
+- **Always check for NULL** before dereferencing
+- NULL crashes predictably; uninitialized pointers don't
+- Prefer early initialization over late initialization
+- Use defensive checks in functions that receive pointers
+- A NULL pointer is safer than an uninitialized pointer
+
+## Exercises
+
+1. **NULL Safety**: Write a function `safe_increment` that takes an `int*` and increments the value only if the pointer is not NULL. Test it with both valid and NULL pointers.
+
+2. **Find Maximum**: Write a function that takes an array and returns a pointer to the maximum element. Return NULL if the array is empty (size 0). Remember to check the return value before using it!
+
+3. **Pointer Validator**: Write a program that demonstrates the difference between NULL and uninitialized pointers. Show how checking NULL is safe but checking uninitialized pointers is dangerous (comment out the dangerous parts).
+
+4. **Conditional Update**: Write a function `update_if_positive` that takes an `int*` and a new value. Update the pointed-to value only if: (1) the pointer is not NULL, and (2) the current value is positive. Test all cases.
+
+5. **Error Handling**: Write a function that searches an array for a target value and returns a pointer to it, or NULL if not found. In main, properly handle both success and failure cases with appropriate messages.

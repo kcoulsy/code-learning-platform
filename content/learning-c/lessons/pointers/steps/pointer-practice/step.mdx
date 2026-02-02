@@ -1,0 +1,664 @@
+---
+title: "Pointer Practice"
+order: 7
+---
+
+# Pointer Practice
+
+Now it's time to apply everything you've learned. This step provides practical exercises that combine pointer concepts: arithmetic, arrays, pass-by-reference, and safe practices. These patterns appear frequently in real C code.
+
+## Pattern 1: Swap Function
+
+The classic swap is fundamental to many algorithms (sorting, data structure manipulation).
+
+```c
+#include <stdio.h>
+
+void swap(int *a, int *b) {
+    int temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+// Bonus: swap without temporary variable (bitwise XOR)
+void swap_xor(int *a, int *b) {
+    if (a == b) return;  // Handle same address case
+    *a = *a ^ *b;
+    *b = *a ^ *b;
+    *a = *a ^ *b;
+}
+
+int main(void) {
+    int x = 10, y = 20;
+
+    printf("Before: x=%d, y=%d\n", x, y);
+    swap(&x, &y);
+    printf("After swap: x=%d, y=%d\n", x, y);
+
+    swap_xor(&x, &y);
+    printf("After swap_xor: x=%d, y=%d\n", x, y);
+
+    return 0;
+}
+```
+
+**Exercise:** Implement `swap_float`, `swap_char`, and `swap_double`. Notice the pattern?
+
+## Pattern 2: Array Traversal
+
+Pointer-based traversal is efficient and idiomatic in C.
+
+```c
+#include <stdio.h>
+
+// Sum array using pointer arithmetic
+int sum_array(const int *arr, int size) {
+    int total = 0;
+    const int *end = arr + size;
+
+    for (const int *ptr = arr; ptr < end; ptr++) {
+        total += *ptr;
+    }
+
+    return total;
+}
+
+// Find maximum using pointers
+int find_max(const int *arr, int size) {
+    if (size <= 0) return 0;
+
+    int max = *arr;  // First element
+    const int *end = arr + size;
+
+    for (const int *ptr = arr + 1; ptr < end; ptr++) {
+        if (*ptr > max) {
+            max = *ptr;
+        }
+    }
+
+    return max;
+}
+
+int main(void) {
+    int numbers[] = {5, 12, 3, 9, 15, 7};
+    int size = sizeof(numbers) / sizeof(numbers[0]);
+
+    printf("Sum: %d\n", sum_array(numbers, size));      // 51
+    printf("Max: %d\n", find_max(numbers, size));       // 15
+
+    return 0;
+}
+```
+
+**Notice:** Using `const` indicates we won't modify the array.
+
+## Pattern 3: In-Place Array Reversal
+
+Reversing with two pointers meeting in the middle.
+
+```c
+#include <stdio.h>
+
+void reverse_array(int *arr, int size) {
+    int *left = arr;
+    int *right = arr + size - 1;
+
+    while (left < right) {
+        // Swap elements
+        int temp = *left;
+        *left = *right;
+        *right = temp;
+
+        // Move pointers toward center
+        left++;
+        right--;
+    }
+}
+
+void print_array(const int *arr, int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+int main(void) {
+    int numbers[] = {1, 2, 3, 4, 5, 6, 7, 8};
+    int size = sizeof(numbers) / sizeof(numbers[0]);
+
+    printf("Original: ");
+    print_array(numbers, size);
+
+    reverse_array(numbers, size);
+
+    printf("Reversed: ");
+    print_array(numbers, size);
+
+    return 0;
+}
+```
+
+Output:
+```
+Original: 1 2 3 4 5 6 7 8
+Reversed: 8 7 6 5 4 3 2 1
+```
+
+## Pattern 4: String Length (Manual strlen)
+
+Traversing until null terminator.
+
+```c
+#include <stdio.h>
+
+size_t my_strlen(const char *str) {
+    const char *ptr = str;
+
+    // Find null terminator
+    while (*ptr != '\0') {
+        ptr++;
+    }
+
+    // Distance from start to end
+    return ptr - str;
+}
+
+int main(void) {
+    const char *text = "Hello, World!";
+
+    printf("Length of \"%s\": %zu\n", text, my_strlen(text));  // 13
+
+    return 0;
+}
+```
+
+**Pattern:** Start pointer at beginning, advance until condition, calculate distance.
+
+## Pattern 5: String Copy (Manual strcpy)
+
+Safe string copying with size limit.
+
+```c
+#include <stdio.h>
+
+// Safer version with size limit
+void my_strcpy(char *dest, const char *src, size_t dest_size) {
+    if (dest_size == 0) return;
+
+    char *d = dest;
+    const char *s = src;
+    size_t i = 0;
+
+    // Copy until null terminator or size limit
+    while (*s != '\0' && i < dest_size - 1) {
+        *d = *s;
+        d++;
+        s++;
+        i++;
+    }
+
+    *d = '\0';  // Null terminate
+}
+
+int main(void) {
+    char buffer[20];
+
+    my_strcpy(buffer, "Hello", sizeof(buffer));
+    printf("Copied: %s\n", buffer);  // "Hello"
+
+    my_strcpy(buffer, "This is a very long string", sizeof(buffer));
+    printf("Copied (truncated): %s\n", buffer);  // First 19 chars
+
+    return 0;
+}
+```
+
+**Safety note:** Always leave room for null terminator!
+
+## Pattern 6: String Comparison (Manual strcmp)
+
+Comparing strings character by character.
+
+```c
+#include <stdio.h>
+
+// Returns: <0 if s1<s2, 0 if equal, >0 if s1>s2
+int my_strcmp(const char *s1, const char *s2) {
+    while (*s1 != '\0' && *s2 != '\0') {
+        if (*s1 != *s2) {
+            return *s1 - *s2;
+        }
+        s1++;
+        s2++;
+    }
+
+    // One or both reached end
+    return *s1 - *s2;
+}
+
+int main(void) {
+    printf("%d\n", my_strcmp("apple", "banana"));   // <0 (apple < banana)
+    printf("%d\n", my_strcmp("hello", "hello"));    // 0 (equal)
+    printf("%d\n", my_strcmp("zebra", "aardvark")); // >0 (zebra > aardvark)
+
+    return 0;
+}
+```
+
+## Pattern 7: Find Character in String (Manual strchr)
+
+Return pointer to first occurrence.
+
+```c
+#include <stdio.h>
+
+char* my_strchr(const char *str, char ch) {
+    while (*str != '\0') {
+        if (*str == ch) {
+            // Cast away const (returning non-const from const is typical for strchr)
+            return (char*)str;
+        }
+        str++;
+    }
+
+    // Also check if we're looking for null terminator
+    if (ch == '\0') {
+        return (char*)str;
+    }
+
+    return NULL;  // Not found
+}
+
+int main(void) {
+    const char *text = "Hello, World!";
+
+    char *result = my_strchr(text, 'W');
+    if (result != NULL) {
+        printf("Found 'W' at position: %ld\n", result - text);  // 7
+        printf("Rest of string: %s\n", result);  // "World!"
+    }
+
+    result = my_strchr(text, 'z');
+    if (result == NULL) {
+        printf("'z' not found\n");
+    }
+
+    return 0;
+}
+```
+
+## Pattern 8: Remove Element from Array
+
+Shift elements to fill gap.
+
+```c
+#include <stdio.h>
+
+// Returns new size
+int remove_element(int *arr, int size, int index) {
+    if (index < 0 || index >= size) {
+        return size;  // Invalid index
+    }
+
+    // Shift elements left
+    for (int i = index; i < size - 1; i++) {
+        arr[i] = arr[i + 1];
+    }
+
+    return size - 1;
+}
+
+// Pointer-based version
+int remove_element_ptr(int *arr, int size, int index) {
+    if (index < 0 || index >= size) {
+        return size;
+    }
+
+    int *dest = arr + index;
+    int *src = arr + index + 1;
+    int *end = arr + size;
+
+    // Shift remaining elements
+    while (src < end) {
+        *dest = *src;
+        dest++;
+        src++;
+    }
+
+    return size - 1;
+}
+
+void print_array(const int *arr, int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+int main(void) {
+    int numbers[] = {10, 20, 30, 40, 50};
+    int size = 5;
+
+    printf("Original: ");
+    print_array(numbers, size);
+
+    size = remove_element(numbers, size, 2);  // Remove 30
+
+    printf("After removing index 2: ");
+    print_array(numbers, size);
+
+    return 0;
+}
+```
+
+Output:
+```
+Original: 10 20 30 40 50
+After removing index 2: 10 20 40 50
+```
+
+## Pattern 9: Insert Element into Sorted Array
+
+Maintain sorted order by shifting elements.
+
+```c
+#include <stdio.h>
+
+// Returns new size (or -1 if full)
+int insert_sorted(int *arr, int size, int capacity, int value) {
+    if (size >= capacity) {
+        return -1;  // Array is full
+    }
+
+    // Find insertion point
+    int i = size - 1;
+    while (i >= 0 && arr[i] > value) {
+        arr[i + 1] = arr[i];  // Shift right
+        i--;
+    }
+
+    // Insert value
+    arr[i + 1] = value;
+
+    return size + 1;
+}
+
+void print_array(const int *arr, int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+int main(void) {
+    int arr[10] = {10, 20, 30, 50, 60};
+    int size = 5;
+
+    printf("Original: ");
+    print_array(arr, size);
+
+    size = insert_sorted(arr, size, 10, 40);  // Insert 40
+
+    printf("After inserting 40: ");
+    print_array(arr, size);
+
+    size = insert_sorted(arr, size, 10, 5);  // Insert 5 at beginning
+
+    printf("After inserting 5: ");
+    print_array(arr, size);
+
+    return 0;
+}
+```
+
+Output:
+```
+Original: 10 20 30 50 60
+After inserting 40: 10 20 30 40 50 60
+After inserting 5: 5 10 20 30 40 50 60
+```
+
+## Pattern 10: Find and Replace
+
+Search for value and replace all occurrences.
+
+```c
+#include <stdio.h>
+
+int replace_all(int *arr, int size, int old_val, int new_val) {
+    int count = 0;
+    int *end = arr + size;
+
+    for (int *ptr = arr; ptr < end; ptr++) {
+        if (*ptr == old_val) {
+            *ptr = new_val;
+            count++;
+        }
+    }
+
+    return count;
+}
+
+void print_array(const int *arr, int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+int main(void) {
+    int numbers[] = {5, 3, 5, 1, 5, 2, 5};
+    int size = sizeof(numbers) / sizeof(numbers[0]);
+
+    printf("Original: ");
+    print_array(numbers, size);
+
+    int count = replace_all(numbers, size, 5, 99);
+
+    printf("After replacing 5 with 99: ");
+    print_array(numbers, size);
+    printf("Replaced %d occurrences\n", count);
+
+    return 0;
+}
+```
+
+## Pattern 11: Partition Array (Used in Quicksort)
+
+Rearrange so elements less than pivot come before elements greater than pivot.
+
+```c
+#include <stdio.h>
+
+void swap(int *a, int *b) {
+    int temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+// Returns index of pivot after partitioning
+int partition(int *arr, int size, int pivot_value) {
+    int *left = arr;
+    int *right = arr + size - 1;
+
+    while (left <= right) {
+        // Find element on left that should be on right
+        while (left <= right && *left < pivot_value) {
+            left++;
+        }
+
+        // Find element on right that should be on left
+        while (left <= right && *right >= pivot_value) {
+            right--;
+        }
+
+        // Swap if pointers haven't crossed
+        if (left < right) {
+            swap(left, right);
+            left++;
+            right--;
+        }
+    }
+
+    return left - arr;  // Index of partition point
+}
+
+void print_array(const int *arr, int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+
+int main(void) {
+    int numbers[] = {8, 3, 9, 1, 7, 5, 6, 2, 4};
+    int size = sizeof(numbers) / sizeof(numbers[0]);
+    int pivot = 5;
+
+    printf("Original: ");
+    print_array(numbers, size);
+
+    int partition_idx = partition(numbers, size, pivot);
+
+    printf("After partitioning around %d: ", pivot);
+    print_array(numbers, size);
+    printf("Partition index: %d\n", partition_idx);
+
+    return 0;
+}
+```
+
+## Comprehensive Exercises
+
+### Exercise 1: Advanced String Operations
+
+Implement these functions using only pointers (no array indexing):
+
+```c
+// Remove all spaces from a string in-place
+void remove_spaces(char *str);
+
+// Count occurrences of a character
+int count_char(const char *str, char ch);
+
+// Check if string is palindrome
+int is_palindrome(const char *str);
+
+// Reverse words in a string ("hello world" -> "world hello")
+void reverse_words(char *str);
+```
+
+### Exercise 2: Array Statistics
+
+Write a function that calculates multiple statistics:
+
+```c
+// Calculate min, max, average, and median
+void array_stats(const int *arr, int size,
+                 int *min, int *max,
+                 double *avg, double *median);
+```
+
+### Exercise 3: Two Pointer Technique
+
+Implement these two-pointer algorithms:
+
+```c
+// Find pair that sums to target in sorted array
+// Returns indices via pointers, or 0 if not found
+int find_pair_sum(const int *arr, int size, int target,
+                  int *idx1, int *idx2);
+
+// Remove duplicates from sorted array in-place
+// Returns new size
+int remove_duplicates(int *arr, int size);
+
+// Check if array is sorted
+int is_sorted(const int *arr, int size);
+```
+
+### Exercise 4: Matrix Operations (2D Arrays)
+
+```c
+// Transpose matrix in-place (square matrix only)
+void transpose(int matrix[][N], int n);
+
+// Find element in row-sorted and column-sorted matrix
+int* find_in_matrix(int matrix[][N], int rows, int cols, int target);
+
+// Rotate matrix 90 degrees clockwise
+void rotate_90(int matrix[][N], int n);
+```
+
+### Exercise 5: Linked List Preview
+
+Create a simple linked list (preview of next lesson's project):
+
+```c
+struct Node {
+    int data;
+    struct Node *next;
+};
+
+// Create a new node
+struct Node* create_node(int data);
+
+// Insert at beginning
+void insert_front(struct Node **head, int data);
+
+// Print list
+void print_list(const struct Node *head);
+
+// Free entire list
+void free_list(struct Node **head);
+```
+
+## Key Patterns Summary
+
+| Pattern | Use Case | Key Technique |
+|---------|----------|---------------|
+| Swap | Exchange values | Pass by reference |
+| Traverse | Process all elements | Pointer < end |
+| Reverse | Mirror array | Two pointers from ends |
+| String ops | Text processing | Advance until `\0` |
+| Search | Find element | Return pointer or NULL |
+| Insert/Remove | Modify array | Shift with pointers |
+| Partition | Sorting algorithms | Two pointers meet in middle |
+
+## Safety Reminders
+
+Before submitting any pointer code, verify:
+
+1. All pointers initialized before use
+2. NULL checks before dereferencing
+3. Array bounds respected
+4. No arithmetic on NULL or wild pointers
+5. Const used for read-only parameters
+6. Memory freed if allocated (next lesson)
+7. Compiler warnings enabled and addressed
+
+## Key Takeaways
+
+- Pointer patterns repeat across many algorithms
+- Two-pointer technique is extremely powerful
+- String operations are just pointer traversal until `\0`
+- Pass by reference enables in-place modifications
+- Use `const` to document read-only intent
+- Test boundary cases (empty arrays, single elements)
+- Always validate inputs (NULL pointers, invalid sizes)
+
+## Final Challenge
+
+Implement a complete string library with these functions, using only pointers:
+
+- `my_strlen`: Calculate string length
+- `my_strcpy`: Copy string safely
+- `my_strcat`: Concatenate strings
+- `my_strcmp`: Compare strings
+- `my_strchr`: Find character in string
+- `my_strstr`: Find substring in string
+- `my_strtok`: Tokenize string (split by delimiter)
+
+Test thoroughly with edge cases (empty strings, NULL pointers, very long strings).
+
+Congratulations! You now have a solid foundation in C pointers. The next lesson covers dynamic memory allocation, where pointers truly shine.

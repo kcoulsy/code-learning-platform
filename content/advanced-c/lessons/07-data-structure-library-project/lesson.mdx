@@ -1,0 +1,93 @@
+---
+id: 07-data-structure-library-project
+title: Project: Data Structure Library
+description: Build generic containers (vector, hash map) with type-safe APIs, custom allocator support, and comprehensive testing.
+type: project
+order: 7
+---
+
+import { LearningObjectives } from '@/components/learning-objectives'
+
+# Project: Data Structure Library
+
+In this project, you'll create a reusable data structure library with generic containers. This teaches you API design, generic programming in C, and building maintainable libraries.
+
+<LearningObjectives>
+
+- Design generic container APIs using void\* and macros
+- Implement dynamic vector (resizable array)
+- Implement hash map with chaining
+- Create custom allocator support
+- Build type-safe APIs with macros or \_Generic
+- Write comprehensive tests and benchmarks
+- Design clean header files with feature flags
+- Apply consistent error handling patterns
+
+</LearningObjectives>
+
+## Project Overview
+
+You'll build a library with:
+
+1. **Vector**: Dynamic array with push, pop, insert, remove
+2. **Hash Map**: Key-value store with chaining
+3. **Generic API**: Works for any type
+4. **Custom Allocators**: Pluggable memory management
+5. **Type Safety**: Type-safe wrappers for common types
+6. **Testing**: Comprehensive unit tests
+7. **Documentation**: Clear API documentation
+
+## Implementation Plan
+
+### Step 1: Allocator Interface
+
+Design a flexible allocator interface.
+
+### Step 2: Vector Structure
+
+Define the vector data structure.
+
+### Step 3: Vector Operations
+
+Implement push, pop, insert, remove, resize.
+
+### Step 4: Hash Map Structure
+
+Design hash map with chaining.
+
+### Step 5: Hash Map Operations
+
+Implement insert, lookup, remove, resize.
+
+### Step 6: Generic API
+
+Design void\*-based generic interface.
+
+### Step 7: Type-Safe Wrappers
+
+Create type-safe macros or use \_Generic.
+
+### Step 8: Error Handling
+
+Consistent error reporting.
+
+### Step 9: Testing
+
+Unit tests for all operations.
+
+### Step 10: Example Usage
+
+Demonstrate real-world use.
+
+## Key Concepts
+
+- **Generic programming**: Using void\* and macros
+- **Type safety**: \_Generic (C11) or macro wrappers
+- **Memory management**: Custom allocator support
+- **API design**: Clean, consistent interfaces
+- **Error handling**: Return codes vs assertions
+- **Growth strategies**: Geometric growth for vectors
+- **Hash functions**: Good distribution, fast computation
+- **Load factor**: When to resize hash table
+
+Let's start with the allocator interface.

@@ -1,0 +1,654 @@
+---
+title: "Bit Flags"
+description: "Learn to use bit flags for efficient state management, including defining, setting, clearing, and checking multiple boolean flags."
+order: 4
+---
+
+# Bit Flags
+
+Bit flags are one of the most practical applications of bitwise operations. They allow you to store multiple boolean values (flags) in a single integer, saving memory and enabling efficient manipulation of related states. This technique is used extensively in operating systems, file permissions, network protocols, and game engines.
+
+Instead of using multiple boolean variables or an array of booleans, bit flags let you pack up to 32 flags into a single `unsigned int`, or 64 into an `unsigned long long`. This is both memory-efficient and fast.
+
+## Understanding Bit Flags
+
+Each bit in an integer represents a separate boolean flag. By using bitwise operations, you can:
+- **Set** a flag (turn it on)
+- **Clear** a flag (turn it off)
+- **Toggle** a flag (flip its state)
+- **Check** if a flag is set
+- **Work with multiple flags** simultaneously
+
+## Example 1: Basic Bit Flag Operations
+
+```c
+#include <stdio.h>
+
+// Define flags using bit positions (powers of 2)
+#define FLAG_NONE       0x00000000  // No flags set
+#define FLAG_READ       0x00000001  // Bit 0: Read permission
+#define FLAG_WRITE      0x00000002  // Bit 1: Write permission
+#define FLAG_EXECUTE    0x00000004  // Bit 2: Execute permission
+#define FLAG_HIDDEN     0x00000008  // Bit 3: Hidden file
+#define FLAG_SYSTEM     0x00000010  // Bit 4: System file
+#define FLAG_ARCHIVE    0x00000020  // Bit 5: Archive flag
+
+// Alternative: Use bit shift notation (more explicit)
+#define FLAG_ALT_READ       (1 << 0)  // 0x01
+#define FLAG_ALT_WRITE      (1 << 1)  // 0x02
+#define FLAG_ALT_EXECUTE    (1 << 2)  // 0x04
+
+// Set a flag (turn it on)
+unsigned int set_flag(unsigned int flags, unsigned int flag) {
+    return flags | flag;
+}
+
+// Clear a flag (turn it off)
+unsigned int clear_flag(unsigned int flags, unsigned int flag) {
+    return flags & ~flag;
+}
+
+// Toggle a flag (flip its state)
+unsigned int toggle_flag(unsigned int flags, unsigned int flag) {
+    return flags ^ flag;
+}
+
+// Check if a flag is set
+int is_flag_set(unsigned int flags, unsigned int flag) {
+    return (flags & flag) != 0;
+}
+
+// Check if ALL specified flags are set
+int are_all_flags_set(unsigned int flags, unsigned int mask) {
+    return (flags & mask) == mask;
+}
+
+// Check if ANY of the specified flags are set
+int are_any_flags_set(unsigned int flags, unsigned int mask) {
+    return (flags & mask) != 0;
+}
+
+void print_flags(unsigned int flags) {
+    printf("Flags: ");
+    if (flags == 0) {
+        printf("NONE");
+    } else {
+        if (is_flag_set(flags, FLAG_READ))    printf("READ ");
+        if (is_flag_set(flags, FLAG_WRITE))   printf("WRITE ");
+        if (is_flag_set(flags, FLAG_EXECUTE)) printf("EXECUTE ");
+        if (is_flag_set(flags, FLAG_HIDDEN))  printf("HIDDEN ");
+        if (is_flag_set(flags, FLAG_SYSTEM))  printf("SYSTEM ");
+        if (is_flag_set(flags, FLAG_ARCHIVE)) printf("ARCHIVE ");
+    }
+    printf("(0x%X)\n", flags);
+}
+
+int main(void) {
+    unsigned int permissions = FLAG_NONE;
+
+    printf("Initial state:\n");
+    print_flags(permissions);
+    printf("\n");
+
+    // Set individual flags
+    printf("Setting READ and WRITE flags:\n");
+    permissions = set_flag(permissions, FLAG_READ);
+    permissions = set_flag(permissions, FLAG_WRITE);
+    print_flags(permissions);
+    printf("\n");
+
+    // Set multiple flags at once
+    printf("Adding EXECUTE flag:\n");
+    permissions |= FLAG_EXECUTE;  // Shorthand for set_flag
+    print_flags(permissions);
+    printf("\n");
+
+    // Check individual flags
+    printf("Permission checks:\n");
+    printf("  Can read: %s\n", is_flag_set(permissions, FLAG_READ) ? "YES" : "NO");
+    printf("  Can write: %s\n", is_flag_set(permissions, FLAG_WRITE) ? "YES" : "NO");
+    printf("  Is hidden: %s\n", is_flag_set(permissions, FLAG_HIDDEN) ? "YES" : "NO");
+    printf("\n");
+
+    // Clear a flag
+    printf("Removing WRITE permission:\n");
+    permissions = clear_flag(permissions, FLAG_WRITE);
+    print_flags(permissions);
+    printf("\n");
+
+    // Toggle flags
+    printf("Toggling WRITE and HIDDEN:\n");
+    permissions = toggle_flag(permissions, FLAG_WRITE);
+    permissions = toggle_flag(permissions, FLAG_HIDDEN);
+    print_flags(permissions);
+    printf("\n");
+
+    // Check multiple flags
+    unsigned int read_write = FLAG_READ | FLAG_WRITE;
+    printf("Has both READ and WRITE: %s\n",
+           are_all_flags_set(permissions, read_write) ? "YES" : "NO");
+    printf("Has READ or EXECUTE: %s\n",
+           are_any_flags_set(permissions, FLAG_READ | FLAG_EXECUTE) ? "YES" : "NO");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Initial state:
+Flags: NONE (0x0)
+
+Setting READ and WRITE flags:
+Flags: READ WRITE (0x3)
+
+Adding EXECUTE flag:
+Flags: READ WRITE EXECUTE (0x7)
+
+Permission checks:
+  Can read: YES
+  Can write: YES
+  Is hidden: NO
+
+Removing WRITE permission:
+Flags: READ EXECUTE (0x5)
+
+Toggling WRITE and HIDDEN:
+Flags: READ WRITE EXECUTE HIDDEN (0xF)
+
+Has both READ and WRITE: YES
+Has READ or EXECUTE: YES
+```
+
+**Key Points:**
+- Use `|` to set flags (OR operation)
+- Use `& ~flag` to clear flags (AND with NOT)
+- Use `^` to toggle flags (XOR operation)
+- Use `& flag` to check if flags are set
+- Can manipulate multiple flags with a single operation
+
+## Example 2: File Permissions (Unix-Style)
+
+```c
+#include <stdio.h>
+
+// Permission bits (using octal notation like Unix)
+#define PERM_NONE       0000
+#define PERM_OWNER_READ 0400
+#define PERM_OWNER_WRITE 0200
+#define PERM_OWNER_EXEC  0100
+#define PERM_GROUP_READ  0040
+#define PERM_GROUP_WRITE 0020
+#define PERM_GROUP_EXEC  0010
+#define PERM_OTHER_READ  0004
+#define PERM_OTHER_WRITE 0002
+#define PERM_OTHER_EXEC  0001
+
+// Common permission combinations
+#define PERM_OWNER_ALL  (PERM_OWNER_READ | PERM_OWNER_WRITE | PERM_OWNER_EXEC)
+#define PERM_GROUP_ALL  (PERM_GROUP_READ | PERM_GROUP_WRITE | PERM_GROUP_EXEC)
+#define PERM_OTHER_ALL  (PERM_OTHER_READ | PERM_OTHER_WRITE | PERM_OTHER_EXEC)
+
+typedef struct {
+    char name[50];
+    unsigned int permissions;
+} File;
+
+void print_permissions(unsigned int perms) {
+    // Owner permissions
+    printf("%c", (perms & PERM_OWNER_READ) ? 'r' : '-');
+    printf("%c", (perms & PERM_OWNER_WRITE) ? 'w' : '-');
+    printf("%c", (perms & PERM_OWNER_EXEC) ? 'x' : '-');
+
+    // Group permissions
+    printf("%c", (perms & PERM_GROUP_READ) ? 'r' : '-');
+    printf("%c", (perms & PERM_GROUP_WRITE) ? 'w' : '-');
+    printf("%c", (perms & PERM_GROUP_EXEC) ? 'x' : '-');
+
+    // Other permissions
+    printf("%c", (perms & PERM_OTHER_READ) ? 'r' : '-');
+    printf("%c", (perms & PERM_OTHER_WRITE) ? 'w' : '-');
+    printf("%c", (perms & PERM_OTHER_EXEC) ? 'x' : '-');
+
+    printf(" (0%o)", perms);  // Print in octal
+}
+
+int can_access(unsigned int perms, unsigned int required) {
+    return (perms & required) == required;
+}
+
+void print_file(const File *file) {
+    printf("%-20s ", file->name);
+    print_permissions(file->permissions);
+    printf("\n");
+}
+
+int main(void) {
+    File files[] = {
+        {"document.txt", 0644},  // rw-r--r--
+        {"script.sh", 0755},     // rwxr-xr-x
+        {"config.conf", 0600},   // rw-------
+        {"public.html", 0644}    // rw-r--r--
+    };
+
+    printf("File permissions:\n");
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+        print_file(&files[i]);
+    }
+    printf("\n");
+
+    // Modify permissions
+    printf("Making script.sh readable by everyone:\n");
+    files[1].permissions |= PERM_OTHER_READ;
+    print_file(&files[1]);
+    printf("\n");
+
+    printf("Removing group write from all files:\n");
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+        files[i].permissions &= ~PERM_GROUP_WRITE;
+        print_file(&files[i]);
+    }
+    printf("\n");
+
+    // Check access
+    printf("Access checks for document.txt:\n");
+    unsigned int doc_perms = files[0].permissions;
+    printf("  Owner can write: %s\n",
+           can_access(doc_perms, PERM_OWNER_WRITE) ? "YES" : "NO");
+    printf("  Group can write: %s\n",
+           can_access(doc_perms, PERM_GROUP_WRITE) ? "YES" : "NO");
+    printf("  Other can read: %s\n",
+           can_access(doc_perms, PERM_OTHER_READ) ? "YES" : "NO");
+
+    return 0;
+}
+```
+
+**Output:**
+```
+File permissions:
+document.txt         rw-r--r-- (0644)
+script.sh            rwxr-xr-x (0755)
+config.conf          rw------- (0600)
+public.html          rw-r--r-- (0644)
+
+Making script.sh readable by everyone:
+script.sh            rwxr-xr-x (0755)
+
+Removing group write from all files:
+document.txt         rw-r--r-- (0644)
+script.sh            rwxr-xr-x (0755)
+config.conf          rw------- (0600)
+public.html          rw-r--r-- (0644)
+
+Access checks for document.txt:
+  Owner can write: YES
+  Group can write: NO
+  Other can read: YES
+```
+
+## Example 3: Game Entity States
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+// Entity state flags
+#define STATE_NONE          0x00000000
+#define STATE_ALIVE         0x00000001
+#define STATE_MOVING        0x00000002
+#define STATE_ATTACKING     0x00000004
+#define STATE_DEFENDING     0x00000008
+#define STATE_STUNNED       0x00000010
+#define STATE_INVISIBLE     0x00000020
+#define STATE_FLYING        0x00000040
+#define STATE_INVINCIBLE    0x00000080
+#define STATE_POISONED      0x00000100
+#define STATE_BURNING       0x00000200
+
+// Common state combinations
+#define STATE_ACTIVE        (STATE_ALIVE | STATE_MOVING)
+#define STATE_COMBAT        (STATE_ATTACKING | STATE_DEFENDING)
+#define STATE_DEBUFFED      (STATE_STUNNED | STATE_POISONED | STATE_BURNING)
+
+typedef struct {
+    char name[50];
+    unsigned int state;
+    int health;
+    int damage;
+} Entity;
+
+void print_state(const Entity *entity) {
+    printf("%s (HP: %d, DMG: %d) - State: ",
+           entity->name, entity->health, entity->damage);
+
+    if (entity->state == STATE_NONE) {
+        printf("NONE");
+    } else {
+        if (entity->state & STATE_ALIVE)      printf("ALIVE ");
+        if (entity->state & STATE_MOVING)     printf("MOVING ");
+        if (entity->state & STATE_ATTACKING)  printf("ATTACKING ");
+        if (entity->state & STATE_DEFENDING)  printf("DEFENDING ");
+        if (entity->state & STATE_STUNNED)    printf("STUNNED ");
+        if (entity->state & STATE_INVISIBLE)  printf("INVISIBLE ");
+        if (entity->state & STATE_FLYING)     printf("FLYING ");
+        if (entity->state & STATE_INVINCIBLE) printf("INVINCIBLE ");
+        if (entity->state & STATE_POISONED)   printf("POISONED ");
+        if (entity->state & STATE_BURNING)    printf("BURNING ");
+    }
+    printf("\n");
+}
+
+int can_perform_action(const Entity *entity) {
+    // Can't act if dead or stunned
+    if (!(entity->state & STATE_ALIVE) || (entity->state & STATE_STUNNED)) {
+        return 0;
+    }
+    return 1;
+}
+
+int can_take_damage(const Entity *entity) {
+    // Invincible entities don't take damage
+    return !(entity->state & STATE_INVINCIBLE);
+}
+
+void apply_damage(Entity *entity, int damage) {
+    if (!can_take_damage(entity)) {
+        printf("%s is invincible! No damage taken.\n", entity->name);
+        return;
+    }
+
+    entity->health -= damage;
+    printf("%s takes %d damage! (HP: %d)\n",
+           entity->name, damage, entity->health);
+
+    if (entity->health <= 0) {
+        entity->health = 0;
+        entity->state = STATE_NONE;  // Dead - clear all states
+        printf("%s has been defeated!\n", entity->name);
+    }
+}
+
+void apply_buff(Entity *entity, unsigned int buff, const char *buff_name) {
+    entity->state |= buff;
+    printf("%s gains %s!\n", entity->name, buff_name);
+}
+
+void remove_buff(Entity *entity, unsigned int buff, const char *buff_name) {
+    entity->state &= ~buff;
+    printf("%s loses %s!\n", entity->name, buff_name);
+}
+
+int main(void) {
+    Entity player = {"Hero", STATE_ALIVE, 100, 25};
+    Entity enemy = {"Dragon", STATE_ALIVE | STATE_FLYING, 200, 40};
+
+    printf("Initial states:\n");
+    print_state(&player);
+    print_state(&enemy);
+    printf("\n");
+
+    // Player starts moving
+    printf("Player starts moving:\n");
+    apply_buff(&player, STATE_MOVING, "MOVING");
+    print_state(&player);
+    printf("\n");
+
+    // Combat begins
+    printf("Combat begins:\n");
+    apply_buff(&player, STATE_ATTACKING, "ATTACKING");
+    apply_buff(&enemy, STATE_DEFENDING, "DEFENDING");
+    print_state(&player);
+    print_state(&enemy);
+    printf("\n");
+
+    // Player gets invincibility power-up
+    printf("Player finds invincibility potion:\n");
+    apply_buff(&player, STATE_INVINCIBLE, "INVINCIBLE");
+    print_state(&player);
+    printf("\n");
+
+    // Dragon attacks
+    printf("Dragon attacks:\n");
+    apply_damage(&player, enemy.damage);
+    printf("\n");
+
+    // Invincibility wears off
+    printf("Invincibility wears off:\n");
+    remove_buff(&player, STATE_INVINCIBLE, "INVINCIBLE");
+    print_state(&player);
+    printf("\n");
+
+    // Dragon gets poisoned
+    printf("Player uses poison attack:\n");
+    apply_buff(&enemy, STATE_POISONED, "POISONED");
+    print_state(&enemy);
+    printf("\n");
+
+    // Check if entities can act
+    printf("Action checks:\n");
+    printf("  Player can act: %s\n", can_perform_action(&player) ? "YES" : "NO");
+    printf("  Enemy can act: %s\n", can_perform_action(&enemy) ? "YES" : "NO");
+    printf("\n");
+
+    // Apply damage to defeat enemy
+    printf("Player attacks repeatedly:\n");
+    while (enemy.health > 0) {
+        apply_damage(&enemy, player.damage);
+    }
+    print_state(&enemy);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Initial states:
+Hero (HP: 100, DMG: 25) - State: ALIVE
+Dragon (HP: 200, DMG: 40) - State: ALIVE FLYING
+
+Player starts moving:
+Hero gains MOVING!
+Hero (HP: 100, DMG: 25) - State: ALIVE MOVING
+
+Combat begins:
+Hero gains ATTACKING!
+Dragon gains DEFENDING!
+Hero (HP: 100, DMG: 25) - State: ALIVE MOVING ATTACKING
+Dragon (HP: 200, DMG: 40) - State: ALIVE DEFENDING FLYING
+
+Player finds invincibility potion:
+Hero gains INVINCIBLE!
+Hero (HP: 100, DMG: 25) - State: ALIVE MOVING ATTACKING INVINCIBLE
+
+Dragon attacks:
+Hero is invincible! No damage taken.
+
+Invincibility wears off:
+Hero loses INVINCIBLE!
+Hero (HP: 100, DMG: 25) - State: ALIVE MOVING ATTACKING
+
+Player uses poison attack:
+Dragon gains POISONED!
+Dragon (HP: 200, DMG: 40) - State: ALIVE DEFENDING FLYING POISONED
+
+Action checks:
+  Player can act: YES
+  Enemy can act: YES
+
+Player attacks repeatedly:
+Dragon takes 25 damage! (HP: 175)
+Dragon takes 25 damage! (HP: 150)
+Dragon takes 25 damage! (HP: 125)
+Dragon takes 25 damage! (HP: 100)
+Dragon takes 25 damage! (HP: 75)
+Dragon takes 25 damage! (HP: 50)
+Dragon takes 25 damage! (HP: 25)
+Dragon takes 25 damage! (HP: 0)
+Dragon has been defeated!
+Dragon (HP: 0, DMG: 40) - State: NONE
+```
+
+## Example 4: Configuration Options
+
+```c
+#include <stdio.h>
+
+// Application configuration flags
+#define CONFIG_NONE             0x00000000
+#define CONFIG_DEBUG            0x00000001
+#define CONFIG_VERBOSE          0x00000002
+#define CONFIG_LOG_TO_FILE      0x00000004
+#define CONFIG_AUTO_SAVE        0x00000008
+#define CONFIG_CONFIRM_EXIT     0x00000010
+#define CONFIG_DARK_MODE        0x00000020
+#define CONFIG_NOTIFICATIONS    0x00000040
+#define CONFIG_ANIMATIONS       0x00000080
+
+// Preset configurations
+#define CONFIG_DEVELOPER        (CONFIG_DEBUG | CONFIG_VERBOSE | CONFIG_LOG_TO_FILE)
+#define CONFIG_USER_FRIENDLY    (CONFIG_AUTO_SAVE | CONFIG_CONFIRM_EXIT | CONFIG_ANIMATIONS)
+#define CONFIG_MINIMAL          (CONFIG_NONE)
+
+typedef struct {
+    unsigned int flags;
+    char profile_name[50];
+} AppConfig;
+
+void print_config(const AppConfig *config) {
+    printf("Configuration Profile: %s\n", config->profile_name);
+    printf("Settings:\n");
+    printf("  Debug mode:        %s\n", (config->flags & CONFIG_DEBUG) ? "ON" : "OFF");
+    printf("  Verbose logging:   %s\n", (config->flags & CONFIG_VERBOSE) ? "ON" : "OFF");
+    printf("  Log to file:       %s\n", (config->flags & CONFIG_LOG_TO_FILE) ? "ON" : "OFF");
+    printf("  Auto-save:         %s\n", (config->flags & CONFIG_AUTO_SAVE) ? "ON" : "OFF");
+    printf("  Confirm on exit:   %s\n", (config->flags & CONFIG_CONFIRM_EXIT) ? "ON" : "OFF");
+    printf("  Dark mode:         %s\n", (config->flags & CONFIG_DARK_MODE) ? "ON" : "OFF");
+    printf("  Notifications:     %s\n", (config->flags & CONFIG_NOTIFICATIONS) ? "ON" : "OFF");
+    printf("  Animations:        %s\n", (config->flags & CONFIG_ANIMATIONS) ? "ON" : "OFF");
+    printf("\n");
+}
+
+void load_preset(AppConfig *config, const char *preset_name, unsigned int flags) {
+    snprintf(config->profile_name, sizeof(config->profile_name), "%s", preset_name);
+    config->flags = flags;
+}
+
+int main(void) {
+    AppConfig config;
+
+    // Load developer preset
+    printf("Loading developer preset:\n");
+    load_preset(&config, "Developer", CONFIG_DEVELOPER);
+    print_config(&config);
+
+    // Add dark mode
+    printf("Enabling dark mode:\n");
+    config.flags |= CONFIG_DARK_MODE;
+    print_config(&config);
+
+    // Load user-friendly preset
+    printf("Switching to user-friendly preset:\n");
+    load_preset(&config, "User Friendly", CONFIG_USER_FRIENDLY);
+    print_config(&config);
+
+    // Toggle specific features
+    printf("Toggling notifications and dark mode:\n");
+    config.flags ^= CONFIG_NOTIFICATIONS;
+    config.flags ^= CONFIG_DARK_MODE;
+    print_config(&config);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Loading developer preset:
+Configuration Profile: Developer
+Settings:
+  Debug mode:        ON
+  Verbose logging:   ON
+  Log to file:       ON
+  Auto-save:         OFF
+  Confirm on exit:   OFF
+  Dark mode:         OFF
+  Notifications:     OFF
+  Animations:        OFF
+
+Enabling dark mode:
+Configuration Profile: Developer
+Settings:
+  Debug mode:        ON
+  Verbose logging:   ON
+  Log to file:       ON
+  Auto-save:         OFF
+  Confirm on exit:   OFF
+  Dark mode:         ON
+  Notifications:     OFF
+  Animations:        OFF
+
+Switching to user-friendly preset:
+Configuration Profile: User Friendly
+Settings:
+  Debug mode:        OFF
+  Verbose logging:   OFF
+  Log to file:       OFF
+  Auto-save:         ON
+  Confirm on exit:   ON
+  Dark mode:         OFF
+  Notifications:     OFF
+  Animations:        ON
+
+Toggling notifications and dark mode:
+Configuration Profile: User Friendly
+Settings:
+  Debug mode:        OFF
+  Verbose logging:   OFF
+  Log to file:       OFF
+  Auto-save:         ON
+  Confirm on exit:   ON
+  Dark mode:         ON
+  Notifications:     ON
+  Animations:        ON
+```
+
+## Best Practices
+
+1. **Use descriptive names**: Make flag names meaningful
+2. **Define using powers of 2**: Use `1 << n` or hex values
+3. **Group related flags**: Define common combinations as constants
+4. **Document flag meanings**: Comment what each flag represents
+5. **Use unsigned types**: Avoid signed integers for bit flags
+6. **Consider enum**: For type safety, use `enum` with explicit values
+
+## Common Pitfalls
+
+1. **Reusing bit positions**: Each flag needs a unique bit
+2. **Forgetting parentheses**: Operator precedence can cause issues
+3. **Using signed types**: Sign bit can cause unexpected behavior
+4. **Not checking return values**: When using flags for error codes
+5. **Assuming order**: Bit order in structures depends on compiler/platform
+
+## Exercises
+
+1. **TCP Flags**: Implement TCP control flags (SYN, ACK, FIN, RST, PSH, URG) and write functions to create packet headers with various flag combinations.
+
+2. **User Permissions System**: Create a role-based permission system with flags for CREATE, READ, UPDATE, DELETE, and ADMIN. Implement functions to grant, revoke, and check permissions.
+
+3. **Character Attributes**: Build a character system for an RPG with attribute flags (STRENGTH, DEXTERITY, INTELLIGENCE, etc.) and status effects (BLESSED, CURSED, HASTED, SLOWED, etc.).
+
+4. **Feature Flags**: Implement a feature flag system for A/B testing in an application. Include functions to enable/disable features for specific user groups.
+
+## Key Takeaways
+
+- **Bit flags pack multiple booleans** into a single integer for efficiency
+- **Use OR (`|`) to set** flags, AND with NOT (`& ~`) to clear flags
+- **Check flags with AND (`&`)** and compare to the flag or zero
+- **Combine flags** with OR to work with multiple flags at once
+- **Define flags as powers of 2** using hex notation or bit shifts
+- **Memory efficient**: 32 flags in 4 bytes vs. 32 bytes for boolean array
+- **Common in systems programming**: File permissions, hardware registers, protocol flags
+
+In the next step, you'll learn about function pointers and how they enable flexible, callback-based programming in C.

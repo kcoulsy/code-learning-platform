@@ -1,0 +1,331 @@
+---
+id: compiler-flags
+title: Essential Compiler Flags
+order: 5
+---
+
+# Essential Compiler Flags
+
+Compiler flags control how GCC compiles your code. Using the right flags helps you catch bugs early, optimize performance, and ensure code quality.
+
+## The Recommended Compilation Command
+
+Throughout this course, we'll use this standard compilation command:
+
+```bash
+gcc -Wall -Wextra -std=c11 -g -o program program.c
+```
+
+Let's break down what each flag does and why it matters.
+
+## Warning Flags: Catch Bugs Early
+
+### `-Wall` (Enable All Warnings)
+
+Enables most common warnings:
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int x;  // Uninitialized variable
+    printf("%d\n", x);  // -Wall warns: 'x' may be used uninitialized
+    return 0;
+}
+```
+
+Compile with `-Wall`:
+```bash
+gcc -Wall test.c -o test
+# warning: 'x' may be used uninitialized in this function
+```
+
+### `-Wextra` (Extra Warnings)
+
+Enables additional warnings beyond `-Wall`:
+
+```c
+int compare(int a, int b) {
+    if (a = b)  // Likely a bug: assignment instead of comparison
+        return 1;
+    return 0;
+}
+```
+
+```bash
+gcc -Wall -Wextra test.c
+# warning: suggest parentheses around assignment used as truth value
+```
+
+### `-Werror` (Treat Warnings as Errors)
+
+Useful for enforcing code quality:
+
+```bash
+gcc -Wall -Wextra -Werror test.c
+# Now warnings prevent compilation
+```
+
+Use this in production code to ensure no warnings slip through.
+
+## C Standard Selection
+
+### `-std=c11` (Use C11 Standard)
+
+Specifies which C standard to follow:
+
+```c
+// C11 feature: anonymous structs
+struct Person {
+    char name[50];
+    struct {  // Anonymous struct (C11 feature)
+        int day;
+        int month;
+        int year;
+    };
+};
+```
+
+Available standards:
+- `-std=c89` or `-std=c90` - Original ANSI C
+- `-std=c99` - C99 standard
+- `-std=c11` - C11 standard (recommended)
+- `-std=c17` or `-std=c18` - C17 standard
+
+```bash
+# Use C11 (recommended for this course)
+gcc -std=c11 program.c
+
+# Use C99
+gcc -std=c99 program.c
+```
+
+## Debugging Flags
+
+### `-g` (Include Debug Information)
+
+Essential for debugging with GDB:
+
+```bash
+# Compile with debug symbols
+gcc -g -o program program.c
+
+# Now you can use gdb
+gdb ./program
+```
+
+Without `-g`, the debugger can't show:
+- Line numbers where crashes occur
+- Variable names and values
+- Function call stacks
+
+**Always use `-g` during development.**
+
+### `-g3` (Maximum Debug Information)
+
+Includes even more debugging info (like macro definitions):
+
+```bash
+gcc -g3 -o program program.c
+```
+
+## Optimization Flags
+
+### `-O0` (No Optimization - Default)
+
+No optimization, fastest compilation:
+
+```bash
+gcc -O0 -o program program.c
+```
+
+Use during development for accurate debugging.
+
+### `-O1`, `-O2`, `-O3` (Optimization Levels)
+
+```bash
+# Moderate optimization
+gcc -O1 -o program program.c
+
+# Recommended for production
+gcc -O2 -o program program.c
+
+# Aggressive optimization (may increase binary size)
+gcc -O3 -o program program.c
+```
+
+**Important:** Don't use optimization flags while debugging - they can reorder code and make debugging confusing.
+
+## Output Control
+
+### `-o` (Specify Output Name)
+
+```bash
+# Default: creates a.out (Linux/Mac) or a.exe (Windows)
+gcc program.c
+
+# Specify output name
+gcc program.c -o myprogram
+
+# Multiple files
+gcc file1.c file2.c -o combined
+```
+
+### `-c` (Compile to Object File)
+
+```bash
+# Create object file without linking
+gcc -c program.c -o program.o
+```
+
+## Other Useful Flags
+
+### `-I` (Include Directory)
+
+Specify where to find header files:
+
+```bash
+# Look for headers in ./include/
+gcc -I./include program.c -o program
+```
+
+```c
+#include "myheader.h"  // GCC looks in ./include/myheader.h
+```
+
+### `-L` (Library Directory)
+
+Specify where to find libraries:
+
+```bash
+gcc -L./lib program.c -lmylib -o program
+```
+
+### `-l` (Link Library)
+
+Link against a library:
+
+```bash
+# Link math library
+gcc program.c -lm -o program
+
+# Link multiple libraries
+gcc program.c -lm -lpthread -o program
+```
+
+### `-D` (Define Macro)
+
+Define macros at compile time:
+
+```bash
+gcc -DDEBUG program.c -o program
+```
+
+```c
+#ifdef DEBUG
+    printf("Debug mode enabled\n");
+#endif
+```
+
+## Practical Examples
+
+### Development Build
+
+```bash
+# Full warnings, debug info, no optimization
+gcc -Wall -Wextra -std=c11 -g -O0 -o program program.c
+```
+
+### Production Build
+
+```bash
+# Full warnings, optimization, strip debug symbols
+gcc -Wall -Wextra -std=c11 -O2 -o program program.c
+strip program  # Remove debug symbols to reduce size
+```
+
+### Multi-File Project
+
+```bash
+gcc -Wall -Wextra -std=c11 -g \
+    main.c \
+    utils.c \
+    file_io.c \
+    -I./include \
+    -L./lib \
+    -lm \
+    -o myapp
+```
+
+## Common Flag Combinations
+
+```bash
+# Basic development
+gcc -Wall -Wextra -std=c11 -g program.c -o program
+
+# Paranoid mode (catch everything)
+gcc -Wall -Wextra -Wpedantic -Werror -std=c11 -g program.c -o program
+
+# Production release
+gcc -Wall -Wextra -std=c11 -O2 -DNDEBUG program.c -o program
+
+# With math library
+gcc -Wall -Wextra -std=c11 -g program.c -lm -o program
+```
+
+## Common Pitfalls
+
+### Forgetting `-lm` for Math Functions
+
+```c
+#include <math.h>
+#include <stdio.h>
+
+int main(void) {
+    double result = sqrt(16.0);
+    printf("Result: %f\n", result);
+    return 0;
+}
+```
+
+```bash
+# Wrong - linking error
+gcc program.c -o program
+# undefined reference to `sqrt'
+
+# Correct
+gcc program.c -lm -o program
+```
+
+### Mixing Optimization with Debugging
+
+```bash
+# Bad: optimization makes debugging confusing
+gcc -g -O3 program.c
+
+# Good: no optimization while debugging
+gcc -g -O0 program.c
+
+# Good: optimize for production
+gcc -O2 program.c
+```
+
+## Key Takeaways
+
+- Always use `-Wall -Wextra` to catch common bugs
+- Use `-std=c11` to enable modern C features
+- Always use `-g` during development for debugging
+- Use `-O0` (or no optimization flag) while debugging
+- Use `-O2` for production builds
+- Use `-lm` when you need math functions from `<math.h>`
+- Order matters: `-o` should come before the output name
+- Library flags (`-l`) typically come after source files
+
+## Practice Exercises
+
+1. Compile a program with `-Wall` and fix all warnings
+2. Try compiling code with C99 features using `-std=c11` and `-std=c89` - observe the differences
+3. Create a program using `sqrt()` and compile it with and without `-lm`
+4. Compile with `-g`, run `gdb`, and use `break` and `run` commands
+5. Create a multi-file project and use `-I` to specify an include directory
+6. Define a `DEBUG` macro with `-D` and use `#ifdef DEBUG` in your code

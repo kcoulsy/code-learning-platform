@@ -1,0 +1,90 @@
+---
+id: 06-memory-allocator-project
+title: Project: Custom Memory Allocator
+description: Build your own malloc/free with alignment tracking, debugging features, and performance benchmarking.
+type: project
+order: 6
+---
+
+import { LearningObjectives } from '@/components/learning-objectives'
+
+# Project: Custom Memory Allocator
+
+In this project, you'll implement your own memory allocator similar to malloc and free. This deepens your understanding of how memory management works at the system level.
+
+<LearningObjectives>
+
+- Implement malloc and free from scratch
+- Handle alignment requirements correctly
+- Add debugging features (poisoning, leak tracking)
+- Manage free blocks efficiently (coalescing, splitting)
+- Benchmark performance vs system allocator
+- Use preprocessor conditionals for feature flags
+- Apply defensive programming patterns
+- Understand heap memory layout
+
+</LearningObjectives>
+
+## Project Overview
+
+You'll build `mymalloc` and `myfree` with:
+
+1. **Basic allocation**: Request memory from system (sbrk/mmap)
+2. **Block management**: Track allocated and free blocks
+3. **Alignment**: Ensure proper alignment for any type
+4. **Coalescing**: Merge adjacent free blocks
+5. **Splitting**: Split large blocks for small requests
+6. **Debug mode**: Detect double-free, use-after-free, buffer overflow
+7. **Performance**: Compare against system malloc
+
+## Implementation Plan
+
+### Step 1: Block Structure
+
+Define how blocks are represented in memory.
+
+### Step 2: Basic Allocation
+
+Implement `mymalloc` that requests memory from the OS.
+
+### Step 3: Free Block Management
+
+Track free blocks for reuse.
+
+### Step 4: Free Implementation
+
+Implement `myfree` with block coalescing.
+
+### Step 5: Alignment
+
+Ensure all allocations are properly aligned.
+
+### Step 6: Debug Features
+
+Add poisoning and error detection.
+
+### Step 7: Header Design
+
+Create a clean header with feature flags.
+
+### Step 8: Testing
+
+Write comprehensive tests.
+
+### Step 9: Benchmarking
+
+Compare performance with system allocator.
+
+### Step 10: Integration
+
+Use with real code.
+
+## Key Concepts
+
+- **Heap growth**: Using `sbrk()` or `mmap()`
+- **Block metadata**: Size, used/free, next/prev pointers
+- **Alignment**: Alignof(max_align_t) typically 16 bytes
+- **Fragmentation**: Internal vs external fragmentation
+- **Strategies**: First-fit, best-fit, worst-fit
+
+Let's start with the block structure.

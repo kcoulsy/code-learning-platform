@@ -1,0 +1,322 @@
+---
+id: 09-macros-vs-inline
+title: Macros vs Inline Functions
+order: 9
+---
+
+# Macros vs Inline Functions
+
+Understanding when to use macros and when to use inline functions is crucial for writing safe, maintainable C code.
+
+## Comparison Table
+
+| Feature              | Macros                       | Inline Functions            |
+| -------------------- | ---------------------------- | --------------------------- |
+| Type safety          | No                           | Yes                         |
+| Debugging            | Difficult (expanded code)    | Easy (single definition)    |
+| Side effects         | Multiple evaluation risk     | Single evaluation           |
+| Scope                | None (text substitution)     | Normal scope rules          |
+| Generic code         | Easy (text based)            | Requires `_Generic` (C11)   |
+| Compilation errors   | Confusing (in expanded form) | Clear (at call site)        |
+| Symbol visibility    | None                         | Appears in debugger         |
+| Pointer to function  | Impossible                   | Possible                    |
+| Array size parameter | Can work                     | Must be constant expression |
+
+## When to Use Inline Functions
+
+### 1. Type Safety Matters
+
+```c
+// Macro: No type checking
+#define ABS(x) ((x) < 0 ? -(x) : (x))
+
+char *s1 = "hello";
+char *s2 = ABS(s1);  // Compiles! Nonsense code.
+
+// Inline function: Type checked
+static inline int abs_int(int x) {
+    return x < 0 ? -x : x;
+}
+
+abs_int(s1);  // Compilation error: incompatible types
+```
+
+### 2. Complex Operations
+
+```c
+// Bad macro
+#define COMPLEX_OP(x, y) \
+    ({ \
+        typeof(x) _x = (x); \
+        typeof(y) _y = (y); \
+        (_x * _y) + (_x >> 2) - (_y & 0xFF); \
+    })
+
+// Better: inline function
+static inline int complex_op(int x, int y) {
+    return (x * y) + (x >> 2) - (y & 0xFF);
+}
+```
+
+### 3. Debugging Experience
+
+```c
+// Macro: Debugger shows expanded code
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+// Inline function: Debugger shows the function
+static inline int max_int(int a, int b) {
+    return a > b ? a : b;
+}
+```
+
+With inline functions, you can:
+
+- Set breakpoints in the function
+- Step into the function
+- See the original code, not expanded mess
+
+## When to Use Macros
+
+### 1. Array Size Parameters
+
+```c
+// Macro works
+#define CREATE_ARRAY(type, name, size) \
+    type name[size]
+
+CREATE_ARRAY(int, values, 100);  // Works!
+
+// Function doesn't work
+void create_array(size_t size) { ... }
+int values[size];  // Error: size not compile-time constant
+```
+
+### 2. Type-Specific Operations
+
+```c
+// Macro: Works for any numeric type
+#define TO_HEX(x) \
+    ((x) < 10 ? '0' + (x) : 'a' + (x) - 10)
+
+char c1 = TO_HEX(5);   // '5'
+char c2 = TO_HEX(15);  // 'f'
+
+// Inline function: Need separate versions
+static inline char to_hex_int(int x) {
+    return x < 10 ? '0' + x : 'a' + x - 10;
+}
+```
+
+### 3. Compile-Time Stringification
+
+```c
+// Macro: Stringifies the argument
+#define PRINT_VAR(x) printf(#x " = %d\n", (x))
+
+PRINT_VAR(counter);  // Prints "counter = 42"
+
+// Function: Cannot stringify
+void print_var(const char *name, int value);
+print_var("counter", counter);  // Have to manually pass name
+```
+
+### 4. Conditional Compilation
+
+```c
+// Macro: Can be completely removed
+#ifdef DEBUG
+    #define DBG_PRINT(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#else
+    #define DBG_PRINT(fmt, ...) ((void)0)
+#endif
+
+DBG_PRINT("Debug info\n");  // Removed in release builds
+
+// Inline function: Always compiled in
+static inline void dbg_print(const char *fmt, ...) {
+    // Still takes code space even if not called
+}
+```
+
+## Type-Safe Generics with \_Generic (C11)
+
+C11's `_Generic` provides type-safe generics:
+
+```c
+#define ABS(x) _Generic((x), \
+    int: abs_int, \
+    long: abs_long, \
+    long long: abs_llong, \
+    float: abs_float, \
+    double: abs_double, \
+    default: abs_int \
+)(x)
+
+static inline int abs_int(int x) { return x < 0 ? -x : x; }
+static inline long abs_long(long x) { return x < 0 ? -x : x; }
+static inline long long abs_llong(long long x) { return x < 0 ? -x : x; }
+static inline float abs_float(float x) { return x < 0 ? -x : x; }
+static inline double abs_double(double x) { return x < 0 ? -x : x; }
+
+// Usage
+int i = ABS(-5);        // Calls abs_int
+double d = ABS(-3.14);  // Calls abs_double
+```
+
+This combines the genericity of macros with the safety of inline functions.
+
+## Performance Considerations
+
+### Myth: Inline Functions Are Always Faster
+
+Modern compilers are smart:
+
+```c
+static inline int add(int a, int b) {
+    return a + b;
+}
+
+int result = add(x, y);
+```
+
+The compiler will inline this regardless of `inline` keyword if it's beneficial.
+
+### When inline Helps
+
+1. **Small functions** (1-5 operations)
+2. **Called in tight loops**
+3. **Function call overhead dominates**
+
+```c
+static inline int square(int x) {
+    return x * x;
+}
+
+for (int i = 0; i < 1000000; i++) {
+    sum += square(data[i]);  // Inlined, no call overhead
+}
+```
+
+### When inline Doesn't Help
+
+1. **Large functions** (> 20 operations)
+2. **Called infrequently**
+3. **Code size matters more than speed**
+
+```c
+static inline void complex_processing(Data *d) {
+    // 100 lines of code
+    // Inlining this bloats the binary
+}
+```
+
+## Decision Tree
+
+```
+Need compile-time constant?
+├─ Yes → Use macro
+└─ No
+    ├─ Need text manipulation (stringify, token paste)?
+    │   ├─ Yes → Use macro
+    │   └─ No
+    │       ├─ Need complete removal in release builds?
+    │       │   ├─ Yes → Use macro
+    │       └─ No
+    │           ├─ Need type safety?
+    │           │   ├─ Yes → Use inline function (or _Generic)
+    │           └─ No → Use macro
+```
+
+## Real-World Examples
+
+### Example 1: Container_of (Macro)
+
+```c
+#define container_of(ptr, type, member) \
+    ((type *)((char *)(ptr) - offsetof(type, member)))
+```
+
+This must be a macro:
+
+- Operates on types
+- Computes offset at compile-time
+- Works for any structure type
+
+### Example 2: Min/Max (Inline)
+
+```c
+static inline int min_int(int a, int b) {
+    return a < b ? a : b;
+}
+```
+
+This should be inline:
+
+- Simple comparison
+- Type safety matters
+- Debugging is important
+
+### Example 3: Logging (Macro)
+
+```c
+#define LOG_ERROR(fmt, ...) \
+    fprintf(stderr, "[ERROR] %s:%d: " fmt "\n", \
+            __FILE__, __LINE__, ##__VA_ARGS__)
+```
+
+This must be a macro:
+
+- Uses `__FILE__` and `__LINE__`
+- Stringifies format
+- Can be conditionally compiled out
+
+## Hybrid Approach
+
+Often, the best approach combines both:
+
+```c
+// Define type-safe operations
+static inline int safe_abs_int(int x) { return x < 0 ? -x : x; }
+
+// Provide generic wrapper
+#define ABS(x) _Generic((x), \
+    int: safe_abs_int, \
+    default: safe_abs_int \
+)(x)
+```
+
+## Best Practices
+
+1. **Default to inline functions** for code logic
+2. **Use macros only when necessary**:
+   - Compile-time constants
+   - Type operations
+   - String manipulation
+   - Conditional compilation
+3. **Document macro requirements** (e.g., "must not have side effects")
+4. **Test with compiler optimizations** (`-O2`, `-O3`)
+5. **Profile before optimizing** — measure don't guess
+6. **Use `_Generic` (C11)** for type-safe generics
+
+## Practice Exercise
+
+For each case, decide: macro or inline function?
+
+1. A function that returns the minimum of two integers
+2. A macro that creates a static array of a given size
+3. A function that computes the square root
+4. A macro that prints debug info with file and line number
+5. A generic absolute value function that works for int and double
+
+**Answers**:
+
+1. Inline function — type safety, simple operation
+2. Macro — needs compile-time constant
+3. Inline function — complex, type safety matters
+4. Macro — needs `__FILE__` and `__LINE__`
+5. `_Generic` + inline functions — type-safe generic
+
+---
+
+**Phase 8 Complete**: You've mastered the C preprocessor. Next up: Debugging and tooling.

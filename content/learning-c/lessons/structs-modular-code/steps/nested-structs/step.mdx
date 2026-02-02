@@ -1,0 +1,514 @@
+---
+title: "Nested Structures"
+description: "Learn to work with structures within structures, arrays of structures, and build complex data models."
+order: 3
+---
+
+# Nested Structures
+
+Real-world data is often hierarchical. A person has an address, an address has a street and city, and so on. C allows you to nest structures within other structures, creating sophisticated data models that mirror real-world relationships.
+
+## Structures Within Structures
+
+A structure can contain other structures as members. This is called **nesting** or **composition**.
+
+## Example 1: Basic Nested Structures
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+typedef struct {
+    int day;
+    int month;
+    int year;
+} Date;
+
+typedef struct {
+    char street[100];
+    char city[50];
+    char state[30];
+    char zipCode[10];
+} Address;
+
+typedef struct {
+    char name[50];
+    Date birthDate;
+    Address address;
+    double salary;
+} Employee;
+
+// Check if employee is eligible for retirement (age 65+)
+int isRetirementAge(const Employee *emp, Date currentDate) {
+    int age = currentDate.year - emp->birthDate.year;
+
+    // Adjust if birthday hasn't occurred this year
+    if (currentDate.month < emp->birthDate.month ||
+        (currentDate.month == emp->birthDate.month &&
+         currentDate.day < emp->birthDate.day)) {
+        age--;
+    }
+
+    return age >= 65;
+}
+
+void printEmployee(const Employee *emp) {
+    printf("\nEmployee Information:\n");
+    printf("Name: %s\n", emp->name);
+    printf("Birth Date: %02d/%02d/%d\n",
+           emp->birthDate.month,
+           emp->birthDate.day,
+           emp->birthDate.year);
+    printf("Address: %s\n", emp->address.street);
+    printf("         %s, %s %s\n",
+           emp->address.city,
+           emp->address.state,
+           emp->address.zipCode);
+    printf("Salary: $%.2f\n", emp->salary);
+}
+
+int main(void) {
+    Employee emp;
+
+    strcpy(emp.name, "Sarah Johnson");
+    emp.birthDate = (Date){15, 3, 1958};
+    emp.address = (Address){
+        "123 Main Street",
+        "Springfield",
+        "IL",
+        "62701"
+    };
+    emp.salary = 85000.00;
+
+    printEmployee(&emp);
+
+    Date today = {2, 2, 2026};
+    if (isRetirementAge(&emp, today)) {
+        printf("\nEligible for retirement.\n");
+    } else {
+        printf("\nNot yet eligible for retirement.\n");
+    }
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Employee Information:
+Name: Sarah Johnson
+Birth Date: 03/15/1958
+Address: 123 Main Street
+         Springfield, IL 62701
+Salary: $85000.00
+
+Eligible for retirement.
+```
+
+**Key Points:**
+- Access nested members using multiple dot operators: `emp.birthDate.year`
+- Compound literals `(Date){15, 3, 1958}` can initialize nested structures
+- Nested structures make data organization natural and intuitive
+
+## Example 2: Arrays of Structures
+
+Combining arrays with structures is extremely powerful for managing collections:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+typedef struct {
+    char name[30];
+    int quantity;
+    double price;
+} Product;
+
+typedef struct {
+    Product items[50];
+    int itemCount;
+    double taxRate;
+} ShoppingCart;
+
+// Initialize an empty cart
+ShoppingCart createCart(double taxRate) {
+    ShoppingCart cart = {0};
+    cart.taxRate = taxRate;
+    return cart;
+}
+
+// Add item to cart
+int addToCart(ShoppingCart *cart, const char *name, int quantity, double price) {
+    if (cart->itemCount >= 50) {
+        return 0;  // Cart full
+    }
+
+    // Check if item already exists
+    for (int i = 0; i < cart->itemCount; i++) {
+        if (strcmp(cart->items[i].name, name) == 0) {
+            cart->items[i].quantity += quantity;
+            return 1;
+        }
+    }
+
+    // Add new item
+    Product *item = &cart->items[cart->itemCount];
+    strcpy(item->name, name);
+    item->quantity = quantity;
+    item->price = price;
+    cart->itemCount++;
+
+    return 1;
+}
+
+// Calculate totals
+void printReceipt(const ShoppingCart *cart) {
+    double subtotal = 0.0;
+
+    printf("\n========== RECEIPT ==========\n");
+    printf("%-20s %5s %8s %10s\n", "Item", "Qty", "Price", "Total");
+    printf("--------------------------------------------\n");
+
+    for (int i = 0; i < cart->itemCount; i++) {
+        double itemTotal = cart->items[i].quantity * cart->items[i].price;
+        printf("%-20s %5d $%7.2f $%9.2f\n",
+               cart->items[i].name,
+               cart->items[i].quantity,
+               cart->items[i].price,
+               itemTotal);
+        subtotal += itemTotal;
+    }
+
+    double tax = subtotal * cart->taxRate;
+    double total = subtotal + tax;
+
+    printf("--------------------------------------------\n");
+    printf("%38s $%9.2f\n", "Subtotal:", subtotal);
+    printf("%38s $%9.2f\n", "Tax:", tax);
+    printf("%38s $%9.2f\n", "TOTAL:", total);
+    printf("=============================\n");
+}
+
+int main(void) {
+    ShoppingCart cart = createCart(0.08);  // 8% tax
+
+    addToCart(&cart, "Apple", 5, 0.99);
+    addToCart(&cart, "Bread", 2, 2.49);
+    addToCart(&cart, "Milk", 1, 3.99);
+    addToCart(&cart, "Apple", 3, 0.99);  // Add more apples
+
+    printReceipt(&cart);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+========== RECEIPT ==========
+Item                   Qty    Price      Total
+--------------------------------------------
+Apple                    8 $   0.99 $     7.92
+Bread                    2 $   2.49 $     4.98
+Milk                     1 $   3.99 $     3.99
+--------------------------------------------
+                           Subtotal: $    16.89
+                                Tax: $     1.35
+                              TOTAL: $    18.24
+=============================
+```
+
+## Example 3: Deeply Nested Structures
+
+Let's model a university system with multiple levels of nesting:
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+typedef struct {
+    char code[10];
+    char name[50];
+    int credits;
+    double grade;  // 0.0-4.0 scale
+} Course;
+
+typedef struct {
+    char semester[20];
+    Course courses[10];
+    int courseCount;
+} Semester;
+
+typedef struct {
+    char studentId[15];
+    char name[50];
+    char major[50];
+    Semester semesters[8];  // Up to 8 semesters
+    int semesterCount;
+} Student;
+
+// Add a course to a semester
+void addCourse(Semester *sem, const char *code, const char *name,
+               int credits, double grade) {
+    if (sem->courseCount < 10) {
+        Course *c = &sem->courses[sem->courseCount];
+        strcpy(c->code, code);
+        strcpy(c->name, name);
+        c->credits = credits;
+        c->grade = grade;
+        sem->courseCount++;
+    }
+}
+
+// Calculate GPA for a semester
+double calculateSemesterGPA(const Semester *sem) {
+    double totalPoints = 0.0;
+    int totalCredits = 0;
+
+    for (int i = 0; i < sem->courseCount; i++) {
+        totalPoints += sem->courses[i].grade * sem->courses[i].credits;
+        totalCredits += sem->courses[i].credits;
+    }
+
+    return totalCredits > 0 ? totalPoints / totalCredits : 0.0;
+}
+
+// Calculate cumulative GPA
+double calculateCumulativeGPA(const Student *student) {
+    double totalPoints = 0.0;
+    int totalCredits = 0;
+
+    for (int i = 0; i < student->semesterCount; i++) {
+        for (int j = 0; j < student->semesters[i].courseCount; j++) {
+            const Course *c = &student->semesters[i].courses[j];
+            totalPoints += c->grade * c->credits;
+            totalCredits += c->credits;
+        }
+    }
+
+    return totalCredits > 0 ? totalPoints / totalCredits : 0.0;
+}
+
+// Print student transcript
+void printTranscript(const Student *student) {
+    printf("\n=============== TRANSCRIPT ===============\n");
+    printf("Student: %s (%s)\n", student->name, student->studentId);
+    printf("Major: %s\n", student->major);
+    printf("==========================================\n\n");
+
+    for (int i = 0; i < student->semesterCount; i++) {
+        const Semester *sem = &student->semesters[i];
+        printf("%s:\n", sem->semester);
+        printf("  %-10s %-30s %7s %5s\n", "Code", "Course", "Credits", "Grade");
+        printf("  ------------------------------------------------------\n");
+
+        for (int j = 0; j < sem->courseCount; j++) {
+            const Course *c = &sem->courses[j];
+            printf("  %-10s %-30s %7d %5.2f\n",
+                   c->code, c->name, c->credits, c->grade);
+        }
+
+        printf("  Semester GPA: %.2f\n\n", calculateSemesterGPA(sem));
+    }
+
+    printf("Cumulative GPA: %.2f\n", calculateCumulativeGPA(student));
+    printf("==========================================\n");
+}
+
+int main(void) {
+    Student student = {0};
+    strcpy(student.studentId, "S12345");
+    strcpy(student.name, "Alex Smith");
+    strcpy(student.major, "Computer Science");
+
+    // Fall 2025 semester
+    student.semesterCount = 1;
+    strcpy(student.semesters[0].semester, "Fall 2025");
+    addCourse(&student.semesters[0], "CS101", "Intro to Programming", 4, 3.7);
+    addCourse(&student.semesters[0], "MATH201", "Calculus I", 4, 3.3);
+    addCourse(&student.semesters[0], "ENG101", "English Composition", 3, 3.5);
+
+    // Spring 2026 semester
+    student.semesterCount = 2;
+    strcpy(student.semesters[1].semester, "Spring 2026");
+    addCourse(&student.semesters[1], "CS102", "Data Structures", 4, 3.9);
+    addCourse(&student.semesters[1], "MATH202", "Calculus II", 4, 3.6);
+    addCourse(&student.semesters[1], "PHYS101", "Physics I", 4, 3.4);
+
+    printTranscript(&student);
+
+    return 0;
+}
+```
+
+**Output:**
+```
+=============== TRANSCRIPT ===============
+Student: Alex Smith (S12345)
+Major: Computer Science
+==========================================
+
+Fall 2025:
+  Code       Course                         Credits Grade
+  ------------------------------------------------------
+  CS101      Intro to Programming                 4  3.70
+  MATH201    Calculus I                           4  3.30
+  ENG101     English Composition                  3  3.50
+  Semester GPA: 3.50
+
+Spring 2026:
+  Code       Course                         Credits Grade
+  ------------------------------------------------------
+  CS102      Data Structures                      4  3.90
+  MATH202    Calculus II                          4  3.60
+  PHYS101    Physics I                            4  3.40
+  Semester GPA: 3.63
+
+Cumulative GPA: 3.57
+==========================================
+```
+
+## Example 4: Dynamic Arrays with Structures
+
+Combining structures with dynamic memory allocation:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char title[100];
+    int year;
+    double rating;
+} Movie;
+
+typedef struct {
+    Movie *movies;
+    int count;
+    int capacity;
+} MovieDatabase;
+
+// Initialize database
+MovieDatabase createDatabase(int initialCapacity) {
+    MovieDatabase db;
+    db.movies = malloc(initialCapacity * sizeof(Movie));
+    db.count = 0;
+    db.capacity = initialCapacity;
+    return db;
+}
+
+// Add movie (with automatic resizing)
+void addMovie(MovieDatabase *db, const char *title, int year, double rating) {
+    // Resize if needed
+    if (db->count >= db->capacity) {
+        db->capacity *= 2;
+        db->movies = realloc(db->movies, db->capacity * sizeof(Movie));
+    }
+
+    Movie *m = &db->movies[db->count];
+    strcpy(m->title, title);
+    m->year = year;
+    m->rating = rating;
+    db->count++;
+}
+
+// Sort by rating (descending)
+int compareByRating(const void *a, const void *b) {
+    const Movie *ma = (const Movie *)a;
+    const Movie *mb = (const Movie *)b;
+    if (ma->rating > mb->rating) return -1;
+    if (ma->rating < mb->rating) return 1;
+    return 0;
+}
+
+void sortByRating(MovieDatabase *db) {
+    qsort(db->movies, db->count, sizeof(Movie), compareByRating);
+}
+
+void printDatabase(const MovieDatabase *db) {
+    printf("\n%-40s %6s %7s\n", "Title", "Year", "Rating");
+    printf("--------------------------------------------------------\n");
+    for (int i = 0; i < db->count; i++) {
+        printf("%-40s %6d %7.1f\n",
+               db->movies[i].title,
+               db->movies[i].year,
+               db->movies[i].rating);
+    }
+}
+
+void freeDatabase(MovieDatabase *db) {
+    free(db->movies);
+    db->movies = NULL;
+    db->count = 0;
+    db->capacity = 0;
+}
+
+int main(void) {
+    MovieDatabase db = createDatabase(2);
+
+    addMovie(&db, "The Shawshank Redemption", 1994, 9.3);
+    addMovie(&db, "The Godfather", 1972, 9.2);
+    addMovie(&db, "The Dark Knight", 2008, 9.0);
+    addMovie(&db, "Pulp Fiction", 1994, 8.9);
+    addMovie(&db, "Forrest Gump", 1994, 8.8);
+
+    printf("Top Movies:");
+    sortByRating(&db);
+    printDatabase(&db);
+
+    freeDatabase(&db);
+    return 0;
+}
+```
+
+**Output:**
+```
+Top Movies:
+Title                                     Year  Rating
+--------------------------------------------------------
+The Shawshank Redemption                  1994     9.3
+The Godfather                             1972     9.2
+The Dark Knight                           2008     9.0
+Pulp Fiction                              1994     8.9
+Forrest Gump                              1994     8.8
+```
+
+## Best Practices
+
+1. **Logical Organization**: Nest structures based on real-world relationships
+2. **Access Patterns**: Design nesting depth based on how you'll access the data
+3. **Keep It Simple**: Avoid excessive nesting (3-4 levels max)
+4. **Use Helper Functions**: Create functions to initialize and manipulate nested structures
+5. **Consider Pointers**: For large nested structures, consider using pointers to avoid copying
+6. **Zero-Initialize**: Use `= {0}` to initialize complex nested structures safely
+
+## Common Pitfalls
+
+1. **Deep Copying**: Assignment only copies the structure, not pointed-to data
+2. **Access Complexity**: Too much nesting makes code hard to read
+3. **Memory Waste**: Fixed-size arrays in structures can waste memory
+4. **Alignment Issues**: Nested structures can have unexpected sizes due to padding
+
+## Exercises
+
+1. **Book Library System**: Create structures for Author, Publisher, and Book. A Book should contain Author and Publisher structures. Build an array of books and implement search functions.
+
+2. **Game Inventory**: Design a nested structure for a game character with inventory items. Each item has properties (name, weight, value) and the character has stats and an item array. Implement functions to add/remove items and calculate total inventory weight.
+
+3. **Company Organization**: Model a company with departments, and each department has multiple employees. Each employee has personal info and a salary history array. Calculate total payroll per department.
+
+4. **JSON-like Structure**: Create a flexible structure that can represent nested data similar to JSON (objects containing objects/arrays). Implement functions to add, retrieve, and print values.
+
+## Key Takeaways
+
+- **Nested structures** model hierarchical real-world data naturally
+- Access nested members using **multiple dot or arrow operators**
+- **Arrays of structures** are powerful for managing collections of complex data
+- **Compound literals** simplify initialization of nested structures
+- Keep nesting **3-4 levels maximum** for maintainability
+- Use **helper functions** to manage complex nested structures
+- Consider **dynamic allocation** for flexible-size collections
+- Always **free allocated memory** in reverse order of allocation
+
+In the next step, you'll learn about enumerations, which provide named constants to make your structures even more expressive and type-safe.

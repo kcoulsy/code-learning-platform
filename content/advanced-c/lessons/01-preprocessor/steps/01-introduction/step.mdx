@@ -1,0 +1,130 @@
+---
+id: 01-introduction
+title: Introduction to the C Preprocessor
+order: 1
+---
+
+# Introduction to the C Preprocessor
+
+Before the C compiler ever sees your code, the **preprocessor** transforms it through text substitution. It's a separate phase that handles directives starting with `#`.
+
+## What the Preprocessor Does
+
+The preprocessor performs three main operations:
+
+1. **File inclusion** — `#include` inserts other files
+2. **Macro expansion** — `#define` substitutes text
+3. **Conditional compilation** — `#ifdef`, `#if`, etc. include/exclude code
+
+## Preprocessing in Action
+
+Let's see the preprocessor output directly. Create a file `example.c`:
+
+```c
+#define MAX 100
+#define SQUARE(x) ((x) * (x))
+
+int main(void) {
+    int values[MAX];
+    int result = SQUARE(5);
+    return 0;
+}
+```
+
+Now run just the preprocessor phase:
+
+```bash
+gcc -E example.c -o example.preprocessed
+```
+
+The output shows what the compiler actually receives:
+
+```c
+# 1 "example.c"
+# 1 "<built-in>"
+# 1 "<command-line>"
+# 1 "example.c"
+
+int main(void) {
+    int values[100];
+    int result = ((5) * (5));
+    return 0;
+}
+```
+
+All macros are gone. Only raw C code remains.
+
+## The Three Phases of Compilation
+
+Understanding where the preprocessor fits:
+
+```
+Source Code (.c)
+    ↓
+Preprocessor (cpp)
+    ↓
+Translation Unit (.i) — pure C, no preprocessor directives
+    ↓
+Compiler (cc1) → Assembly (.s)
+    ↓
+Assembler (as) → Object File (.o)
+    ↓
+Linker (ld) → Executable
+```
+
+The preprocessor operates on **raw text**, not C syntax. It doesn't understand types, scope, or semantics.
+
+## Why This Matters
+
+Since the preprocessor is just text substitution:
+
+- Syntax errors in macro expansions can be confusing
+- Debugging macro-heavy code is harder
+- The preprocessor has no concept of type safety
+- Macro expansion can cause unexpected code bloat
+
+But it also enables:
+
+- Platform-specific code paths
+- Compile-time constants without runtime cost
+- Generic programming patterns (before \_Generic)
+
+## Preprocessor Directives
+
+Here are all the preprocessor directives:
+
+| Directive  | Purpose                                |
+| ---------- | -------------------------------------- |
+| `#include` | Insert contents of another file        |
+| `#define`  | Define a macro                         |
+| `#undef`   | Undefine a macro                       |
+| `#ifdef`   | If macro is defined                    |
+| `#ifndef`  | If macro is not defined                |
+| `#if`      | If constant expression is true         |
+| `#else`    | Alternative for `#if`                  |
+| `#elif`    | Else if for `#if`                      |
+| `#endif`   | End conditional block                  |
+| `#line`    | Change line number for error reporting |
+| `#error`   | Issue compile-time error               |
+| `#pragma`  | Compiler-specific directive            |
+| `#`        | Stringify operator                     |
+| `##`       | Token concatenation                    |
+
+## Practice Exercise
+
+Use `gcc -E` to examine the preprocessor output for this code:
+
+```c
+#define PI 3.14159
+#define AREA(r) (PI * (r) * (r))
+
+double calculate_area(double radius) {
+    return AREA(radius);
+}
+```
+
+Question: How does `PI` get substituted inside the `AREA` macro? What's the final code the compiler sees?
+
+---
+
+**Next**: Object-like macros — the simplest form of `#define`.

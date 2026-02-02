@@ -1,0 +1,308 @@
+---
+title: "Operator Precedence and Associativity"
+description: "Understand the order of operations and avoid common precedence mistakes"
+order: 4
+---
+
+# Operator Precedence and Associativity
+
+Just like in mathematics, C evaluates operators in a specific order. Understanding operator precedence and associativity is crucial for writing correct expressions and debugging unexpected behavior.
+
+## What is Operator Precedence?
+
+Operator precedence determines which operations are performed first in an expression with multiple operators. Operators with higher precedence are evaluated before operators with lower precedence.
+
+```c
+#include <stdio.h>
+
+int main() {
+    int result;
+
+    // Multiplication has higher precedence than addition
+    result = 2 + 3 * 4;
+    printf("2 + 3 * 4 = %d\n", result);    // 14, not 20
+    // Evaluated as: 2 + (3 * 4) = 2 + 12 = 14
+
+    // Use parentheses to change order
+    result = (2 + 3) * 4;
+    printf("(2 + 3) * 4 = %d\n", result);  // 20
+    // Evaluated as: (5) * 4 = 20
+
+    return 0;
+}
+```
+
+## Operator Precedence Table
+
+Here are the most common operators in order from highest to lowest precedence:
+
+| Precedence | Operators | Description | Associativity |
+|------------|-----------|-------------|---------------|
+| 1 (Highest) | `()` | Parentheses | Left to right |
+| 2 | `++` `--` (postfix) | Post-increment, decrement | Left to right |
+| 3 | `++` `--` (prefix) `!` `-` (unary) | Pre-increment, decrement, NOT, negation | Right to left |
+| 4 | `*` `/` `%` | Multiplication, division, modulo | Left to right |
+| 5 | `+` `-` | Addition, subtraction | Left to right |
+| 6 | `<` `<=` `>` `>=` | Relational operators | Left to right |
+| 7 | `==` `!=` | Equality operators | Left to right |
+| 8 | `&&` | Logical AND | Left to right |
+| 9 | `||` | Logical OR | Left to right |
+| 10 (Lowest) | `=` `+=` `-=` `*=` `/=` `%=` | Assignment operators | Right to left |
+
+## Understanding Precedence with Examples
+
+Let's see how precedence affects complex expressions:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int a = 5, b = 10, c = 15, d = 20;
+    int result;
+
+    // Example 1: Arithmetic operators
+    result = a + b * c - d;
+    // Evaluation: a + (b * c) - d = 5 + 150 - 20 = 135
+    printf("a + b * c - d = %d\n", result);
+
+    // Example 2: Mixing relational and logical
+    result = a < b && c > d;
+    // Evaluation: (a < b) && (c > d) = 1 && 0 = 0
+    printf("a < b && c > d = %d\n", result);
+
+    // Example 3: Assignment with expression
+    result = a + b;
+    // Evaluation: Addition before assignment
+    // First: a + b = 15, then assign to result
+    printf("result = a + b = %d\n", result);
+
+    // Example 4: Multiple operations
+    result = a * b + c / d;
+    // Evaluation: (a * b) + (c / d) = 50 + 0 = 50
+    printf("a * b + c / d = %d\n", result);
+
+    return 0;
+}
+```
+
+## Associativity
+
+When operators have the same precedence, associativity determines the order of evaluation:
+
+**Left-to-right associativity:** Evaluate from left to right
+**Right-to-left associativity:** Evaluate from right to left
+
+```c
+#include <stdio.h>
+
+int main() {
+    int result;
+
+    // Left-to-right: Arithmetic operators
+    result = 20 - 10 - 5;
+    // Evaluated as: (20 - 10) - 5 = 10 - 5 = 5
+    // NOT: 20 - (10 - 5) = 20 - 5 = 15
+    printf("20 - 10 - 5 = %d\n", result);
+
+    result = 100 / 10 / 2;
+    // Evaluated as: (100 / 10) / 2 = 10 / 2 = 5
+    // NOT: 100 / (10 / 2) = 100 / 5 = 20
+    printf("100 / 10 / 2 = %d\n", result);
+
+    // Right-to-left: Assignment operators
+    int a, b, c;
+    a = b = c = 10;
+    // Evaluated as: a = (b = (c = 10))
+    // First c = 10, then b = 10, then a = 10
+    printf("a = %d, b = %d, c = %d\n", a, b, c);
+
+    // Right-to-left: Unary operators
+    int x = 5;
+    result = -++x;
+    // Evaluated as: -(++x) = -(6) = -6
+    printf("-++x = %d\n", result);
+
+    return 0;
+}
+```
+
+## Using Parentheses for Clarity
+
+Even when you know the precedence rules, using parentheses makes your code more readable and prevents mistakes:
+
+```c
+#include <stdio.h>
+
+int main() {
+    int a = 5, b = 10, c = 15;
+
+    // Without parentheses (relies on precedence knowledge)
+    int result1 = a + b * c;
+
+    // With parentheses (clearer intent)
+    int result2 = a + (b * c);
+
+    // Complex expression without parentheses
+    int result3 = a < b && b < c || c > 20;
+    // Hard to understand!
+
+    // Same expression with parentheses
+    int result4 = (a < b && b < c) || (c > 20);
+    // Much clearer!
+
+    printf("result1 = %d\n", result1);
+    printf("result2 = %d\n", result2);
+    printf("result3 = %d\n", result3);
+    printf("result4 = %d\n", result4);
+
+    return 0;
+}
+```
+
+## Common Precedence Mistakes
+
+### Mistake 1: Assignment vs. Equality
+
+```c
+int x = 5;
+
+// Wrong: Using assignment in condition
+if (x = 10) {    // Assigns 10 to x, then evaluates as true
+    printf("This always executes, x is now %d\n", x);
+}
+
+// Correct: Using equality comparison
+if (x == 10) {
+    printf("x equals 10\n");
+}
+```
+
+### Mistake 2: Relational Operators with Logical Operators
+
+```c
+int a = 5, b = 10, c = 15;
+
+// Confusing: What's the order?
+int result = a < b && b < c || c > 20;
+
+// Clear: Use parentheses
+int result_clear = ((a < b) && (b < c)) || (c > 20);
+
+// Or break into separate conditions
+int first_condition = (a < b) && (b < c);
+int second_condition = (c > 20);
+int final_result = first_condition || second_condition;
+```
+
+### Mistake 3: Forgetting Integer Division Priority
+
+```c
+int a = 5, b = 2;
+float result;
+
+// Wrong: Integer division happens first
+result = a / b;    // 2.0 (not 2.5)
+
+// Correct: Cast before division
+result = (float)a / b;    // 2.5
+```
+
+### Mistake 4: Increment/Decrement in Complex Expressions
+
+```c
+int i = 5;
+
+// Confusing: When does increment happen?
+int result = i++ + i++ + i++;    // Undefined behavior in some cases!
+
+// Clear: Use separate statements
+int result = i + i + i;
+i += 3;
+```
+
+## Practical Examples
+
+Here are real-world scenarios where precedence matters:
+
+```c
+#include <stdio.h>
+
+int main() {
+    // Example 1: Calculating total price with tax
+    float price = 100.0;
+    float tax_rate = 0.08;
+    float discount = 10.0;
+
+    // Wrong: Subtraction happens before multiplication
+    float total = price - discount * tax_rate;
+    // = 100 - (10 * 0.08) = 100 - 0.8 = 99.2
+
+    // Correct: Use parentheses
+    float total_correct = (price - discount) * (1 + tax_rate);
+    // = (90) * (1.08) = 97.2
+
+    printf("Wrong calculation: $%.2f\n", total);
+    printf("Correct calculation: $%.2f\n", total_correct);
+
+    // Example 2: Checking valid range
+    int age = 25;
+    int valid_range = age >= 18 && age <= 65;
+    // Relational operators are evaluated before &&
+    // (age >= 18) && (age <= 65)
+    printf("Valid age range: %d\n", valid_range);
+
+    // Example 3: Bitwise operations (advanced)
+    int flags = 0b1010;
+    int mask = 0b0011;
+    int result = flags & mask | 0b0100;
+    // & has higher precedence than |
+    // (flags & mask) | 0b0100 = 0b0010 | 0b0100 = 0b0110
+    printf("Bitwise result: %d\n", result);
+
+    return 0;
+}
+```
+
+## Exercises
+
+1. Predict the output of the following expressions, then verify with code:
+   - `5 + 3 * 2`
+   - `10 / 2 + 3`
+   - `4 * 3 / 2`
+   - `10 % 3 + 1`
+
+2. Write expressions for these mathematical formulas using proper precedence:
+   - Area of a circle: πr²
+   - Quadratic formula: (-b ± √(b² - 4ac)) / 2a
+   - Compound interest: P(1 + r/n)^(nt)
+
+3. Debug this code by adding parentheses to fix the calculation:
+   ```c
+   float celsius = 68;
+   float fahrenheit = celsius * 9 / 5 + 32;
+   ```
+
+4. Rewrite this confusing expression with parentheses for clarity:
+   ```c
+   int result = a + b * c - d / e % f;
+   ```
+
+5. Explain why this condition might not work as intended and fix it:
+   ```c
+   if (x = 10 && y > 5)
+   ```
+
+## Key Takeaways
+
+- Operator precedence determines the order of evaluation in expressions
+- Multiplication, division, and modulo have higher precedence than addition and subtraction
+- Relational operators are evaluated before logical operators
+- Logical AND (`&&`) has higher precedence than logical OR (`||`)
+- Assignment has very low precedence and is evaluated last
+- When operators have the same precedence, associativity determines order
+- Most operators are left-to-right associative
+- Assignment and unary operators are right-to-left associative
+- Always use parentheses when in doubt - clarity trumps brevity
+- Parentheses have the highest precedence and override all other rules
+- Understanding precedence prevents subtle bugs and makes code more reliable
+- Never rely on precedence for complex expressions - use parentheses

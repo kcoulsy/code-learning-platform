@@ -1,0 +1,319 @@
+---
+title: "malloc() Basics"
+order: 2
+---
+
+# malloc() Basics
+
+The `malloc()` function (memory allocation) is your primary tool for allocating memory on the heap. Understanding how to use it correctly is fundamental to C programming.
+
+## The malloc() Function
+
+```c
+void *malloc(size_t size);
+```
+
+- **Parameter**: Number of bytes to allocate
+- **Returns**: Pointer to allocated memory, or `NULL` if allocation fails
+- **Header**: `<stdlib.h>`
+- **Returns `void*`**: Can be cast to any pointer type
+
+## Basic Usage
+
+Here's the fundamental pattern you'll use thousands of times:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Allocate memory for one integer
+    int *ptr = malloc(sizeof(int));
+
+    // ALWAYS check if allocation succeeded
+    if (ptr == NULL) {
+        printf("Memory allocation failed!\n");
+        return 1;
+    }
+
+    // Use the allocated memory
+    *ptr = 42;
+    printf("Value: %d\n", *ptr);
+
+    // ALWAYS free when done
+    free(ptr);
+
+    return 0;
+}
+```
+
+## Why sizeof() is Critical
+
+**Never hardcode sizes!** Always use `sizeof()` to ensure portability:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // WRONG - assumes int is 4 bytes
+    int *wrong = malloc(4);
+
+    // RIGHT - portable across all systems
+    int *right = malloc(sizeof(int));
+
+    if (right == NULL) {
+        printf("Allocation failed!\n");
+        return 1;
+    }
+
+    printf("Size of int on this system: %zu bytes\n", sizeof(int));
+
+    free(right);
+    // free(wrong);  // Should free this too, but don't use this pattern!
+
+    return 0;
+}
+```
+
+## Allocating Arrays
+
+One of the most common uses of `malloc()` is allocating arrays:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int n = 5;
+
+    // Allocate array of n integers
+    int *arr = malloc(n * sizeof(int));
+
+    if (arr == NULL) {
+        printf("Failed to allocate memory for %d integers\n", n);
+        return 1;
+    }
+
+    // Initialize array
+    for (int i = 0; i < n; i++) {
+        arr[i] = i * 10;
+    }
+
+    // Use array
+    printf("Array contents: ");
+    for (int i = 0; i < n; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+
+    // Free the entire array with one call
+    free(arr);
+
+    return 0;
+}
+```
+
+## Allocating Structures
+
+`malloc()` works with any data type, including structures:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char name[50];
+    int age;
+    float gpa;
+} Student;
+
+int main() {
+    // Allocate memory for one Student
+    Student *student = malloc(sizeof(Student));
+
+    if (student == NULL) {
+        printf("Allocation failed!\n");
+        return 1;
+    }
+
+    // Initialize the structure
+    strcpy(student->name, "Alice");
+    student->age = 20;
+    student->gpa = 3.8;
+
+    printf("Student: %s, Age: %d, GPA: %.2f\n",
+           student->name, student->age, student->gpa);
+
+    free(student);
+
+    // Allocate array of Students
+    int num_students = 3;
+    Student *class = malloc(num_students * sizeof(Student));
+
+    if (class == NULL) {
+        printf("Allocation failed!\n");
+        return 1;
+    }
+
+    // Initialize array
+    for (int i = 0; i < num_students; i++) {
+        sprintf(class[i].name, "Student %d", i + 1);
+        class[i].age = 18 + i;
+        class[i].gpa = 3.0 + i * 0.2;
+    }
+
+    // Display array
+    for (int i = 0; i < num_students; i++) {
+        printf("%s: Age %d, GPA %.2f\n",
+               class[i].name, class[i].age, class[i].gpa);
+    }
+
+    free(class);
+
+    return 0;
+}
+```
+
+## Common malloc() Patterns and Pitfalls
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Pattern 1: Always check return value
+    int *ptr1 = malloc(sizeof(int));
+    if (ptr1 == NULL) {
+        fprintf(stderr, "Allocation failed!\n");
+        return 1;
+    }
+    free(ptr1);
+
+    // Pattern 2: Don't cast malloc (in C)
+    // Modern C doesn't require casting malloc's return value
+    int *ptr2 = malloc(sizeof(int));  // Preferred
+    // int *ptr3 = (int*)malloc(sizeof(int));  // Works but unnecessary in C
+    if (ptr2 == NULL) {
+        return 1;
+    }
+    free(ptr2);
+
+    // Pattern 3: Use sizeof with the variable type
+    int *ptr4 = malloc(sizeof(int));  // OK
+    int *ptr5 = malloc(sizeof(*ptr5));  // Better - maintains consistency if type changes
+    if (ptr4 == NULL || ptr5 == NULL) {
+        return 1;
+    }
+    free(ptr4);
+    free(ptr5);
+
+    // Pattern 4: Be careful with overflow
+    size_t n = 1000000;
+    size_t size = n * sizeof(int);
+
+    // Check for integer overflow (advanced)
+    if (size / sizeof(int) != n) {
+        fprintf(stderr, "Size calculation overflowed!\n");
+        return 1;
+    }
+
+    int *large_array = malloc(size);
+    if (large_array == NULL) {
+        fprintf(stderr, "Failed to allocate %zu bytes\n", size);
+        return 1;
+    }
+
+    printf("Successfully allocated %zu bytes for %zu integers\n", size, n);
+    free(large_array);
+
+    // PITFALL: Not freeing memory
+    int *leak = malloc(sizeof(int));  // Memory leak if we don't free
+    if (leak != NULL) {
+        *leak = 100;
+        // Oops, forgot to free(leak)!
+    }
+
+    // PITFALL: Using malloc without checking
+    // int *danger = malloc(sizeof(int));
+    // *danger = 42;  // CRASH if malloc returned NULL!
+
+    return 0;
+}
+```
+
+## The Golden Rules of malloc()
+
+1. **Always use `sizeof()`** - Never hardcode sizes
+2. **Always check the return value** - `NULL` means failure
+3. **Always free what you allocate** - One `malloc()` = one `free()`
+4. **Use `sizeof(*ptr)`** - More maintainable than `sizeof(type)`
+5. **Handle allocation failure gracefully** - Don't crash, clean up and exit
+
+## A Complete Safe Allocation Example
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Safe string duplication function
+char *safe_strdup(const char *str) {
+    if (str == NULL) {
+        return NULL;
+    }
+
+    size_t len = strlen(str) + 1;  // +1 for null terminator
+    char *copy = malloc(len * sizeof(char));
+
+    if (copy == NULL) {
+        return NULL;  // Allocation failed
+    }
+
+    memcpy(copy, str, len);
+    return copy;
+}
+
+int main() {
+    const char *original = "Hello, malloc!";
+
+    char *copy = safe_strdup(original);
+    if (copy == NULL) {
+        fprintf(stderr, "Failed to duplicate string\n");
+        return 1;
+    }
+
+    printf("Original: %s\n", original);
+    printf("Copy:     %s\n", copy);
+
+    // Modify copy without affecting original
+    copy[0] = 'J';
+    printf("Modified: %s\n", copy);
+    printf("Original: %s\n", original);
+
+    free(copy);
+
+    return 0;
+}
+```
+
+## Key Takeaways
+
+1. **`malloc(size)`** allocates `size` bytes on the heap
+2. **Always use `sizeof()`** to calculate sizes portably
+3. **Check for `NULL`** - allocation can fail
+4. **Free every allocation** - prevent memory leaks
+5. **`malloc()` doesn't initialize memory** - it contains garbage values
+6. **Use `sizeof(*ptr)`** pattern for maintainability
+
+## Exercises
+
+1. Write a function that allocates and returns an array of `n` integers, returning `NULL` on failure
+2. Create a program that allocates memory for 100 integers and initializes them to their indices
+3. Write a safe string copy function that allocates memory for the copy
+4. Allocate memory for an array of structures and initialize them
+5. What happens if you try to allocate 0 bytes? Test it!
+6. Write a function that reads a line of unknown length from stdin by repeatedly allocating memory
+
+In the next step, we'll explore `calloc()` and `realloc()`, which provide additional allocation capabilities.

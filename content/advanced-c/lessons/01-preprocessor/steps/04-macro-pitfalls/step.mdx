@@ -1,0 +1,241 @@
+---
+id: 04-macro-pitfalls
+title: Macro Pitfalls: Double Evaluation and Side Effects
+order: 4
+---
+
+# Macro Pitfalls: Double Evaluation and Side Effects
+
+This is the most dangerous aspect of function-like macros. Understanding it prevents subtle, hard-to-find bugs.
+
+## The Problem: Arguments Can Be Evaluated Multiple Times
+
+Consider this innocent-looking macro:
+
+```c
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+```
+
+What happens with this code?
+
+```c
+int x = 1;
+int y = MAX(x++, 10);
+```
+
+Let's expand it:
+
+```c
+int y = ((x++) > (10) ? (x++) : (10));
+//              ^^^^^^       ^^^^^^
+//              Two separate x++ expressions!
+```
+
+**Result**: `x` gets incremented twice! `y = 10`, but `x = 3` (not `2`).
+
+## Real-World Example: Square Macro
+
+```c
+#define SQUARE(x) ((x) * (x))
+
+int i = 3;
+int result = SQUARE(i++);
+```
+
+Expands to:
+
+```c
+int result = ((i++) * (i++));
+//             ^^^^     ^^^^
+//             Two increments!
+```
+
+**Result**: `i = 5` (incremented twice), and the result is undefined behavior (modifying a variable twice without sequence point).
+
+## More Subtle Examples
+
+### 1. Function Call Side Effects
+
+```c
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+int get_value(void) {
+    printf("Getting value...\n");
+    return 42;
+}
+
+int m = MIN(get_value(), get_value());
+// Output:
+// Getting value...
+// Getting value...
+// Function called TWICE!
+```
+
+### 2. Expensive Computations
+
+```c
+#define ABS(x) ((x) < 0 ? -(x) : (x))
+
+double expensive_computation(int n) {
+    // ...heavy calculation...
+    return result;
+}
+
+double a = ABS(expensive_computation(1000000));
+// The computation runs TWICE!
+```
+
+### 3. Array Access with Side Effects
+
+```c
+#define NEXT(ptr) ((ptr) + 1)
+
+int arr[] = {1, 2, 3};
+int *p = arr;
+int *q = NEXT(p++);
+// Expands to: ((p++) + 1)
+// p is incremented, but what's the result?
+```
+
+## Comparison: Macro vs Inline Function
+
+### Macro (dangerous)
+
+```c
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+int i = 0, j = 10;
+int m = MAX(i++, j++);
+// i incremented twice, j incremented once or twice depending on comparison
+```
+
+### Inline Function (safe)
+
+```c
+static inline int max_int(int a, int b) {
+    return a > b ? a : b;
+}
+
+int i = 0, j = 10;
+int m = max_int(i++, j++);
+// Each argument evaluated ONCE, then passed to function
+// i incremented once, j incremented once
+```
+
+## How to Write Safe Macros
+
+### Option 1: Document the Restrictions
+
+If you must use macros, document that arguments must not have side effects:
+
+```c
+/**
+ * MAX(a, b) - Returns the maximum of two values.
+ * WARNING: Arguments must not have side effects (e.g., ++, --, function calls).
+ */
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+```
+
+### Option 2: Use Statement Expressions (GCC Extension)
+
+GCC/Clang support statement expressions:
+
+```c
+#define MAX(a, b) ({ \
+    typeof(a) _a = (a); \
+    typeof(b) _b = (b); \
+    _a > _b ? _a : _b; \
+})
+
+int x = 1;
+int y = MAX(x++, 10);
+// x++ is evaluated once, stored in _a
+// x = 2, y = 10
+```
+
+### Option 3: Use Inline Functions Instead
+
+```c
+static inline int max_int(int a, int b) {
+    return a > b ? a : b;
+}
+
+static inline double max_double(double a, double b) {
+    return a > b ? a : b;
+}
+```
+
+You lose genericity but gain safety and type checking.
+
+### Option 4: Use C11 \_Generic (Best for Type-Safe Generics)
+
+```c
+#define MAX(a, b) _Generic((a), \
+    int: max_int, \
+    double: max_double, \
+    default: max_int \
+)(a, b)
+
+int i = MAX(1, 2);        // Calls max_int
+double d = MAX(1.0, 2.0); // Calls max_double
+```
+
+## Real Bug: FreeBSD Kernel
+
+In 2003, a FreeBSD kernel bug was caused by:
+
+```c
+#define MACRO(x) ...
+
+func(MACRO(var++));
+```
+
+The macro expanded such that `var++` was evaluated multiple times, causing a kernel panic.
+
+## The Safe Macro Idiom: do { ... } while(0)
+
+For multi-statement macros, use:
+
+```c
+#define SAFE_MAX(result, a, b) \
+    do { \
+        typeof(a) _a = (a); \
+        typeof(b) _b = (b); \
+        (result) = _a > _b ? _a : _b; \
+    } while (0)
+
+int x = 1, y = 2, z;
+SAFE_MAX(z, x++, y++);
+// x++ and y++ each evaluated once
+// x = 2, y = 3, z = 3
+```
+
+The `do { ... } while(0)` ensures the macro behaves like a single statement:
+
+- Requires a semicolon after it
+- Works properly in if/else without braces
+- Creates a scope for temporary variables
+
+## Practice Exercise
+
+Identify the bugs in these macros:
+
+```c
+#define SWAP(a, b) \
+    typeof(a) temp = (a); \
+    (a) = (b); \
+    (b) = temp
+
+#define INC_MAX(ptr, max) \
+    if (*(ptr) < (max)) \
+        *(ptr)++
+```
+
+**Answers**:
+
+1. `SWAP`: Missing `do { ... } while(0)` wrapper. In `if (cond) SWAP(a, b); else ...` the else attaches to the if inside the macro.
+2. `INC_MAX`: The macro should be `do { ... } while(0)` to work properly in all contexts. Also, `ptr` is dereferenced multiple times.
+
+---
+
+**Next**: Conditional compilation — writing cross-platform code.

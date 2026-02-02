@@ -1,0 +1,199 @@
+---
+id: 03-function-like-macros
+title: Function-like Macros
+order: 3
+---
+
+# Function-like Macros
+
+Function-like macros look like function calls but perform text substitution. They're powerful but come with serious pitfalls.
+
+## Basic Syntax
+
+```c
+#define MACRO_NAME(parameters) replacement_text
+```
+
+The parameters are substituted into the replacement text.
+
+## Simple Example
+
+```c
+#define SQUARE(x) ((x) * (x))
+
+int result = SQUARE(5);
+// Expands to: int result = ((5) * (5));
+```
+
+## Why the Extra Parentheses?
+
+Each parameter is wrapped in parentheses, and the entire expression is wrapped:
+
+```c
+#define SQUARE(x) ((x) * (x))
+
+SQUARE(2 + 3)     // Expands to: ((2 + 3) * (2 + 3)) = 25
+SQUARE(5) * 2     // Expands to: ((5) * (5)) * 2 = 50
+```
+
+Without the extra parentheses:
+
+```c
+#define SQUARE(x) x * x
+
+SQUARE(2 + 3)     // Expands to: 2 + 3 * 2 + 3 = 2 + 6 + 3 = 11  WRONG!
+SQUARE(5) * 2     // Expands to: 5 * 5 * 2 = 50  (accidentally correct)
+```
+
+## Multi-parameter Macros
+
+```c
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define ABS(x) ((x) < 0 ? -(x) : (x))
+
+int m = MAX(10, 20);        // 20
+int n = MIN(x++, y++);      // Watch out! (see next section)
+```
+
+## Macros with Variable Arguments
+
+C99 adds variadic macros:
+
+```c
+#define LOG(fmt, ...) printf("[LOG] " fmt "\n", __VA_ARGS__)
+
+LOG("Value: %d", 42);
+// Expands to: printf("[LOG] " "Value: %d" "\n", 42)
+```
+
+For zero-argument support:
+
+```c
+#define LOG(fmt, ...) printf("[LOG] " fmt "\n", ##__VA_ARGS__)
+
+LOG("Starting");              // Works: ##__VA_ARGS__ expands to nothing
+LOG("Value: %d", 42);         // Works: ##__VA_ARGS__ expands to , 42
+```
+
+The `##` token-pasting operator removes the preceding comma if `__VA_ARGS__` is empty.
+
+## Stringification Operator
+
+The `#` operator converts a macro argument to a string literal:
+
+```c
+#define PRINT_INT(x) printf(#x " = %d\n", (x))
+
+int value = 42;
+PRINT_INT(value);
+// Expands to: printf("value" " = %d\n", (value));
+// Output: value = 42
+```
+
+This is incredibly useful for debugging:
+
+```c
+#define ASSERT(condition) \
+    do { \
+        if (!(condition)) { \
+            fprintf(stderr, "Assertion failed: %s, file %s, line %d\n", \
+                    #condition, __FILE__, __LINE__); \
+            exit(1); \
+        } \
+    } while (0)
+
+ASSERT(ptr != NULL);
+// Output if fails: Assertion failed: ptr != NULL, file test.c, line 42
+```
+
+## Token Concatenation
+
+The `##` operator concatenates tokens:
+
+```c
+#define DECLARE_FUNC(name) \
+    int func_##name(void) { return name * 2; }
+
+DECLARE_FUNC(10)
+// Expands to: int func_10(void) { return 10 * 2; }
+```
+
+This is how generic code generation works in C:
+
+```c
+#define VECTOR_DECLARE(type) \
+    typedef struct { \
+        type *data; \
+        size_t size; \
+        size_t capacity; \
+    } Vector_##type; \
+    \
+    void Vector_##type##_init(Vector_##type *v); \
+    void Vector_##type##_push(Vector_##type *v, type value);
+
+VECTOR_DECLARE(int)
+// Creates: Vector_int, Vector_int_init, Vector_int_push
+```
+
+## Common Pitfalls
+
+### 1. Operator Precedence
+
+```c
+#define DOUBLE(x) x * 2
+
+int y = DOUBLE(3 + 4);
+// Expands to: 3 + 4 * 2 = 11, NOT 14!
+
+// Fix:
+#define DOUBLE(x) ((x) * 2)
+```
+
+### 2. Missing Parentheses in Expansion
+
+```c
+#define INC(x) x++
+
+int a = 5, b = 5;
+int sum = INC(a) + INC(b);
+// Expands to: a++ + b++
+// Result: 10, but a and b are incremented! Might be unexpected.
+```
+
+### 3. Type Safety
+
+Macros have no type checking:
+
+```c
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+char *s1 = "hello";
+char *s2 = "world";
+char *result = MAX(s1, s2);  // Compiles! Compares pointers, not strings.
+```
+
+### 4. Multiple Evaluation
+
+This is the biggest pitfall — we'll cover it in depth next.
+
+## Practice Exercise
+
+What do these expand to?
+
+```c
+#define CONCAT(a, b) a##b
+#define STRINGIFY(x) #x
+
+int CONCAT(x, 1) = 10;
+printf(STRINGIFY(Hello World));
+```
+
+**Answer**:
+
+- `CONCAT(x, 1)` → `x1` → declares `int x1 = 10;`
+- `STRINGIFY(Hello World)` → `"Hello World"` → prints `Hello World`
+
+---
+
+**Next**: The double evaluation problem — why macros can be dangerous.

@@ -1,0 +1,426 @@
+---
+title: "Writing Files"
+description: "Learn to write data to files using fputc, fputs, fwrite, and fprintf with proper error handling"
+order: 3
+---
+
+# Writing Files
+
+Writing to files is just as important as reading. C provides several functions for writing, each optimized for different types of data. Whether you're logging application events, saving configuration, or persisting binary data, choosing the right writing function ensures efficiency and correctness.
+
+## Writing Functions Overview
+
+- `fputc()` - Write a single character
+- `fputs()` - Write a string
+- `fwrite()` - Write binary data
+- `fprintf()` - Write formatted output
+- `putc()` - Macro version of fputc
+
+## Example 1: Writing Characters with fputc
+
+The `fputc()` function writes a single character to a file. It returns the character written, or `EOF` on error.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void write_characters_demo(const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    const char *message = "Hello, File!";
+
+    // Write each character individually
+    for (int i = 0; message[i] != '\0'; i++) {
+        if (fputc(message[i], file) == EOF) {
+            perror("Error writing character");
+            fclose(file);
+            return;
+        }
+    }
+
+    // Add a newline
+    fputc('\n', file);
+
+    if (fclose(file) != 0) {
+        perror("Error closing file");
+    } else {
+        printf("Successfully wrote characters to %s\n", filename);
+    }
+}
+
+int main(void) {
+    write_characters_demo("chars.txt");
+    return EXIT_SUCCESS;
+}
+```
+
+**Note:** While `fputc()` works, it's inefficient for writing multiple characters. Use `fputs()` or `fwrite()` for better performance.
+
+## Example 2: Writing Strings with fputs and fprintf
+
+For writing strings and formatted output, `fputs()` and `fprintf()` are more appropriate.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+void create_log_file(const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error creating log file");
+        return;
+    }
+
+    // Write header
+    fputs("=== Application Log ===\n", file);
+    fputs("Generated: ", file);
+
+    // Get current time
+    time_t now = time(NULL);
+    char *time_str = ctime(&now);
+
+    // Write timestamp (ctime includes newline)
+    fputs(time_str, file);
+    fputs("\n", file);
+
+    // Write log entries
+    fprintf(file, "[INFO] Application started\n");
+    fprintf(file, "[INFO] Loading configuration...\n");
+    fprintf(file, "[DEBUG] Config file: config.ini\n");
+    fprintf(file, "[INFO] Configuration loaded successfully\n");
+    fprintf(file, "[INFO] Users connected: %d\n", 5);
+    fprintf(file, "[WARNING] Memory usage: %.1f%%\n", 78.5);
+    fprintf(file, "[INFO] Application ready\n");
+
+    if (fclose(file) != 0) {
+        perror("Error closing log file");
+    } else {
+        printf("Log file created: %s\n", filename);
+    }
+}
+
+int main(void) {
+    create_log_file("app.log");
+    return EXIT_SUCCESS;
+}
+```
+
+**Key differences:**
+- `fputs()` writes a string without adding a newline
+- `fprintf()` supports format specifiers like `printf()`
+- Both are more efficient than writing character by character
+
+## Example 3: Append Mode - Adding Without Overwriting
+
+Append mode (`"a"`) is crucial for log files and data accumulation.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+void log_event(const char *filename, const char *event) {
+    FILE *file = fopen(filename, "a");  // Append mode
+    if (file == NULL) {
+        perror("Error opening log file");
+        return;
+    }
+
+    fprintf(file, "[EVENT] %s\n", event);
+
+    if (fclose(file) != 0) {
+        perror("Error closing log file");
+    }
+}
+
+void demonstrate_append(void) {
+    const char *logfile = "events.log";
+
+    // Create initial log
+    FILE *file = fopen(logfile, "w");
+    if (file) {
+        fprintf(file, "=== Event Log ===\n\n");
+        fclose(file);
+    }
+
+    // Add events over time
+    log_event(logfile, "System started");
+    log_event(logfile, "User logged in");
+    log_event(logfile, "File uploaded");
+    log_event(logfile, "User logged out");
+
+    // Display the log
+    printf("Log contents:\n");
+    file = fopen(logfile, "r");
+    if (file) {
+        char buffer[256];
+        while (fgets(buffer, sizeof(buffer), file)) {
+            printf("%s", buffer);
+        }
+        fclose(file);
+    }
+}
+
+int main(void) {
+    demonstrate_append();
+    return EXIT_SUCCESS;
+}
+```
+
+**Output:**
+```
+Log contents:
+=== Event Log ===
+
+[EVENT] System started
+[EVENT] User logged in
+[EVENT] File uploaded
+[EVENT] User logged out
+```
+
+## Example 4: Writing Binary Data with fwrite
+
+For structures and binary data, `fwrite()` is essential. It's the counterpart to `fread()`.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    int id;
+    char name[50];
+    double balance;
+} Account;
+
+void save_accounts(const char *filename, Account *accounts, size_t count) {
+    FILE *file = fopen(filename, "wb");  // Binary write mode
+    if (file == NULL) {
+        perror("Error creating accounts file");
+        return;
+    }
+
+    // Write all accounts at once
+    size_t written = fwrite(accounts, sizeof(Account), count, file);
+
+    if (written != count) {
+        fprintf(stderr, "Error: wrote %zu of %zu accounts\n",
+                written, count);
+    } else {
+        printf("Successfully saved %zu accounts\n", written);
+    }
+
+    if (fclose(file) != 0) {
+        perror("Error closing file");
+    }
+}
+
+void load_and_display_accounts(const char *filename) {
+    FILE *file = fopen(filename, "rb");  // Binary read mode
+    if (file == NULL) {
+        perror("Error opening accounts file");
+        return;
+    }
+
+    Account account;
+
+    printf("\nAccounts from file:\n");
+    printf("%-5s %-20s %s\n", "ID", "Name", "Balance");
+    printf("----------------------------------------\n");
+
+    while (fread(&account, sizeof(Account), 1, file) == 1) {
+        printf("%-5d %-20s $%.2f\n",
+               account.id, account.name, account.balance);
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    Account accounts[] = {
+        {1001, "Alice Smith", 5432.50},
+        {1002, "Bob Johnson", 12750.00},
+        {1003, "Charlie Brown", 890.25},
+        {1004, "Diana Prince", 25000.00}
+    };
+
+    size_t count = sizeof(accounts) / sizeof(accounts[0]);
+
+    save_accounts("accounts.dat", accounts, count);
+    load_and_display_accounts("accounts.dat");
+
+    return EXIT_SUCCESS;
+}
+```
+
+**fwrite() signature:**
+```c
+size_t fwrite(const void *ptr, size_t size, size_t count, FILE *stream);
+```
+- Returns the number of elements successfully written
+- Check return value to detect write errors (disk full, etc.)
+
+## Error Handling for Writes
+
+Write operations can fail for several reasons: disk full, permission denied, device removed, etc. Always check return values.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+
+int safe_write_data(const char *filename, const char *data) {
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        fprintf(stderr, "Cannot open %s: %s\n",
+                filename, strerror(errno));
+        return -1;
+    }
+
+    // Try to write data
+    if (fputs(data, file) == EOF) {
+        fprintf(stderr, "Write failed: %s\n", strerror(errno));
+        fclose(file);
+        return -1;
+    }
+
+    // Check for errors during close
+    if (fclose(file) != 0) {
+        fprintf(stderr, "Error closing file: %s\n", strerror(errno));
+        return -1;
+    }
+
+    return 0;  // Success
+}
+
+int main(void) {
+    const char *data = "Important data that must be saved!\n";
+
+    if (safe_write_data("important.txt", data) == 0) {
+        printf("Data saved successfully\n");
+    } else {
+        fprintf(stderr, "Failed to save data\n");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+```
+
+## Flushing Output: fflush()
+
+Normally, output is buffered for efficiency. Use `fflush()` to force immediate writing.
+
+```c
+#include <stdio.h>
+#include <unistd.h>  // For sleep()
+
+void demonstrate_flushing(void) {
+    FILE *file = fopen("progress.log", "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    for (int i = 1; i <= 5; i++) {
+        fprintf(file, "Processing step %d...\n", i);
+
+        // Force write to disk immediately
+        fflush(file);
+
+        printf("Step %d written to file\n", i);
+        sleep(1);  // Simulate work
+    }
+
+    fclose(file);
+}
+
+int main(void) {
+    demonstrate_flushing();
+    return EXIT_SUCCESS;
+}
+```
+
+**When to use fflush():**
+- Critical log messages that must persist immediately
+- Progress indicators in long-running operations
+- Before system calls that might crash the program
+- When coordinating with other processes reading the file
+
+## Comparing Writing Functions
+
+| Function | Best For | Adds Newline? | Format Support? |
+|----------|----------|---------------|-----------------|
+| `fputc()` | Single characters | No | No |
+| `fputs()` | Strings | No | No |
+| `fprintf()` | Formatted text | No | Yes |
+| `fwrite()` | Binary data | No | No |
+
+## Exercises
+
+### Exercise 1: CSV Writer
+Create a function that writes an array of structures to a CSV file.
+
+```c
+typedef struct {
+    char name[50];
+    int age;
+    double salary;
+} Employee;
+
+// TODO: Implement write_employees_csv(const char *filename,
+//                                      Employee *employees,
+//                                      size_t count)
+// Format: "Name,Age,Salary" on each line
+```
+
+### Exercise 2: Configuration File Generator
+Write a program that creates a configuration file with key-value pairs:
+
+```c
+// TODO: Implement write_config(const char *filename)
+// Should create a file like:
+// server_address=192.168.1.1
+// port=8080
+// timeout=30
+// debug_mode=true
+```
+
+### Exercise 3: Binary Logger
+Implement a logging system that:
+- Appends log entries to a binary file
+- Each entry contains: timestamp (time_t), level (int), message (char[256])
+- Provides functions to add entries and read them back
+
+### Exercise 4: Safe File Writer
+Create a safe_write_file() function that:
+- Writes to a temporary file first
+- Verifies the write succeeded
+- Renames the temp file to the target name (atomic on Unix)
+- Cleans up on any error
+
+```c
+// TODO: Implement safe_write_file(const char *filename, const char *data)
+// Use ".tmp" extension for temporary file
+// Return 0 on success, -1 on failure
+```
+
+## Key Takeaways
+
+- `fputc()` writes single characters but is inefficient for multiple writes
+- `fputs()` is ideal for writing strings without format requirements
+- `fprintf()` provides formatted output like printf(), supporting all format specifiers
+- `fwrite()` is the only choice for binary data and structures
+- Append mode (`"a"`) preserves existing content - essential for logs
+- Always check return values from write operations
+- `fclose()` can fail too - especially important when disk is full
+- `fflush()` forces immediate writing, useful for critical data
+- Binary mode (`"wb"`) prevents text translation on Windows
+- Write errors are often silent - explicit checking is mandatory
+
+Understanding these writing techniques, combined with the reading techniques from the previous step, gives you complete control over file operations. Next, we'll explore file positioning to navigate within files.

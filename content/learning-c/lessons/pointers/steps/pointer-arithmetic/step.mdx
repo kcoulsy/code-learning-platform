@@ -1,0 +1,420 @@
+---
+title: "Pointer Arithmetic"
+order: 3
+---
+
+# Pointer Arithmetic
+
+Pointers don't just store addresses—you can perform arithmetic on them. Pointer arithmetic is essential for array traversal, memory management, and understanding how C accesses memory efficiently.
+
+## How Pointer Arithmetic Works
+
+When you add 1 to a pointer, it doesn't advance by 1 byte. It advances by the size of the type it points to. This is called **scaled arithmetic**.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[] = {10, 20, 30, 40, 50};
+    int *ptr = arr;  // Points to first element
+
+    printf("Pointer value: %p\n", (void*)ptr);
+    printf("Points to: %d\n", *ptr);          // 10
+
+    ptr = ptr + 1;   // Advance by sizeof(int) bytes
+    printf("After +1: %p\n", (void*)ptr);
+    printf("Points to: %d\n", *ptr);          // 20
+
+    ptr = ptr + 2;   // Advance by 2 * sizeof(int) bytes
+    printf("After +2 more: %p\n", (void*)ptr);
+    printf("Points to: %d\n", *ptr);          // 40
+
+    return 0;
+}
+```
+
+**Key point:** `ptr + 1` advances by `sizeof(int)` bytes (typically 4), not 1 byte!
+
+## Understanding sizeof and Pointer Steps
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int i = 0;
+    float f = 0.0f;
+    double d = 0.0;
+    char c = 'A';
+
+    int *pi = &i;
+    float *pf = &f;
+    double *pd = &d;
+    char *pc = &c;
+
+    printf("Type      Size  Pointer    Pointer+1  Difference\n");
+    printf("-------------------------------------------------------\n");
+    printf("int       %zu    %p  %p  %ld\n",
+           sizeof(int), (void*)pi, (void*)(pi+1),
+           (char*)(pi+1) - (char*)pi);
+
+    printf("float     %zu    %p  %p  %ld\n",
+           sizeof(float), (void*)pf, (void*)(pf+1),
+           (char*)(pf+1) - (char*)pf);
+
+    printf("double    %zu    %p  %p  %ld\n",
+           sizeof(double), (void*)pd, (void*)(pd+1),
+           (char*)(pd+1) - (char*)pd);
+
+    printf("char      %zu    %p  %p  %ld\n",
+           sizeof(char), (void*)pc, (void*)(pc+1),
+           (char*)(pc+1) - (char*)pc);
+
+    return 0;
+}
+```
+
+Notice how each pointer advances by its type's size:
+- `int*` advances by 4 bytes
+- `float*` advances by 4 bytes
+- `double*` advances by 8 bytes
+- `char*` advances by 1 byte
+
+## Basic Pointer Arithmetic Operations
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int numbers[] = {100, 200, 300, 400, 500};
+    int *ptr = numbers;
+
+    // Addition
+    printf("ptr + 0: %d\n", *(ptr + 0));    // 100
+    printf("ptr + 1: %d\n", *(ptr + 1));    // 200
+    printf("ptr + 4: %d\n", *(ptr + 4));    // 500
+
+    // Increment
+    ptr++;
+    printf("After ptr++: %d\n", *ptr);       // 200
+
+    ptr += 2;
+    printf("After ptr += 2: %d\n", *ptr);    // 400
+
+    // Decrement
+    ptr--;
+    printf("After ptr--: %d\n", *ptr);       // 300
+
+    ptr -= 2;
+    printf("After ptr -= 2: %d\n", *ptr);    // 100
+
+    return 0;
+}
+```
+
+**Available operations:**
+- Addition: `ptr + n`, `ptr += n`, `ptr++`, `++ptr`
+- Subtraction: `ptr - n`, `ptr -= n`, `ptr--`, `--ptr`
+- Difference: `ptr1 - ptr2` (returns number of elements between them)
+
+## Pointer Subtraction
+
+You can subtract two pointers to find how many elements are between them.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
+
+    int *start = &arr[0];
+    int *end = &arr[9];
+    int *middle = &arr[5];
+
+    // Pointer difference gives number of elements
+    printf("Distance from start to end: %ld elements\n",
+           end - start);                    // 9
+
+    printf("Distance from start to middle: %ld elements\n",
+           middle - start);                 // 5
+
+    printf("Distance from middle to end: %ld elements\n",
+           end - middle);                   // 4
+
+    // Calculate array size using pointers
+    int size = end - start + 1;
+    printf("Array size: %d\n", size);       // 10
+
+    return 0;
+}
+```
+
+**Important:** Pointer subtraction only makes sense for pointers into the same array!
+
+## Array Traversal with Pointers
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int numbers[] = {5, 10, 15, 20, 25};
+    int size = sizeof(numbers) / sizeof(numbers[0]);
+
+    // Method 1: Pointer arithmetic
+    printf("Method 1 (pointer arithmetic):\n");
+    for (int i = 0; i < size; i++) {
+        printf("%d ", *(numbers + i));
+    }
+    printf("\n");
+
+    // Method 2: Incrementing pointer
+    printf("Method 2 (incrementing pointer):\n");
+    int *ptr = numbers;
+    for (int i = 0; i < size; i++) {
+        printf("%d ", *ptr);
+        ptr++;
+    }
+    printf("\n");
+
+    // Method 3: Pointer comparison (common idiom)
+    printf("Method 3 (pointer comparison):\n");
+    int *start = numbers;
+    int *end = numbers + size;
+    for (int *p = start; p < end; p++) {
+        printf("%d ", *p);
+    }
+    printf("\n");
+
+    return 0;
+}
+```
+
+All three methods produce: `5 10 15 20 25`
+
+## Precedence: * vs. ++
+
+The `*` and `++` operators have the same precedence but associate right-to-left. This creates some tricky expressions.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[] = {10, 20, 30};
+    int *ptr = arr;
+
+    printf("Initial: *ptr = %d\n", *ptr);     // 10
+
+    // *ptr++: dereference, THEN increment pointer
+    printf("*ptr++ = %d\n", *ptr++);           // Prints 10, ptr now points to 20
+    printf("Now *ptr = %d\n", *ptr);           // 20
+
+    // *++ptr: increment pointer, THEN dereference
+    printf("*++ptr = %d\n", *++ptr);           // Increments first, prints 30
+
+    ptr = arr;  // Reset
+
+    // (*ptr)++: dereference, increment the VALUE
+    (*ptr)++;
+    printf("After (*ptr)++: arr[0] = %d\n", arr[0]);  // 11
+
+    // ++*ptr: same as (*ptr)++ (increment the value)
+    ++*ptr;
+    printf("After ++*ptr: arr[0] = %d\n", arr[0]);    // 12
+
+    return 0;
+}
+```
+
+**Expressions breakdown:**
+- `*ptr++`: Use value, then move pointer right
+- `*++ptr`: Move pointer right, then use value
+- `(*ptr)++`: Increment the pointed-to value (post-increment)
+- `++*ptr`: Increment the pointed-to value (pre-increment)
+
+## Pointer Comparison
+
+You can compare pointers to navigate arrays and data structures.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[] = {1, 2, 3, 4, 5};
+    int *start = arr;
+    int *end = arr + 5;  // Points one past the last element
+    int *ptr = start;
+
+    printf("Traversing with comparison:\n");
+    while (ptr < end) {
+        printf("%d ", *ptr);
+        ptr++;
+    }
+    printf("\n");
+
+    // Reverse traversal
+    printf("Reverse traversal:\n");
+    ptr = end - 1;  // Point to last element
+    while (ptr >= start) {
+        printf("%d ", *ptr);
+        ptr--;
+    }
+    printf("\n");
+
+    return 0;
+}
+```
+
+**Valid comparisons:** `<`, `<=`, `>`, `>=`, `==`, `!=`
+
+**Rule:** Only compare pointers into the same array or to one element past the end.
+
+## Common Pitfalls
+
+### Pitfall 1: Forgetting Pointer Arithmetic Is Scaled
+
+```c
+int arr[] = {10, 20, 30};
+int *ptr = arr;
+
+ptr = ptr + 4;              // Adds 4 * sizeof(int) bytes!
+                            // Might point outside the array
+printf("%d\n", *ptr);       // Undefined behavior!
+```
+
+**Fix:** Be aware of array bounds. `ptr + 4` when the array has 3 elements is out of bounds.
+
+### Pitfall 2: Arithmetic on Uninitialized Pointers
+
+```c
+int *ptr;                   // Uninitialized
+ptr++;                      // Undefined behavior!
+*ptr = 10;                  // Double undefined behavior!
+```
+
+**Fix:** Always initialize pointers before arithmetic: `int *ptr = NULL;` (though arithmetic on NULL is also undefined).
+
+### Pitfall 3: Arithmetic on NULL
+
+```c
+int *ptr = NULL;
+ptr++;                      // Undefined behavior
+```
+
+**Fix:** Don't perform arithmetic on NULL pointers. Check for NULL first.
+
+### Pitfall 4: Subtracting Pointers from Different Arrays
+
+```c
+int arr1[] = {1, 2, 3};
+int arr2[] = {4, 5, 6};
+
+int *p1 = arr1;
+int *p2 = arr2;
+
+printf("%ld\n", p2 - p1);   // Undefined behavior!
+```
+
+**Fix:** Only subtract pointers into the same array.
+
+### Pitfall 5: Confusing Pointer Increment with Value Increment
+
+```c
+int x = 10;
+int *ptr = &x;
+
+ptr++;                      // Moves pointer to next int location
+                            // Now points to random memory!
+
+*ptr++;                     // Dereferences, THEN moves pointer
+(*ptr)++;                   // Increments the value at pointer
+```
+
+**Fix:** Use parentheses to clarify intent: `(*ptr)++` increments the value.
+
+### Pitfall 6: Off-by-One with Pointer Comparison
+
+```c
+int arr[] = {1, 2, 3, 4, 5};
+int *ptr = arr;
+int *end = arr + 5;
+
+while (ptr <= end) {        // BUG: should be ptr < end
+    printf("%d ", *ptr);    // Accesses one past the end!
+    ptr++;
+}
+```
+
+**Fix:** Use `<` not `<=` when `end` points one past the last element.
+
+### Pitfall 7: Pointer Arithmetic on Non-Array Pointers
+
+```c
+int x = 10;
+int *ptr = &x;
+ptr++;                      // ptr now points to... something random
+printf("%d\n", *ptr);       // Undefined behavior!
+```
+
+**Fix:** Pointer arithmetic is for arrays. Don't use it on single-variable pointers.
+
+## Safe Pointer Arithmetic Checklist
+
+Before performing pointer arithmetic:
+
+1. **Is the pointer initialized?** Never do arithmetic on uninitialized pointers
+2. **Is it NULL?** Don't do arithmetic on NULL
+3. **Is it into an array?** Pointer arithmetic is for arrays, not single variables
+4. **Will I stay in bounds?** Don't go past array boundaries
+5. **Am I comparing pointers from the same array?** Cross-array comparisons are undefined
+
+## Performance Note
+
+Pointer arithmetic is often faster than array indexing because it avoids multiplication. That's why you'll see it in performance-critical C code.
+
+```c
+// Array indexing: must calculate &arr[i] = arr + i * sizeof(int)
+for (int i = 0; i < size; i++) {
+    process(arr[i]);
+}
+
+// Pointer arithmetic: just increment
+for (int *p = arr; p < arr + size; p++) {
+    process(*p);
+}
+```
+
+Modern compilers optimize both to the same code, but pointer style is still common in C.
+
+## Key Takeaways
+
+- Pointer arithmetic is **scaled** by the pointed-to type's size
+- `ptr + n` advances by `n * sizeof(*ptr)` bytes
+- Valid operations: addition, subtraction, increment, decrement
+- Pointer difference gives the number of elements between pointers
+- Only do arithmetic on pointers into the same array
+- `*ptr++` uses value then moves; `*++ptr` moves then uses value
+- `(*ptr)++` increments the value, not the pointer
+- Always stay within array bounds
+- Never do arithmetic on NULL or uninitialized pointers
+
+## Exercises
+
+1. **Array Sum with Pointers**: Write a function that calculates the sum of an array using only pointer arithmetic (no array indexing with `[]`).
+
+2. **Reverse Array**: Write a function that reverses an array in place using two pointers: one starting at the beginning, one at the end, meeting in the middle.
+
+3. **Find Element**: Write a function that searches for an element in an array and returns a pointer to it (or NULL if not found). Use pointer arithmetic for traversal.
+
+4. **Pointer Distance**: Write a program that creates an array, takes two indices from the user, and calculates the pointer distance between those elements.
+
+5. **Expression Decoder**: Predict the output of this code, then run it to verify:
+```c
+int arr[] = {10, 20, 30, 40};
+int *p = arr + 1;
+printf("%d\n", *p++);
+printf("%d\n", *++p);
+printf("%d\n", ++*p);
+printf("%d\n", (*p)++);
+printf("%d\n", *p);
+```
+
+6. **Safe Traversal**: Write a function that takes an array, its size, and a pointer. Return 1 if the pointer points into the array, 0 otherwise. Use pointer comparison.

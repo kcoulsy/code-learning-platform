@@ -1,0 +1,519 @@
+---
+title: "Step 3: Contact Module"
+description: "Implement the core contact data structure and CRUD operations"
+order: 3
+---
+
+# Step 3: Contact Module
+
+Now it's time to implement your first module! The contact module is the foundation of your application, handling the core data structure and operations on individual contacts.
+
+## Overview
+
+In this step, you'll create:
+- `contact.h` - Header file with struct definition and function declarations
+- `contact.c` - Implementation of contact operations
+- Test program to verify your module works
+
+## Contact Header File (contact.h)
+
+### Include Guards
+
+Always start header files with include guards to prevent multiple inclusion:
+
+```c
+#ifndef CONTACT_H
+#define CONTACT_H
+
+// Your code here
+
+#endif
+```
+
+**Why?** If multiple files include contact.h, the compiler would see duplicate definitions without guards.
+
+### Structure Definition
+
+Based on your design, define your Contact structure. Here's a starting point:
+
+```c
+#include <stdio.h>
+
+#define MAX_NAME_LEN 50
+#define MAX_PHONE_LEN 20
+#define MAX_EMAIL_LEN 50
+
+typedef struct {
+    // Option 1: Fixed-size arrays (simpler)
+    char name[MAX_NAME_LEN + 1];   // +1 for null terminator
+    char phone[MAX_PHONE_LEN + 1];
+    char email[MAX_EMAIL_LEN + 1];
+
+    // Option 2: Dynamic strings (more flexible)
+    // char *name;
+    // char *phone;
+    // char *email;
+
+    // Choose based on your design decision!
+} Contact;
+```
+
+### Function Declarations
+
+Declare the functions your module will provide. Think about what operations make sense for a contact:
+
+```c
+// Create a new contact with the given information
+// Returns: pointer to newly created contact, or NULL on failure
+Contact* contact_create(const char *name, const char *phone, const char *email);
+
+// Free all memory associated with a contact
+void contact_destroy(Contact *contact);
+
+// Print a contact's information to stdout
+void contact_print(const Contact *contact);
+
+// Check if contact matches a search term (in name)
+// Returns: 1 if matches, 0 otherwise
+int contact_matches(const Contact *contact, const char *search_term);
+
+// Validate contact data
+// Returns: 1 if valid, 0 if invalid
+int contact_is_valid(const Contact *contact);
+
+// TODO: What other functions might be useful?
+// - contact_copy()?
+// - contact_set_phone()?
+// - contact_compare() for sorting?
+```
+
+## Contact Implementation (contact.c)
+
+### Required Includes
+
+```c
+#include "contact.h"
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+```
+
+### Creating a Contact
+
+Implement `contact_create()`:
+
+```c
+Contact* contact_create(const char *name, const char *phone, const char *email) {
+    // Validate input - name is required
+    if (name == NULL || strlen(name) == 0) {
+        return NULL;
+    }
+
+    // Allocate memory for the contact
+    Contact *contact = (Contact*)malloc(sizeof(Contact));
+    if (contact == NULL) {
+        // malloc failed - out of memory
+        return NULL;
+    }
+
+    // Copy the name (safely to avoid buffer overflow)
+    // TODO: Use strncpy or snprintf to safely copy
+    // Be careful with the length!
+
+    // Copy phone (if provided)
+    if (phone != NULL && strlen(phone) > 0) {
+        // TODO: Copy phone safely
+    } else {
+        // No phone provided - store empty string
+        // TODO: Initialize phone to empty
+    }
+
+    // Copy email (if provided)
+    // TODO: Similar to phone
+
+    return contact;
+}
+```
+
+**Your Task**: Complete the implementation. Use `strncpy()` or `snprintf()` to safely copy strings.
+
+**Hint**: `strncpy()` doesn't always null-terminate! You may need to manually add '\0'.
+
+```c
+// Example safe copy:
+strncpy(contact->name, name, MAX_NAME_LEN);
+contact->name[MAX_NAME_LEN] = '\0';  // Ensure null termination
+```
+
+### Destroying a Contact
+
+Implement `contact_destroy()`:
+
+```c
+void contact_destroy(Contact *contact) {
+    if (contact == NULL) {
+        return;  // Nothing to free
+    }
+
+    // If using dynamic strings (char *), free them here:
+    // free(contact->name);
+    // free(contact->phone);
+    // free(contact->email);
+
+    // Free the contact itself
+    free(contact);
+}
+```
+
+**Important**: Only free what you allocated! If using fixed arrays, don't free the individual fields.
+
+### Printing a Contact
+
+Implement `contact_print()`:
+
+```c
+void contact_print(const Contact *contact) {
+    if (contact == NULL) {
+        printf("(null contact)\n");
+        return;
+    }
+
+    printf("Name:  %s\n", contact->name);
+
+    // Print phone only if not empty
+    if (strlen(contact->phone) > 0) {
+        printf("Phone: %s\n", contact->phone);
+    } else {
+        printf("Phone: N/A\n");
+    }
+
+    // TODO: Print email similarly
+
+    printf("\n");  // Blank line after contact
+}
+```
+
+**Enhancement Idea**: Add an `int index` parameter to show "Contact #3" in the output.
+
+### Searching/Matching
+
+Implement `contact_matches()` for case-insensitive name search:
+
+```c
+int contact_matches(const Contact *contact, const char *search_term) {
+    if (contact == NULL || search_term == NULL) {
+        return 0;
+    }
+
+    // Simple approach: check if search_term is in name
+    // For case-insensitive, convert both to lowercase first
+
+    // TODO: Implement case-insensitive substring search
+    // Hint: You might need a helper function to convert to lowercase
+    // Or use strcasestr() if available on your platform
+
+    return 0;  // Placeholder
+}
+```
+
+**Helper Function Idea**:
+```c
+// Convert string to lowercase (in place)
+static void str_tolower(char *str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = tolower((unsigned char)str[i]);
+    }
+}
+```
+
+**Your Task**: Implement the search logic. Consider:
+- Should it match partial names? ("John" matches "John Doe")
+- Should it match phone or email too?
+
+### Validation
+
+Implement `contact_is_valid()`:
+
+```c
+int contact_is_valid(const Contact *contact) {
+    if (contact == NULL) {
+        return 0;
+    }
+
+    // Name is required and must not be empty
+    if (strlen(contact->name) == 0) {
+        return 0;
+    }
+
+    // Phone and email are optional, so just check they're not too long
+    // (This should already be guaranteed by how we copy them)
+
+    return 1;
+}
+```
+
+## ContactBook Structure
+
+You'll also need a structure to hold multiple contacts. Add to contact.h:
+
+```c
+#define MAX_CONTACTS 1000
+
+typedef struct {
+    Contact *contacts[MAX_CONTACTS];  // Array of pointers
+    int count;                         // Number of contacts
+} ContactBook;
+
+// ContactBook operations
+void contactbook_init(ContactBook *book);
+int contactbook_add(ContactBook *book, Contact *contact);
+Contact* contactbook_get(ContactBook *book, int index);
+int contactbook_remove(ContactBook *book, int index);
+void contactbook_destroy(ContactBook *book);
+int contactbook_count(const ContactBook *book);
+```
+
+### ContactBook Implementation
+
+Add to contact.c:
+
+```c
+void contactbook_init(ContactBook *book) {
+    if (book == NULL) return;
+
+    book->count = 0;
+    // Initialize all pointers to NULL
+    for (int i = 0; i < MAX_CONTACTS; i++) {
+        book->contacts[i] = NULL;
+    }
+}
+
+int contactbook_add(ContactBook *book, Contact *contact) {
+    if (book == NULL || contact == NULL) {
+        return -1;  // Error
+    }
+
+    if (book->count >= MAX_CONTACTS) {
+        return -1;  // Book is full
+    }
+
+    // Add contact to the next available slot
+    book->contacts[book->count] = contact;
+    book->count++;
+
+    return 0;  // Success
+}
+
+Contact* contactbook_get(ContactBook *book, int index) {
+    if (book == NULL || index < 0 || index >= book->count) {
+        return NULL;
+    }
+
+    return book->contacts[index];
+}
+
+int contactbook_remove(ContactBook *book, int index) {
+    if (book == NULL || index < 0 || index >= book->count) {
+        return -1;
+    }
+
+    // Free the contact being removed
+    contact_destroy(book->contacts[index]);
+
+    // Shift remaining contacts down
+    for (int i = index; i < book->count - 1; i++) {
+        book->contacts[i] = book->contacts[i + 1];
+    }
+
+    book->count--;
+    book->contacts[book->count] = NULL;
+
+    return 0;
+}
+
+void contactbook_destroy(ContactBook *book) {
+    if (book == NULL) return;
+
+    // Free all contacts
+    for (int i = 0; i < book->count; i++) {
+        contact_destroy(book->contacts[i]);
+    }
+
+    book->count = 0;
+}
+
+int contactbook_count(const ContactBook *book) {
+    return (book != NULL) ? book->count : 0;
+}
+```
+
+## Testing Your Module
+
+Create a test program `test_contact.c`:
+
+```c
+#include "contact.h"
+#include <stdio.h>
+#include <assert.h>
+
+void test_create_destroy() {
+    printf("Testing contact_create and contact_destroy...\n");
+
+    Contact *c = contact_create("John Doe", "555-0100", "john@example.com");
+    assert(c != NULL);
+    assert(strcmp(c->name, "John Doe") == 0);
+
+    contact_destroy(c);
+    printf("PASSED\n\n");
+}
+
+void test_empty_optional_fields() {
+    printf("Testing contact with no phone/email...\n");
+
+    Contact *c = contact_create("Jane Smith", "", NULL);
+    assert(c != NULL);
+    assert(strlen(c->phone) == 0);
+
+    contact_print(c);
+    contact_destroy(c);
+    printf("PASSED\n\n");
+}
+
+void test_contactbook() {
+    printf("Testing ContactBook operations...\n");
+
+    ContactBook book;
+    contactbook_init(&book);
+    assert(book.count == 0);
+
+    // Add contacts
+    Contact *c1 = contact_create("Alice", "111-1111", "alice@test.com");
+    Contact *c2 = contact_create("Bob", "222-2222", "bob@test.com");
+
+    contactbook_add(&book, c1);
+    contactbook_add(&book, c2);
+    assert(book.count == 2);
+
+    // Retrieve contact
+    Contact *retrieved = contactbook_get(&book, 0);
+    assert(strcmp(retrieved->name, "Alice") == 0);
+
+    // Remove contact
+    contactbook_remove(&book, 0);
+    assert(book.count == 1);
+
+    // First contact should now be Bob
+    retrieved = contactbook_get(&book, 0);
+    assert(strcmp(retrieved->name, "Bob") == 0);
+
+    contactbook_destroy(&book);
+    printf("PASSED\n\n");
+}
+
+int main() {
+    printf("=== Contact Module Tests ===\n\n");
+
+    test_create_destroy();
+    test_empty_optional_fields();
+    test_contactbook();
+
+    printf("All tests passed!\n");
+    return 0;
+}
+```
+
+### Compile and Run Tests
+
+```bash
+gcc -o test_contact test_contact.c contact.c
+./test_contact
+```
+
+**Expected Output**:
+```
+=== Contact Module Tests ===
+
+Testing contact_create and contact_destroy...
+PASSED
+
+Testing contact with no phone/email...
+Name:  Jane Smith
+Phone: N/A
+Email: N/A
+
+PASSED
+
+Testing ContactBook operations...
+PASSED
+
+All tests passed!
+```
+
+### Check for Memory Leaks
+
+If you have valgrind (Linux/Mac):
+
+```bash
+valgrind --leak-check=full ./test_contact
+```
+
+You should see: `All heap blocks were freed -- no leaks are possible`
+
+## Common Issues and Solutions
+
+### Issue: String Not Null-Terminated
+
+**Symptom**: Garbage characters printed after strings
+
+**Solution**: Always ensure `\0` at end:
+```c
+strncpy(dest, src, MAX_LEN);
+dest[MAX_LEN] = '\0';
+```
+
+### Issue: Memory Leak
+
+**Symptom**: valgrind reports lost memory
+
+**Solution**: Every `malloc()` needs a corresponding `free()`. Check that `contactbook_destroy()` is called.
+
+### Issue: Segmentation Fault
+
+**Symptom**: Program crashes
+
+**Possible Causes**:
+- Dereferencing NULL pointer
+- Array out of bounds
+- Use-after-free (accessing freed memory)
+
+**Debugging**: Add NULL checks everywhere!
+
+## Enhancement Challenges
+
+Once your basic module works, try adding:
+
+1. **Sorting**: Add `contactbook_sort()` to alphabetically sort contacts
+2. **Duplicate Detection**: Prevent adding contacts with the same name
+3. **Edit Function**: Add `contact_set_phone()`, etc. to modify contacts
+4. **Better Search**: Search by phone or email too
+5. **Statistics**: Add `contactbook_count_with_phone()` etc.
+
+## Milestone Checklist
+
+- [ ] contact.h has include guards and all declarations
+- [ ] contact_create() works with all field combinations
+- [ ] contact_destroy() properly frees memory
+- [ ] contact_print() displays formatted output
+- [ ] contact_matches() performs case-insensitive search
+- [ ] ContactBook can add, get, remove contacts
+- [ ] All test cases pass
+- [ ] No memory leaks (valgrind clean)
+- [ ] Code compiles without warnings
+
+## Next Step
+
+With your contact module complete and tested, you're ready for **Step 4: Storage Module**, where you'll add file persistence to save and load contacts.
+
+---
+
+**Pro Tip**: Write tests as you implement features. It's much easier to debug a small function than a complete program!

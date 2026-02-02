@@ -1,0 +1,191 @@
+---
+title: "Step 1: Project Specification"
+description: "Define requirements, features, and success criteria for your contact book"
+order: 1
+---
+
+# Step 1: Project Specification
+
+Before writing any code, successful projects start with clear requirements. In this step, you'll define what your contact book application should do and how it should behave.
+
+## Overview
+
+Writing a specification helps you:
+- Clarify exactly what you're building
+- Identify potential challenges early
+- Create measurable success criteria
+- Plan your development approach
+
+## Core Requirements
+
+Your contact book application must support these essential features:
+
+### 1. Contact Management
+- **Add Contact**: Create a new contact with multiple fields
+- **List Contacts**: Display all contacts in a readable format
+- **Search Contact**: Find contacts by name or other criteria
+- **Delete Contact**: Remove a contact from the database
+
+### 2. Data Persistence
+- **Save to File**: Store all contacts to a file on disk
+- **Load from File**: Automatically load contacts when the program starts
+- **Data Integrity**: Handle file errors gracefully
+
+### 3. User Interface
+- **Menu System**: Clear, numbered menu options
+- **Input Validation**: Handle invalid user input without crashing
+- **User Feedback**: Confirm actions and display helpful messages
+
+## Contact Data Fields
+
+Each contact should store at least:
+- **Name** (required, string up to 50 characters)
+- **Phone Number** (optional, string up to 20 characters)
+- **Email Address** (optional, string up to 50 characters)
+
+**Design Question**: Should you use fixed-size arrays or dynamic strings? Consider the trade-offs.
+
+## Functional Requirements
+
+### Adding a Contact
+```
+Expected behavior:
+1. Prompt user for name (required)
+2. Prompt for phone number (optional, can skip)
+3. Prompt for email (optional, can skip)
+4. Validate that name is not empty
+5. Add contact to the list
+6. Display confirmation message
+```
+
+### Listing Contacts
+```
+Expected behavior:
+1. Display total count of contacts
+2. Show each contact with formatting:
+   - Index number
+   - Name
+   - Phone (or "N/A" if empty)
+   - Email (or "N/A" if empty)
+3. Handle empty contact list gracefully
+```
+
+### Searching Contacts
+```
+Expected behavior:
+1. Prompt for search term
+2. Search through contact names (case-insensitive)
+3. Display matching contacts
+4. Show "no results" message if no matches
+```
+
+### Deleting a Contact
+```
+Expected behavior:
+1. Display numbered list of contacts
+2. Prompt for contact number to delete
+3. Confirm deletion with user
+4. Remove contact and free memory
+5. Display confirmation
+```
+
+## Non-Functional Requirements
+
+### Performance
+- Handle at least 1000 contacts efficiently
+- Menu operations should feel instant
+
+### Reliability
+- No memory leaks (verify with valgrind)
+- Handle file I/O errors without crashing
+- Gracefully handle full disk scenarios
+
+### Usability
+- Clear instructions and prompts
+- Consistent formatting
+- Easy to navigate menu system
+
+## Technical Constraints
+
+- **Language**: C (C99 or later)
+- **Platform**: Should work on Linux/Unix and Windows
+- **Dependencies**: Standard C library only (stdio, stdlib, string)
+- **File Format**: Plain text (human-readable preferred)
+
+## Success Criteria
+
+Your project is complete when:
+- [ ] All core features work correctly
+- [ ] Data persists between program runs
+- [ ] No memory leaks (valgrind clean)
+- [ ] Input validation prevents crashes
+- [ ] Code is organized into separate modules
+- [ ] User can complete all operations without errors
+
+## Optional Enhancements
+
+Consider adding these features if time permits:
+- Sort contacts alphabetically
+- Edit existing contacts
+- Multiple phone numbers per contact
+- Search by phone or email
+- Export contacts to CSV
+- Import contacts from file
+- Birthday reminders
+
+## Your Task
+
+**Write Your Own Specification Document**
+
+Create a text file named `SPECIFICATION.txt` in your project directory that includes:
+
+1. **Project Overview**: Brief description in your own words
+2. **Feature List**: The specific features you'll implement
+3. **Data Fields**: What information each contact will store
+4. **File Format**: Decide how you'll store data (CSV, JSON-like, custom format)
+5. **Success Criteria**: Your personal checklist for completion
+
+**Example Format Decision:**
+```
+File Format Choice: CSV (Comma-Separated Values)
+
+Reasoning:
+- Human-readable for debugging
+- Easy to parse in C
+- Compatible with spreadsheet software
+- Simple format: name,phone,email
+
+Example line:
+John Doe,555-1234,john@example.com
+```
+
+## Reflection Questions
+
+Before moving to the next step, consider:
+
+1. **What is the maximum number of contacts your program should handle?** This affects your data structure choice.
+
+2. **What happens if the contacts file is corrupted?** Plan your error handling strategy.
+
+3. **Should the program auto-save after every change, or only on exit?** Each has trade-offs.
+
+4. **How will you handle special characters in names (apostrophes, hyphens)?** This affects parsing.
+
+5. **What makes a good user experience for a CLI application?** Think about real-world usage.
+
+## Milestone Checklist
+
+- [ ] Written SPECIFICATION.txt with all required sections
+- [ ] Decided on data fields for contacts
+- [ ] Chosen a file format for persistence
+- [ ] Listed all menu options your UI will have
+- [ ] Identified potential error scenarios
+- [ ] Ready to move to design phase
+
+## Next Step
+
+Once you have a clear specification, you're ready for **Step 2: Design Phase**, where you'll plan the architecture and module structure of your application.
+
+---
+
+**Pro Tip**: Real software projects spend significant time on requirements. A clear specification now will save hours of confusion later!

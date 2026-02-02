@@ -1,0 +1,482 @@
+---
+id: 05-binary-inspection
+title: Binary Inspection Tools
+order: 5
+---
+
+# Binary Inspection Tools
+
+Sometimes you need to understand what's in a compiled binary. These tools let you inspect executables, object files, and libraries.
+
+## objdump: Display Object File Information
+
+**Purpose**: Disassemble and inspect binary files
+
+### Disassemble Code
+
+```bash
+# Disassemble entire file
+objdump -d program
+
+# Disassemble specific section
+objdump -d -j .text program
+
+# Show source lines (if compiled with -g)
+objdump -d -S program
+
+# Disassemble with Intel syntax
+objdump -M intel -d program
+```
+
+Example output:
+
+```
+0000000000001149 <main>:
+    1149: f3 0f 1e fa           endbr64
+    114d: 55                    push   rbp
+    114e: 48 89 e5              mov    rbp,rsp
+    1151: 48 83 ec 10           sub    rsp,0x10
+    ...
+```
+
+### Display Section Headers
+
+```bash
+objdump -h program
+```
+
+Output:
+
+```
+Sections:
+Idx Name          Size      VMA               LMA               File off  Algn
+  0 .interp       0x1c       0000000000000318  0000000000000318  00000318  2**0
+  1 .note.gnu.bu  0x20       0000000000000338  0000000000000338  00000338  2**2
+  ...
+```
+
+### Display Symbol Table
+
+```bash
+objdump -t program
+```
+
+Shows all symbols (functions, variables) with their addresses.
+
+### Display Dynamic Symbols
+
+```bash
+objdump -T program
+```
+
+Shows dynamically linked symbols.
+
+### Display Private Headers
+
+```bash
+objdump -p program
+```
+
+Shows:
+
+- Program headers
+- Dynamic segment info
+- Needed shared libraries
+
+## nm: List Symbols
+
+**Purpose**: Display symbol table from object files
+
+### Basic Usage
+
+```bash
+nm program
+nm libmylib.a
+```
+
+### Symbol Types
+
+Output format:
+
+```
+address type name
+```
+
+Types:
+
+- `T` — Text (code) section, global
+- `t` — Text section, local
+- `D` — Data section, global
+- `d` — Data section, local
+- `B` — BSS (uninitialized data), global
+- `b` — BSS, local
+- `U` — Undefined (external)
+- `W` — Weak symbol
+
+Example:
+
+```
+0000000000401126 T main
+                 U printf
+0000000000404010 D __data_start
+```
+
+### Common Options
+
+```bash
+# Show only undefined symbols (external dependencies)
+nm -u program
+
+# Show only debug symbols
+nm -a program
+
+# Sort by address
+nm -n program
+
+# Show symbol sizes
+nm -S program
+
+# Display in BSD format (default)
+nm -B program
+
+# Display in POSIX format
+nm -P program
+```
+
+### Finding Undefined Symbols
+
+```bash
+nm -u program | grep ' U '
+```
+
+Shows which functions/libraries your program needs.
+
+### Analyzing Static Libraries
+
+```bash
+nm -A libmylib.a
+```
+
+Shows all symbols in the library archive.
+
+## strings: Find Printable Strings
+
+**Purpose**: Extract printable strings from binary files
+
+### Basic Usage
+
+```bash
+strings program
+strings libmylib.so
+```
+
+### Common Options
+
+```bash
+# Minimum string length (default 4)
+strings -n 10 program
+
+# Show offset in file
+strings -t d program
+
+# Show offset in hex
+strings -t x program
+
+# Search specific data sections
+strings -data program
+
+# Limit search to specific section
+strings -d .rodata program
+```
+
+### Use Cases
+
+1. **Find version info**:
+
+```bash
+strings program | grep "version"
+```
+
+2. **Find error messages**:
+
+```bash
+strings program | grep "error"
+```
+
+3. **Find embedded file paths**:
+
+```bash
+strings program | grep "/"
+```
+
+4. **Extract hard-coded data**:
+
+```bash
+strings program | grep -E "^[0-9]+\.[0-9]+\.[0-9]+"
+```
+
+5. **Analyze malware/obfuscated code**:
+
+```bash
+strings suspicious_binary
+```
+
+## readelf: ELF File Information
+
+**Purpose**: Display ELF (Executable and Linkable Format) file info (Linux/Unix)
+
+### Display File Header
+
+```bash
+readelf -h program
+```
+
+Shows:
+
+- Class (32/64-bit)
+- Data encoding (little/big endian)
+- OS/ABI
+- Type (executable, shared object, etc.)
+- Machine architecture
+- Entry point address
+
+### Display Program Headers
+
+```bash
+readelf -l program
+```
+
+Shows segments (code, data, dynamic linker, etc.).
+
+### Display Section Headers
+
+```bash
+readelf -S program
+```
+
+Shows all sections (.text, .data, .bss, .rodata, etc.).
+
+### Display Symbol Table
+
+```bash
+readelf -s program
+```
+
+### Display Dynamic Symbols
+
+```bash
+readelf -ds program
+```
+
+### Display Dependencies
+
+```bash
+readelf -d program | grep NEEDED
+```
+
+Shows required shared libraries.
+
+### Display Notes
+
+```bash
+readelf -n program
+```
+
+Shows build ID, compiler version, ABI notes.
+
+## size: Section Sizes
+
+**Purpose**: Show section sizes
+
+```bash
+size program
+```
+
+Output:
+
+```
+   text    data     bss     dec     hex filename
+   1234     567     890    2691     a83 program
+```
+
+- `text` — Code size
+- `data` — Initialized data
+- `bss` — Uninitialized data
+- `dec` — Total in decimal
+- `hex` — Total in hexadecimal
+
+### Format Options
+
+```bash
+# Show in decimal
+size -A program
+
+# Show in decimal and hex
+size -B program
+
+# Show in octal
+size -o program
+```
+
+## strip: Remove Symbols
+
+**Purpose**: Remove debug symbols to reduce file size
+
+```bash
+# Strip all symbols
+strip program
+
+# Strip only debug symbols
+strip --strip-debug program
+
+# Strip only debug symbols (keep symbol table)
+strip --strip-unneeded program
+
+# Keep specific symbols
+strip --keep-symbol=main -K printf program
+```
+
+**Warning**: Stripped binaries can't be debugged effectively with GDB.
+
+## file: Identify File Type
+
+**Purpose**: Determine file type
+
+```bash
+file program
+```
+
+Output:
+
+```
+program: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=abc123..., for GNU/Linux 3.2.0, not stripped
+```
+
+## ldd: Print Shared Library Dependencies
+
+**Purpose**: Show dynamic library dependencies
+
+```bash
+ldd program
+```
+
+Output:
+
+```
+    linux-vdso.so.1 (0x00007ffc12345000)
+    libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f8a2b3b2000)
+    /lib64/ld-linux-x86-64.so.2 (0x00007f8a2b7a0000)
+```
+
+### Check for Missing Libraries
+
+```bash
+ldd program | grep "not found"
+```
+
+## hexdump: Display File in Hex
+
+**Purpose**: Display file in hexadecimal
+
+```bash
+hexdump -C program | less
+
+# Display first 256 bytes
+hexdump -C -n 256 program
+
+# Display specific offset
+hexdump -C -s 0x1000 -n 256 program
+```
+
+## xxd: Hex Dump (Alternative)
+
+```bash
+xxd program | less
+
+# View first 512 bytes
+xxd -l 512 program
+
+# View at specific offset
+xxd -s 0x1000 -l 256 program
+
+# Reverse: create binary from hex
+xxd -r program.hex > program
+```
+
+## Binary Analysis Workflow
+
+### 1. Quick File Info
+
+```bash
+file program
+```
+
+### 2. Check Dependencies
+
+```bash
+ldd program
+```
+
+### 3. List Symbols
+
+```bash
+nm -D program  # Dynamic symbols
+```
+
+### 4. Find Strings
+
+```bash
+strings -n 10 program | head -20
+```
+
+### 5. Check Sections
+
+```bash
+readelf -S program
+```
+
+### 6. Disassemble
+
+```bash
+objdump -d program | less
+```
+
+### 7. Check Entry Point
+
+```bash
+readelf -h program | grep Entry
+```
+
+## Practice Exercise
+
+Analyze a compiled binary:
+
+```c
+// test.c
+#include <stdio.h>
+
+int main(void) {
+    printf("Hello, World!\n");
+    return 0;
+}
+```
+
+Compile with:
+
+```bash
+gcc -g test.c -o test
+```
+
+Run these commands and understand the output:
+
+```bash
+file test
+nm test
+objdump -d test | grep -A 20 "<main>"
+strings test
+readelf -h test
+```
+
+---
+
+**Next**: Static analysis tools.

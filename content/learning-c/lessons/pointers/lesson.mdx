@@ -1,0 +1,50 @@
+---
+title: "Pointers"
+description: "Master the power and responsibility of pointers in C"
+order: 6
+---
+
+# Pointers
+
+Pointers are one of C's most powerful features—and also one of its most dangerous. A pointer is simply a variable that stores a memory address, but this simple concept unlocks direct memory manipulation, efficient data structures, and dynamic memory allocation.
+
+## What You'll Learn
+
+In this lesson, you'll learn:
+
+- **Pointer Basics**: The `&` (address-of) and `*` (dereference) operators
+- **Safe Initialization**: Always initialize your pointers to avoid disasters
+- **Pointer Arithmetic**: How to navigate memory with pointer math
+- **Pointers and Arrays**: Understanding the deep connection between them
+- **Pass by Reference**: Modifying function parameters through pointers
+- **Common Pitfalls**: Avoiding segfaults, null pointers, and undefined behavior
+- **Practical Applications**: Real-world pointer usage patterns
+
+## Why Pointers Matter
+
+Pointers enable:
+
+- **Efficient parameter passing**: Pass large structures by reference
+- **Dynamic memory allocation**: Create data structures of any size
+- **Low-level memory control**: Interface with hardware and system APIs
+- **Complex data structures**: Build linked lists, trees, and graphs
+- **String manipulation**: Efficient text processing
+
+## Safety Warning
+
+Pointers are powerful but dangerous. A single pointer mistake can:
+
+- Crash your program (segmentation fault)
+- Corrupt data silently
+- Create security vulnerabilities
+- Cause unpredictable behavior
+
+**Always follow pointer safety rules:**
+
+1. Initialize all pointers before use
+2. Check for NULL before dereferencing
+3. Never dereference freed memory
+4. Avoid arithmetic on uninitialized pointers
+5. Keep track of pointer ownership
+
+Let's dive in and learn how to harness pointer power safely!

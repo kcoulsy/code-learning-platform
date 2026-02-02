@@ -1,0 +1,328 @@
+---
+id: 05-conditional-compilation
+title: Conditional Compilation
+order: 5
+---
+
+# Conditional Compilation
+
+Conditional compilation lets you include or exclude code based on conditions at compile-time. This is essential for cross-platform code and feature flags.
+
+## The Conditional Directives
+
+```c
+#ifdef  MACRO         // If MACRO is defined
+#ifndef MACRO         // If MACRO is not defined
+#if     EXPR          // If EXPR is true (non-zero)
+#elif   EXPR          // Else if (can have multiple)
+#else                 // Else
+#endif                 // End conditional block
+```
+
+## Basic Usage
+
+### 1. Include Guards
+
+```c
+#ifndef MY_HEADER_H
+#define MY_HEADER_H
+
+// Header content
+
+#endif
+```
+
+### 2. Platform-Specific Code
+
+```c
+#if defined(_WIN32) || defined(_WIN64)
+    // Windows code
+    #define PATH_SEPARATOR "\\"
+#elif defined(__linux__)
+    // Linux code
+    #define PATH_SEPARATOR "/"
+#elif defined(__APPLE__)
+    // macOS code
+    #define PATH_SEPARATOR "/"
+#else
+    #error "Unsupported platform"
+#endif
+```
+
+### 3. Feature Flags
+
+```c
+#define ENABLE_DEBUG 1
+
+int main(void) {
+#if ENABLE_DEBUG
+    printf("Debug mode enabled\n");
+#endif
+
+    return 0;
+}
+```
+
+## The defined() Operator
+
+The `defined(MACRO)` operator returns 1 if `MACRO` is defined, 0 otherwise:
+
+```c
+#if defined(USE_TLS) && defined(ENABLE_LOGGING)
+    // Code for when both features are enabled
+#endif
+```
+
+This can also be written as:
+
+```c
+#ifdef USE_TLS
+#ifdef ENABLE_LOGGING
+    // Both enabled
+#endif
+#endif
+```
+
+But `defined()` is cleaner for complex conditions.
+
+## Complex Conditions
+
+You can use any compile-time constant expression:
+
+```c
+#if VERSION >= 2 && defined(ENABLE_FEATURE_X)
+    // Version 2+ with feature X
+#endif
+
+#if (SIZEOF_LONG == 8) && !defined(USE_32BIT)
+    // 64-bit build without 32-bit compatibility
+#endif
+```
+
+Available operators:
+
+- Arithmetic: `+`, `-`, `*`, `/`, `%`
+- Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- Logical: `&&`, `||`, `!`
+- Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`
+
+## Predefined Macros
+
+Compilers provide useful predefined macros:
+
+### Standard Macros
+
+```c
+__FILE__     // Current file name as string literal
+__LINE__     // Current line number as integer
+__func__     // Current function name (C99)
+__DATE__     // Compilation date
+__TIME__     // Compilation time
+__STDC__     // Defined if compiler conforms to ISO C
+__STDC_VERSION__  // C version: 199901L for C99, 201112L for C11
+```
+
+Example usage:
+
+```c
+#define LOG_ERROR(msg) \
+    fprintf(stderr, "[%s:%d] Error: %s\n", __FILE__, __LINE__, msg)
+
+LOG_ERROR("File not found");
+// Output: [main.c:42] Error: File not found
+```
+
+### Platform Detection Macros
+
+```c
+// Windows (MSVC)
+#if defined(_MSC_VER)
+    // MSVC compiler version in _MSC_VER
+#endif
+
+// Windows (any compiler)
+#if defined(_WIN32) || defined(_WIN64)
+#endif
+
+// Linux
+#if defined(__linux__)
+#endif
+
+// macOS
+#if defined(__APPLE__) && defined(__MACH__)
+#endif
+
+// Unix-like
+#if defined(__unix__) || defined(__unix)
+#endif
+```
+
+### Architecture Detection
+
+```c
+#if defined(__x86_64__) || defined(_M_X64)
+    // 64-bit x86
+#elif defined(__i386__) || defined(_M_IX86)
+    // 32-bit x86
+#elif defined(__arm__) || defined(_M_ARM)
+    // ARM
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    // ARM64
+#endif
+```
+
+## Common Patterns
+
+### 1. Debug vs Release Builds
+
+```c
+// Defined on compiler command line: gcc -DDEBUG=1 ...
+#ifdef DEBUG
+    #define DBG_PRINT(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#else
+    #define DBG_PRINT(fmt, ...) ((void)0)
+#endif
+
+int main(void) {
+    DBG_PRINT("Debug: x = %d\n", x);  // Removed in release builds
+    return 0;
+}
+```
+
+### 2. Library Export/Import (Windows)
+
+```c
+// mylib.h
+#ifdef MYLIB_EXPORTS
+    #define MYLIB_API __declspec(dllexport)
+#elif defined(MYLIB_IMPORTS)
+    #define MYLIB_API __declspec(dllimport)
+#else
+    #define MYLIB_API
+#endif
+
+MYLIB_API void mylib_function(void);
+```
+
+Compile library with: `gcc -DMYLIB_EXPORTS ...`
+Use library with: `gcc -DMYLIB_IMPORTS ...`
+
+### 3. Compiler-Specific Extensions
+
+```c
+#if defined(__GNUC__)
+    #define FORCE_INLINE __attribute__((always_inline)) inline
+#elif defined(_MSC_VER)
+    #define FORCE_INLINE __forceinline
+#else
+    #define FORCE_INLINE inline
+#endif
+
+FORCE_INLINE int fast_function(int x) {
+    return x * 2;
+}
+```
+
+### 4. Byte Order
+
+```c
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+    #define IS_LITTLE_ENDIAN 1
+#elif defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+    #define IS_LITTLE_ENDIAN 0
+#else
+    // Runtime detection needed
+    #define IS_LITTLE_ENDIAN (-1)  // Unknown at compile time
+#endif
+```
+
+## #error Directive
+
+Force a compilation error with a message:
+
+```c
+#if !defined(ENABLE_FEATURE_A) && !defined(ENABLE_FEATURE_B)
+    #error "Must enable at least one of FEATURE_A or FEATURE_B"
+#endif
+
+#if __cplusplus < 201103L
+    #error "This library requires C++11 or later"
+#endif
+```
+
+## #warning Directive (Non-Standard)
+
+Some compilers support `#warning` for a warning instead of an error:
+
+```c
+#if defined(DEPRECATED_FEATURE)
+    #warning "DEPRECATED_FEATURE is deprecated and will be removed"
+#endif
+```
+
+## Best Practices
+
+### DO: Use Feature Tests, Not Platform Tests
+
+```c
+// Good - test for capability
+#if defined(HAVE_EPOLL)
+    // Use epoll
+#elif defined(HAVE_KQUEUE)
+    // Use kqueue
+#endif
+
+// Bad - test for platform directly
+#if defined(__linux__)
+    // Assume epoll is available (might not be!)
+#endif
+```
+
+Autoconf generates `config.h` with `HAVE_*` macros for this purpose.
+
+### DO: Document Required Macros
+
+```c
+/**
+ * To enable debug mode, compile with -DDEBUG=1
+ * To enable SSL support, compile with -DUSE_SSL=1
+ */
+```
+
+### DON'T: Nest Conditionals Too Deeply
+
+```c
+// Bad - hard to follow
+#ifdef FEATURE_A
+    #ifdef FEATURE_B
+        #ifdef FEATURE_C
+            // Code here
+        #endif
+    #endif
+#endif
+
+// Better - use complex conditions
+#if defined(FEATURE_A) && defined(FEATURE_B) && defined(FEATURE_C)
+    // Code here
+#endif
+```
+
+## Practice Exercise
+
+Write a macro `MIN_PLATFORM_VERSION` that:
+
+- Compiles on Windows if `_WIN32` is defined
+- Compiles on Unix if `__unix__` is defined
+- Errors otherwise with message "Unsupported platform"
+
+**Answer**:
+
+```c
+#if !defined(_WIN32) && !defined(__unix__)
+    #error "Unsupported platform"
+#endif
+```
+
+---
+
+**Next**: Header guards and proper include patterns.

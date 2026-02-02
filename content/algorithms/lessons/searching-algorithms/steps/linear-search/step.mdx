@@ -1,0 +1,98 @@
+---
+id: linear-search
+title: Linear Search
+order: 1
+---
+
+# Linear Search
+
+Linear search examines each element sequentially until the target is found or the end is reached.
+
+## Implementation
+
+```c
+int linearSearch(int arr[], int n, int target) {
+    for (int i = 0; i < n; i++) {
+        if (arr[i] == target) {
+            return i;  // Found at index i
+        }
+    }
+    return -1;  // Not found
+}
+
+// With sentinel (one comparison per iteration)
+int linearSearchSentinel(int arr[], int n, int target) {
+    int last = arr[n - 1];
+    arr[n - 1] = target;  // Sentinel
+    int i = 0;
+
+    while (arr[i] != target) {
+        i++;
+    }
+
+    arr[n - 1] = last;  // Restore
+
+    if (i < n - 1 || arr[n - 1] == target) {
+        return i;
+    }
+    return -1;
+}
+```
+
+## Time Complexity
+
+| Case    | Complexity | Description                  |
+| ------- | ---------- | ---------------------------- |
+| Best    | O(1)       | Target at first position     |
+| Average | O(n/2)     | Target in middle             |
+| Worst   | O(n)       | Target not present or at end |
+| Space   | O(1)       | No extra space               |
+
+## When to Use Linear Search
+
+```c
+// Unsorted array - must use linear search
+int findInUnsorted(int arr[], int n, int target) {
+    for (int i = 0; i < n; i++) {
+        if (arr[i] == target) return i;
+    }
+    return -1;
+}
+
+// Search in linked list (only option)
+int searchLinkedList(Node *head, int target) {
+    Node *current = head;
+    while (current != NULL) {
+        if (current->data == target) {
+            return 1;
+        }
+        current = current->next;
+    }
+    return 0;
+}
+```
+
+## Linear Search Variants
+
+```c
+// Find all occurrences
+void findAll(int arr[], int n, int target, int indices[]) {
+    int count = 0;
+    for (int i = 0; i < n; i++) {
+        if (arr[i] == target) {
+            indices[count++] = i;
+        }
+    }
+}
+
+// Find minimum/maximum
+int findMin(int arr[], int n) {
+    int min = arr[0];
+    for (int i = 1; i < n; i++) {
+        if (arr[i] < min) {
+            min = arr[i];
+        }
+    }
+    return min;
+}
+```

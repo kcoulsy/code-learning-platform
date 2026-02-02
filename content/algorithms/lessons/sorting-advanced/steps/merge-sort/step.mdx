@@ -1,0 +1,124 @@
+---
+id: merge-sort
+title: Merge Sort
+order: 1
+---
+
+# Merge Sort
+
+Merge sort uses **divide and conquer**: split the array, sort each half, then merge.
+
+## Implementation
+
+```c
+void merge(int arr[], int left, int mid, int right) {
+    int n1 = mid - left + 1;
+    int n2 = right - mid;
+
+    int L[n1], R[n2];
+
+    for (int i = 0; i < n1; i++) L[i] = arr[left + i];
+    for (int j = 0; j < n2; j++) R[j] = arr[mid + 1 + j];
+
+    int i = 0, j = 0, k = left;
+
+    while (i < n1 && j < n2) {
+        if (L[i] <= R[j]) {
+            arr[k++] = L[i++];
+        } else {
+            arr[k++] = R[j++];
+        }
+    }
+
+    while (i < n1) arr[k++] = L[i++];
+    while (j < n2) arr[k++] = R[j++];
+}
+
+void mergeSort(int arr[], int left, int right) {
+    if (left < right) {
+        int mid = left + (right - left) / 2;
+
+        mergeSort(arr, left, mid);
+        mergeSort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
+    }
+}
+```
+
+## Merge Sort Variants
+
+```c
+// Bottom-up merge sort (no recursion)
+void bottomUpMergeSort(int arr[], int n) {
+    for (int currSize = 1; currSize < n; currSize *= 2) {
+        for (int left = 0; left < n - 1; left += 2 * currSize) {
+            int mid = min(left + currSize - 1, n - 1);
+            int right = min(left + 2 * currSize - 1, n - 1);
+
+            if (mid < right) {
+                merge(arr, left, mid, right);
+            }
+        }
+    }
+}
+
+// In-place merge (more complex, less efficient)
+void mergeInPlace(int arr[], int low, int mid, int high) {
+    int start1 = low, start2 = mid + 1;
+
+    while (start1 <= mid && start2 <= high) {
+        if (arr[start1] <= arr[start2]) {
+            start1++;
+        } else {
+            int value = arr[start2];
+            // Shift elements
+            for (int i = start2; i > start1; i--) {
+                arr[i] = arr[i - 1];
+            }
+            arr[start1] = value;
+
+            start1++;
+            mid++;
+            start2++;
+        }
+    }
+}
+```
+
+## Time Complexity
+
+| Case    | Complexity | Notes            |
+| ------- | ---------- | ---------------- |
+| Best    | O(n log n) |                  |
+| Average | O(n log n) |                  |
+| Worst   | O(n log n) | Guaranteed       |
+| Space   | O(n)       | Temporary arrays |
+| Stable  | Yes        | Preserves order  |
+
+## External Merge Sort (for large files)
+
+```c
+// For sorting files larger than memory
+typedef struct {
+    FILE *file;
+    int buffer[BUFSIZE];
+    int count;
+} MergeFile;
+
+void externalMergeSort(char *inputFile, char *tempFile, int chunkSize) {
+    // Phase 1: Split into sorted chunks
+    FILE *in = fopen(inputFile, "r");
+    int chunk[chunkSize];
+    int count;
+
+    while ((count = fread(chunk, sizeof(int), chunkSize, in)) > 0) {
+        mergeSort(chunk, 0, count - 1);
+        fwrite(chunk, sizeof(int), count, tempFile);
+        // Mark chunk boundary
+    }
+    fclose(in);
+
+    // Phase 2: Merge chunks
+    // ...
+}
+```

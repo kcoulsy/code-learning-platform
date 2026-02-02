@@ -1,0 +1,174 @@
+---
+id: huffman-coding
+title: Huffman Coding
+order: 2
+---
+
+# Huffman Coding
+
+Greedy algorithm for optimal prefix-free binary codes, used in compression.
+
+## Implementation
+
+```c
+typedef struct Node {
+    char data;
+    int frequency;
+    struct Node *left, *right;
+} Node;
+
+typedef struct {
+    Node *heap[256];
+    int size;
+} MinHeap;
+
+void swap(Node **a, Node **b) {
+    Node *temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void heapifyUp(MinHeap *h, int idx) {
+    while (idx > 0) {
+        int parent = (idx - 1) / 2;
+        if (h->heap[parent]->frequency > h->heap[idx]->frequency) {
+            swap(&h->heap[parent], &h->heap[idx]);
+            idx = parent;
+        } else break;
+    }
+}
+
+void heapifyDown(MinHeap *h, int idx) {
+    int smallest = idx;
+    int left = 2 * idx + 1;
+    int right = 2 * idx + 2;
+
+    if (left < h->size && h->heap[left]->frequency < h->heap[smallest]->frequency)
+        smallest = left;
+    if (right < h->size && h->heap[right]->frequency < h->heap[smallest]->frequency)
+        smallest = right;
+
+    if (smallest != idx) {
+        swap(&h->heap[idx], &h->heap[smallest]);
+        heapifyDown(h, smallest);
+    }
+}
+
+void push(MinHeap *h, Node *node) {
+    h->heap[h->size++] = node;
+    heapifyUp(h, h->size - 1);
+}
+
+Node* pop(MinHeap *h) {
+    if (h->size == 0) return NULL;
+    Node *min = h->heap[0];
+    h->heap[0] = h->heap[--h->size];
+    heapifyDown(h, 0);
+    return min;
+}
+
+Node* buildHuffmanTree(char data[], int freq[], int n) {
+    MinHeap h;
+    h.size = 0;
+
+    for (int i = 0; i < n; i++) {
+        Node *node = malloc(sizeof(Node));
+        node->data = data[i];
+        node->frequency = freq[i];
+        node->left = node->right = NULL;
+        push(&h, node);
+    }
+
+    while (h.size > 1) {
+        Node *left = pop(&h);
+        Node *right = pop(&h);
+
+        Node *parent = malloc(sizeof(Node));
+        parent->data = '$';
+        parent->frequency = left->frequency + right->frequency;
+        parent->left = left;
+        parent->right = right;
+
+        push(&h, parent);
+    }
+
+    return pop(&h);
+}
+
+void printCodes(Node *root, int arr[], int top) {
+    if (root->left) {
+        arr[top] = 0;
+        printCodes(root->left, arr, top + 1);
+    }
+    if (root->right) {
+        arr[top] = 1;
+        printCodes(root->right, arr, top + 1);
+    }
+    if (!root->left && !root->right) {
+        printf("%c: ", root->data);
+        for (int i = 0; i < top; i++) {
+            printf("%d", arr[i]);
+        }
+        printf("\n");
+    }
+}
+```
+
+## Encoding and Decoding
+
+```c
+// Encode string
+void encode(Node *root, char *str, char *input, int *pos) {
+    if (root == NULL) return;
+
+    if (!root->left && !root->right) {
+        // Leaf node - store code
+        // In practice, use a lookup table
+    }
+
+    // Traverse tree to encode
+}
+
+// Decode string
+char* decode(Node *root, char *encoded) {
+    char *result = malloc(strlen(encoded));
+    int pos = 0;
+    Node *current = root;
+
+    for (int i = 0; encoded[i]; i++) {
+        current = (encoded[i] == '0') ? current->left : current->right;
+
+        if (!current->left && !current->right) {
+            result[pos++] = current->data;
+            current = root;
+        }
+    }
+    result[pos] = '\0';
+    return result;
+}
+
+// Build lookup table
+typedef struct {
+    char data;
+    char code[256];
+} CodeEntry;
+
+void buildCodeTable(Node *root, char *str, int depth, CodeEntry table[], int *count) {
+    if (!root->left && !root->right) {
+        table[*count].data = root->data;
+        strncpy(table[*count].code, str, depth);
+        table[*count].code[depth] = '\0';
+        (*count)++;
+        return;
+    }
+
+    if (root->left) {
+        str[depth] = '0';
+        buildCodeTable(root->left, str, depth + 1, table, count);
+    }
+    if (root->right) {
+        str[depth] = '1';
+        buildCodeTable(root->right, str, depth + 1, table, count);
+    }
+}
+```

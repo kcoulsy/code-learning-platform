@@ -1,0 +1,158 @@
+---
+id: shortest-path
+title: Shortest Path Algorithms
+order: 1
+---
+
+# Shortest Path Algorithms
+
+Finding the shortest path in weighted graphs.
+
+## Dijkstra's Algorithm
+
+```c
+#define V 9
+
+typedef struct {
+    int vertex;
+    int distance;
+} Node;
+
+int minDistance(int dist[], int visited[]) {
+    int min = INT_MAX, minIdx;
+    for (int v = 0; v < V; v++) {
+        if (!visited[v] && dist[v] < min) {
+            min = dist[v];
+            minIdx = v;
+        }
+    }
+    return minIdx;
+}
+
+void dijkstra(int graph[V][V], int src) {
+    int dist[V];
+    int visited[V];
+
+    for (int i = 0; i < V; i++) {
+        dist[i] = INT_MAX;
+        visited[i] = 0;
+    }
+    dist[src] = 0;
+
+    for (int count = 0; count < V - 1; count++) {
+        int u = minDistance(dist, visited);
+        visited[u] = 1;
+
+        for (int v = 0; v < V; v++) {
+            if (!visited[v] && graph[u][v] && dist[u] != INT_MAX) {
+                int newDist = dist[u] + graph[u][v];
+                if (newDist < dist[v]) {
+                    dist[v] = newDist;
+                }
+            }
+        }
+    }
+
+    printSolution(dist);
+}
+
+// Priority queue version
+void dijkstraPQ(int graph[V][V], int src) {
+    int dist[V];
+    for (int i = 0; i < V; i++) dist[i] = INT_MAX;
+    dist[src] = 0;
+
+    MinHeap pq;
+    pq.size = 0;
+    push(&pq, createNode(0, src));
+
+    while (pq.size > 0) {
+        Node u = popMin(&pq);
+        if (u.distance > dist[u.vertex]) continue;
+
+        for (int v = 0; v < V; v++) {
+            if (graph[u.vertex][v]) {
+                int newDist = dist[u.vertex] + graph[u.vertex][v];
+                if (newDist < dist[v]) {
+                    dist[v] = newDist;
+                    push(&pq, createNode(newDist, v));
+                }
+            }
+        }
+    }
+}
+```
+
+## Bellman-Ford Algorithm
+
+```c
+void bellmanFord(int V, int E, int edges[][3], int src) {
+    int dist[V];
+    for (int i = 0; i < V; i++) dist[i] = INT_MAX;
+    dist[src] = 0;
+
+    // Relax all edges V-1 times
+    for (int i = 0; i < V - 1; i++) {
+        for (int j = 0; j < E; j++) {
+            int u = edges[j][0];
+            int v = edges[j][1];
+            int weight = edges[j][2];
+
+            if (dist[u] != INT_MAX && dist[u] + weight < dist[v]) {
+                dist[v] = dist[u] + weight;
+            }
+        }
+    }
+
+    // Check for negative weight cycles
+    for (int j = 0; j < E; j++) {
+        int u = edges[j][0];
+        int v = edges[j][1];
+        int weight = edges[j][2];
+
+        if (dist[u] != INT_MAX && dist[u] + weight < dist[v]) {
+            printf("Graph contains negative weight cycle\n");
+            return;
+        }
+    }
+
+    printSolution(dist, V);
+}
+```
+
+## Floyd-Warshall Algorithm
+
+```c
+void floydWarshall(int graph[][V]) {
+    int dist[V][V];
+
+    for (int i = 0; i < V; i++) {
+        for (int j = 0; j < V; j++) {
+            dist[i][j] = (i == j) ? 0 : graph[i][j];
+        }
+    }
+
+    for (int k = 0; k < V; k++) {
+        for (int i = 0; i < V; i++) {
+            for (int j = 0; j < V; j++) {
+                if (dist[i][k] != INT_MAX && dist[k][j] != INT_MAX) {
+                    if (dist[i][k] + dist[k][j] < dist[i][j]) {
+                        dist[i][j] = dist[i][k] + dist[k][j];
+                    }
+                }
+            }
+        }
+    }
+
+    printSolution(dist);
+}
+```
+
+## Algorithm Comparison
+
+| Algorithm        | Time       | Space | Negative Edges | Negative Cycles |
+| ---------------- | ---------- | ----- | -------------- | --------------- |
+| Dijkstra         | O(E log V) | O(V)  | No             | No              |
+| Bellman-Ford     | O(V\*E)    | O(V)  | Yes            | Detects         |
+| Floyd-Warshall   | O(V³)      | O(V²) | Yes            | Detects         |
+| BFS (unweighted) | O(V+E)     | O(V)  | N/A            | N/A             |

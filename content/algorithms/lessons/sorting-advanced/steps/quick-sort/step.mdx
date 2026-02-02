@@ -1,0 +1,135 @@
+---
+id: quick-sort
+title: Quick Sort
+order: 2
+---
+
+# Quick Sort
+
+Quick sort selects a **pivot** and partitions the array around it, then recursively sorts.
+
+## Implementation
+
+```c
+int partition(int arr[], int low, int high) {
+    int pivot = arr[high];  // Choose last element as pivot
+    int i = low - 1;
+
+    for (int j = low; j < high; j++) {
+        if (arr[j] <= pivot) {
+            i++;
+            int temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+    }
+
+    int temp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = temp;
+
+    return i + 1;
+}
+
+void quickSort(int arr[], int low, int high) {
+    if (low < high) {
+        int pi = partition(arr, low, high);
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+    }
+}
+```
+
+## Pivot Selection Strategies
+
+```c
+// Median-of-three pivot
+int medianOfThree(int arr[], int low, int high) {
+    int mid = low + (high - low) / 2;
+
+    if (arr[low] > arr[mid]) swap(arr, low, mid);
+    if (arr[low] > arr[high]) swap(arr, low, high);
+    if (arr[mid] > arr[high]) swap(arr, mid, high);
+
+    swap(arr, mid, high - 1);  // Put pivot in high-1
+    return high - 1;
+}
+
+// Random pivot
+int randomPartition(int arr[], int low, int high) {
+    int randomIdx = low + rand() % (high - low + 1);
+    swap(arr, randomIdx, high);
+    return partition(arr, low, high);
+}
+
+// Dutch National Flag (three-way partition)
+void threeWayPartition(int arr[], int low, int high, int *mid1, int *mid2) {
+    int pivot = arr[high];
+    int smaller = low, equal = low, larger = high;
+
+    while (equal <= larger) {
+        if (arr[equal] < pivot) {
+            swap(arr, smaller++, equal++);
+        } else if (arr[equal] == pivot) {
+            equal++;
+        } else {
+            swap(arr, equal, larger--);
+        }
+    }
+    *mid1 = smaller;
+    *mid2 = equal - 1;
+}
+```
+
+## Quick Sort Optimizations
+
+```c
+// Insertion sort for small subarrays
+void quickSortHybrid(int arr[], int low, int high) {
+    while (high - low > 10) {
+        int pi = partition(arr, low, high);
+        if (pi - low < high - pi) {
+            quickSortHybrid(arr, low, pi - 1);
+            low = pi + 1;
+        } else {
+            quickSortHybrid(arr, pi + 1, high);
+            high = pi - 1;
+        }
+    }
+    insertionSort(arr + low, high - low + 1);
+}
+
+// Tail recursion optimization
+void quickSortTail(int arr[], int low, int high) {
+    while (low < high) {
+        int pi = partition(arr, low, high);
+        if (pi - low < high - pi) {
+            quickSortTail(arr, low, pi - 1);
+            low = pi + 1;
+        } else {
+            quickSortTail(arr, pi + 1, high);
+            high = pi - 1;
+        }
+    }
+}
+```
+
+## Time Complexity
+
+| Case    | Complexity | Notes                     |
+| ------- | ---------- | ------------------------- |
+| Best    | O(n log n) | Balanced partitions       |
+| Average | O(n log n) | Random pivot              |
+| Worst   | O(n²)      | Already sorted, bad pivot |
+| Space   | O(log n)   | Recursion stack           |
+| Stable  | No         | Not naturally stable      |
+
+## Quick Sort vs Merge Sort
+
+| Aspect          | Quick Sort     | Merge Sort      |
+| --------------- | -------------- | --------------- |
+| In-place        | Yes (usually)  | No (O(n) space) |
+| Stable          | No             | Yes             |
+| Cache-friendly  | Yes            | No              |
+| Worst case      | O(n²)          | O(n log n)      |
+| Practical speed | Faster (cache) | Consistent      |

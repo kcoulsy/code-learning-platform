@@ -1,0 +1,111 @@
+---
+id: heap-sort
+title: Heap Sort
+order: 3
+---
+
+# Heap Sort
+
+Heap sort converts the array into a heap, then repeatedly extracts the maximum.
+
+## Implementation
+
+```c
+void heapify(int arr[], int n, int i) {
+    int largest = i;
+    int left = 2 * i + 1;
+    int right = 2 * i + 2;
+
+    if (left < n && arr[left] > arr[largest]) {
+        largest = left;
+    }
+    if (right < n && arr[right] > arr[largest]) {
+        largest = right;
+    }
+
+    if (largest != i) {
+        int temp = arr[i];
+        arr[i] = arr[largest];
+        arr[largest] = temp;
+        heapify(arr, n, largest);
+    }
+}
+
+void heapSort(int arr[], int n) {
+    // Build max heap
+    for (int i = n / 2 - 1; i >= 0; i--) {
+        heapify(arr, n, i);
+    }
+
+    // Extract elements from heap
+    for (int i = n - 1; i > 0; i--) {
+        int temp = arr[0];
+        arr[0] = arr[i];
+        arr[i] = temp;
+        heapify(arr, i, 0);
+    }
+}
+```
+
+## Heap Sort Variants
+
+```c
+// Iterative heapify
+void heapifyIterative(int arr[], int n, int i) {
+    while (1) {
+        int largest = i;
+        int left = 2 * i + 1;
+        int right = 2 * i + 2;
+
+        if (left < n && arr[left] > arr[largest]) largest = left;
+        if (right < n && arr[right] > arr[largest]) largest = right;
+
+        if (largest == i) break;
+
+        int temp = arr[i];
+        arr[i] = arr[largest];
+        arr[largest] = temp;
+        i = largest;
+    }
+}
+
+// Min-heap sort (ascending order)
+void minHeapSort(int arr[], int n) {
+    // Build min heap
+    for (int i = n / 2 - 1; i >= 0; i--) {
+        minHeapify(arr, n, i);
+    }
+
+    // Extract minimum repeatedly
+    for (int i = n - 1; i > 0; i--) {
+        int temp = arr[0];
+        arr[0] = arr[i];
+        arr[i] = temp;
+        minHeapify(arr, i, 0);
+    }
+}
+```
+
+## Time Complexity
+
+| Case    | Complexity | Notes      |
+| ------- | ---------- | ---------- |
+| Best    | O(n log n) |            |
+| Average | O(n log n) |            |
+| Worst   | O(n log n) | Guaranteed |
+| Space   | O(1)       | In-place   |
+| Stable  | No         |            |
+
+## Sorting Algorithm Summary
+
+| Algorithm | Best       | Average    | Worst      | Space    | Stable |
+| --------- | ---------- | ---------- | ---------- | -------- | ------ |
+| Bubble    | O(n)       | O(n²)      | O(n²)      | O(1)     | Yes    |
+| Selection | O(n²)      | O(n²)      | O(n²)      | O(1)     | No     |
+| Insertion | O(n)       | O(n²)      | O(n²)      | O(1)     | Yes    |
+| Merge     | O(n log n) | O(n log n) | O(n log n) | O(n)     | Yes    |
+| Quick     | O(n log n) | O(n log n) | O(n²)      | O(log n) | No     |
+| Heap      | O(n log n) | O(n log n) | O(n log n) | O(1)     | No     |
+| Counting  | O(n+k)     | O(n+k)     | O(n+k)     | O(k)     | Yes    |
+| Radix     | O(nk)      | O(nk)      | O(nk)      | O(n+k)   | Yes    |
+| Bucket    | O(n+k)     | O(n+k)     | O(n²)      | O(n+k)   | Yes    |

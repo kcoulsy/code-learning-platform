@@ -1,0 +1,142 @@
+---
+id: dp-intro
+title: DP Introduction and Fibonacci
+order: 1
+---
+
+# DP Introduction and Fibonacci
+
+Dynamic programming requires **optimal substructure** and **overlapping subproblems**.
+
+## Fibonacci: Three Approaches
+
+```c
+// Naive recursive - O(2^n)
+int fibNaive(int n) {
+    if (n <= 1) return n;
+    return fibNaive(n - 1) + fibNaive(n - 2);
+}
+
+// Memoization (top-down) - O(n)
+int fibMemo(int n, int memo[]) {
+    if (memo[n] != -1) return memo[n];
+    if (n <= 1) return memo[n] = n;
+    return memo[n] = fibMemo(n - 1, memo) + fibMemo(n - 2, memo);
+}
+
+int fibWithMemo(int n) {
+    int memo[n + 1];
+    for (int i = 0; i <= n; i++) memo[i] = -1;
+    return fibMemo(n, memo);
+}
+
+// Tabulation (bottom-up) - O(n)
+int fibTab(int n) {
+    if (n <= 1) return n;
+    int dp[n + 1];
+    dp[0] = 0;
+    dp[1] = 1;
+    for (int i = 2; i <= n; i++) {
+        dp[i] = dp[i - 1] + dp[i - 2];
+    }
+    return dp[n];
+}
+
+// Space optimized - O(1)
+int fibOpt(int n) {
+    if (n <= 1) return n;
+    int prev2 = 0, prev1 = 1, current;
+    for (int i = 2; i <= n; i++) {
+        current = prev1 + prev2;
+        prev2 = prev1;
+        prev1 = current;
+    }
+    return current;
+}
+```
+
+## DP Checklist
+
+```c
+// Steps for DP:
+// 1. Define subproblems
+// 2. Find recurrence
+// 3. Identify base cases
+// 4. Determine order of computation
+// 5. Optimize (space if possible)
+
+int coinChange(int coins[], int n, int amount) {
+    // Step 1: dp[i] = min coins for amount i
+    int dp[amount + 1];
+    dp[0] = 0;
+    for (int i = 1; i <= amount; i++) dp[i] = INT_MAX;
+
+    // Step 3: Base case - dp[0] = 0
+
+    // Step 2 & 4: Fill table
+    for (int i = 1; i <= amount; i++) {
+        for (int j = 0; j < n; j++) {
+            if (coins[j] <= i) {
+                dp[i] = min(dp[i], 1 + dp[i - coins[j]]);
+            }
+        }
+    }
+
+    return dp[amount] == INT_MAX ? -1 : dp[amount];
+}
+```
+
+## DP vs Divide and Conquer
+
+| Aspect         | D&C              | DP            |
+| -------------- | ---------------- | ------------- |
+| Subproblems    | Independent      | Overlapping   |
+| Recursion tree | No repeated work | Repeated work |
+| Memoization    | Optional         | Essential     |
+| Fibonacci      | Exponential      | Linear        |
+| Merge sort     | Perfect fit      | Not needed    |
+| Knapsack       | Exponential      | Polynomial    |
+
+## Longest Common Subsequence
+
+```c
+int lcs(char *s1, char *s2) {
+    int m = strlen(s1);
+    int n = strlen(s2);
+    int dp[m + 1][n + 1];
+
+    for (int i = 0; i <= m; i++) {
+        for (int j = 0; j <= n; j++) {
+            if (i == 0 || j == 0) {
+                dp[i][j] = 0;
+            } else if (s1[i - 1] == s2[j - 1]) {
+                dp[i][j] = 1 + dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+    return dp[m][n];
+}
+
+// Space optimized LCS
+int lcsOpt(char *s1, char *s2) {
+    int m = strlen(s1);
+    int n = strlen(s2);
+    int dp[2][n + 1];
+
+    for (int i = 0; i <= n; i++) dp[0][i] = 0;
+    dp[1][0] = 0;
+
+    for (int i = 1; i <= m; i++) {
+        for (int j = 1; j <= n; j++) {
+            if (s1[i - 1] == s2[j - 1]) {
+                dp[i % 2][j] = 1 + dp[(i - 1) % 2][j - 1];
+            } else {
+                dp[i % 2][j] = max(dp[(i - 1) % 2][j], dp[i % 2][j - 1]);
+            }
+        }
+    }
+    return dp[m % 2][n];
+}
+```

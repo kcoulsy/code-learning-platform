@@ -17,6 +17,8 @@ import {
   Trash2,
   ChevronDown,
   AlertCircle,
+  Copy,
+  Check,
 } from "lucide-react"
 import { ChatMessageContent } from "@/components/chat-message-content"
 import { useAIConfig } from "@/lib/ai-config-hooks"
@@ -43,6 +45,7 @@ export function StepChat({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -170,6 +173,16 @@ The student has a question about this specific content. Answer clearly and conci
     setMessages([])
   }
 
+  const handleCopyMessage = async (messageId: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedMessageId(messageId)
+      setTimeout(() => setCopiedMessageId(null), 2000)
+    } catch (err) {
+      console.error("Failed to copy:", err)
+    }
+  }
+
   return (
     <>
       {/* Chat toggle button */}
@@ -277,27 +290,47 @@ The student has a question about this specific content. Answer clearly and conci
           ) : (
             messages.map((message, index) => {
               const isUser = message.role === "user"
+              const isCopied = copiedMessageId === message.id
               return (
                 <div
                   key={message.id || index}
                   className={cn(
-                    "flex",
+                    "flex group",
                     isUser ? "justify-end" : "justify-start"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                      isUser
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-secondary-foreground"
-                    )}
-                  >
-                    {isUser ? (
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                    ) : (
-                      <ChatMessageContent content={message.content} />
-                    )}
+                  <div className="flex items-start gap-2 max-w-[85%]">
+                    <div
+                      className={cn(
+                        "flex-1 rounded-xl px-3 py-2 text-sm",
+                        isUser
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-secondary-foreground"
+                      )}
+                    >
+                      {isUser ? (
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      ) : (
+                        <ChatMessageContent content={message.content} />
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopyMessage(message.id, message.content)}
+                      className={cn(
+                        "h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity",
+                        isUser ? "order-first" : ""
+                      )}
+                      title="Copy message"
+                    >
+                      {isCopied ? (
+                        <Check className="h-3.5 w-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      <span className="sr-only">Copy message</span>
+                    </Button>
                   </div>
                 </div>
               )

@@ -1,0 +1,183 @@
+---
+id: dp-classic-problems
+title: Classic DP Problems
+order: 2
+---
+
+# Classic DP Problems
+
+Master essential DP problems that appear frequently in interviews.
+
+## 0/1 Knapsack
+
+```c
+int knapSack(int W, int wt[], int val[], int n) {
+    int dp[W + 1];
+    for (int i = 0; i <= W; i++) dp[i] = 0;
+
+    for (int i = 1; i <= n; i++) {
+        for (int w = W; w >= wt[i - 1]; w--) {
+            dp[w] = max(dp[w], dp[w - wt[i - 1]] + val[i - 1]);
+        }
+    }
+    return dp[W];
+}
+
+// With space optimization
+int knapSackOpt(int W, int wt[], int val[], int n) {
+    int dp[W + 1][2];
+    for (int i = 0; i <= W; i++) dp[i][0] = dp[i][1] = 0;
+
+    for (int i = 1; i <= n; i++) {
+        for (int w = 0; w <= W; w++) {
+            if (wt[i - 1] <= w) {
+                dp[w][i % 2] = max(dp[w][(i - 1) % 2],
+                                   dp[w - wt[i - 1]][(i - 1) % 2] + val[i - 1]);
+            } else {
+                dp[w][i % 2] = dp[w][(i - 1) % 2];
+            }
+        }
+    }
+    return dp[W][n % 2];
+}
+```
+
+## Edit Distance (Levenshtein)
+
+```c
+int min(int a, int b, int c) {
+    return min(min(a, b), c);
+}
+
+int editDistance(char *s1, char *s2) {
+    int m = strlen(s1);
+    int n = strlen(s2);
+    int dp[m + 1][n + 1];
+
+    for (int i = 0; i <= m; i++) dp[i][0] = i;
+    for (int j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (int i = 1; i <= m; i++) {
+        for (int j = 1; j <= n; j++) {
+            if (s1[i - 1] == s2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = 1 + min(dp[i - 1][j],      // Delete
+                                   dp[i][j - 1],      // Insert
+                                   dp[i - 1][j - 1]); // Replace
+            }
+        }
+    }
+    return dp[m][n];
+}
+
+// With reconstruction
+void printAlignment(char *s1, char *s2) {
+    int m = strlen(s1), n = strlen(s2);
+    int dp[m + 1][n + 1];
+
+    // Build dp table
+    for (int i = 0; i <= m; i++) dp[i][0] = i;
+    for (int j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (int i = 1; i <= m; i++) {
+        for (int j = 1; j <= n; j++) {
+            if (s1[i - 1] == s2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+            }
+        }
+    }
+
+    // Reconstruct path
+    int i = m, j = n;
+    while (i > 0 && j > 0) {
+        if (s1[i - 1] == s2[j - 1]) {
+            printf("Match: %c\n", s1[i - 1]);
+            i--; j--;
+        } else if (dp[i - 1][j] < dp[i][j - 1] && dp[i - 1][j] < dp[i - 1][j - 1]) {
+            printf("Delete: %c\n", s1[i - 1]);
+            i--;
+        } else if (dp[i][j - 1] < dp[i - 1][j] && dp[i][j - 1] < dp[i - 1][j - 1]) {
+            printf("Insert: %c\n", s2[j - 1]);
+            j--;
+        } else {
+            printf("Replace: %c -> %c\n", s1[i - 1], s2[j - 1]);
+            i--; j--;
+        }
+    }
+}
+```
+
+## Maximum Subarray (Kadane's Algorithm)
+
+```c
+int maxSubArray(int arr[], int n) {
+    int maxEnding = arr[0];
+    int maxSoFar = arr[0];
+
+    for (int i = 1; i < n; i++) {
+        maxEnding = max(arr[i], maxEnding + arr[i]);
+        maxSoFar = max(maxSoFar, maxEnding);
+    }
+    return maxSoFar;
+}
+
+// With start and end indices
+int* maxSubArrayIndices(int arr[], int n) {
+    static int result[3];  // {maxSum, start, end}
+    result[0] = arr[0];
+    result[1] = result[2] = 0;
+
+    int current = arr[0];
+    int start = 0;
+
+    for (int i = 1; i < n; i++) {
+        current = max(arr[i], current + arr[i]);
+        if (current == arr[i]) start = i;
+
+        if (current > result[0]) {
+            result[0] = current;
+            result[1] = start;
+            result[2] = i;
+        }
+    }
+    return result;
+}
+```
+
+## Matrix Chain Multiplication
+
+```c
+int minMultiplications(int dims[], int n) {
+    int dp[n][n];
+
+    for (int i = 0; i < n; i++) dp[i][i] = 0;
+
+    for (int len = 2; len < n; len++) {
+        for (int i = 1; i < n - len + 1; i++) {
+            int j = i + len - 1;
+            dp[i][j] = INT_MAX;
+
+            for (int k = i; k < j; k++) {
+                int cost = dp[i][k] + dp[k + 1][j] + dims[i - 1] * dims[k] * dims[j];
+                dp[i][j] = min(dp[i][j], cost);
+            }
+        }
+    }
+    return dp[1][n - 1];
+}
+```
+
+## DP Problem Patterns
+
+| Problem       | DP State   | Recurrence                                   |
+| ------------- | ---------- | -------------------------------------------- |
+| Fibonacci     | dp[i]      | dp[i] = dp[i-1] + dp[i-2]                    |
+| Coin Change   | dp[amount] | dp[amt] = min(dp[amt], dp[amt-coin])         |
+| Knapsack      | dp[w]      | dp[w] = max(dp[w], dp[w-wt] + val)           |
+| LCS           | dp[i][j]   | if match: dp[i][j] = dp[i-1][j-1]+1          |
+| Edit Distance | dp[i][j]   | dp[i][j] = min of 3 neighbors + 1            |
+| Max Subarray  | dp[i]      | dp[i] = max(arr[i], dp[i-1]+arr[i])          |
+| Matrix Chain  | dp[i][j]   | dp[i][j] = min(dp[i][k] + dp[k+1][j] + cost) |

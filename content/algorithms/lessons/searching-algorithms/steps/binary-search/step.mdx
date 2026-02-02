@@ -1,0 +1,136 @@
+---
+id: binary-search
+title: Binary Search
+order: 2
+---
+
+# Binary Search
+
+Binary search efficiently finds elements in **sorted arrays** by repeatedly dividing the search space in half.
+
+## Implementation
+
+```c
+// Iterative binary search
+int binarySearch(int arr[], int n, int target) {
+    int left = 0;
+    int right = n - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;  // Avoid overflow
+
+        if (arr[mid] == target) {
+            return mid;  // Found
+        } else if (arr[mid] < target) {
+            left = mid + 1;  // Search right half
+        } else {
+            right = mid - 1;  // Search left half
+        }
+    }
+    return -1;  // Not found
+}
+
+// Recursive binary search
+int binarySearchRecursive(int arr[], int left, int right, int target) {
+    if (left > right) return -1;
+
+    int mid = left + (right - left) / 2;
+
+    if (arr[mid] == target) {
+        return mid;
+    }
+    if (arr[mid] < target) {
+        return binarySearchRecursive(arr, mid + 1, right, target);
+    }
+    return binarySearchRecursive(arr, left, mid - 1, target);
+}
+```
+
+## Time Complexity
+
+| Metric       | Value    |
+| ------------ | -------- |
+| Best         | O(1)     |
+| Average      | O(log n) |
+| Worst        | O(log n) |
+| Space (iter) | O(1)     |
+| Space (rec)  | O(log n) |
+
+## Binary Search Variants
+
+```c
+// Find first occurrence
+int findFirst(int arr[], int n, int target) {
+    int result = -1;
+    int left = 0, right = n - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] >= target) {
+            result = mid;
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+    return result;
+}
+
+// Find last occurrence
+int findLast(int arr[], int n, int target) {
+    int result = -1;
+    int left = 0, right = n - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] <= target) {
+            result = mid;
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    return result;
+}
+
+// Count occurrences
+int countOccurrences(int arr[], int n, int target) {
+    int first = findFirst(arr, n, target);
+    int last = findLast(arr, n, target);
+
+    if (first == -1) return 0;
+    return last - first + 1;
+}
+```
+
+## Find in Rotated Array
+
+```c
+int searchRotated(int arr[], int n, int target) {
+    int left = 0, right = n - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) return mid;
+
+        // Determine which half is sorted
+        if (arr[left] <= arr[mid]) {  // Left half sorted
+            if (arr[left] <= target && target < arr[mid]) {
+                right = mid - 1;
+            } else {
+                left = mid + 1;
+            }
+        } else {  // Right half sorted
+            if (arr[mid] < target && target <= arr[right]) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+    }
+    return -1;
+}
+```

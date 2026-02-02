@@ -1,0 +1,129 @@
+---
+id: search-applications
+title: Search Applications
+order: 3
+---
+
+# Search Applications
+
+Real-world applications of search algorithms.
+
+## Exponential Search
+
+```c
+int exponentialSearch(int arr[], int n, int target) {
+    if (arr[0] == target) return 0;
+
+    int bound = 1;
+    while (bound < n && arr[bound] < target) {
+        bound *= 2;
+    }
+
+    int left = bound / 2;
+    int right = (bound < n) ? bound : n - 1;
+
+    return binarySearch(arr, left, right, target);
+}
+```
+
+## Ternary Search
+
+```c
+int ternarySearch(int arr[], int left, int right, int target) {
+    if (left > right) return -1;
+
+    int mid1 = left + (right - left) / 3;
+    int mid2 = right - (right - left) / 3;
+
+    if (arr[mid1] == target) return mid1;
+    if (arr[mid2] == target) return mid2;
+
+    if (target < arr[mid1]) {
+        return ternarySearch(arr, left, mid1 - 1, target);
+    } else if (target > arr[mid2]) {
+        return ternarySearch(arr, mid2 + 1, right, target);
+    } else {
+        return ternarySearch(arr, mid1 + 1, mid2 - 1, target);
+    }
+}
+```
+
+## Interpolation Search
+
+```c
+int interpolationSearch(int arr[], int n, int target) {
+    int left = 0, right = n - 1;
+
+    while (left <= right && target >= arr[left] && target <= arr[right]) {
+        if (left == right) {
+            if (arr[left] == target) return left;
+            return -1;
+        }
+
+        // Estimate position
+        int pos = left + ((target - arr[left]) * (right - left)) /
+                  (arr[right] - arr[left]);
+
+        if (arr[pos] == target) {
+            return pos;
+        }
+        if (arr[pos] < target) {
+            left = pos + 1;
+        } else {
+            right = pos - 1;
+        }
+    }
+    return -1;
+}
+```
+
+## Search Comparison
+
+| Algorithm     | Best | Average   | Worst     | Space    | Requirement          |
+| ------------- | ---- | --------- | --------- | -------- | -------------------- |
+| Linear        | O(1) | O(n)      | O(n)      | O(1)     | None                 |
+| Binary        | O(1) | O(log n)  | O(log n)  | O(1)     | Sorted array         |
+| Interpolation | O(1) | O(log n)  | O(n)      | O(1)     | Sorted, uniform dist |
+| Exponential   | O(1) | O(log n)  | O(log n)  | O(1)     | Sorted array         |
+| Ternary       | O(1) | O(log₃ n) | O(log₃ n) | O(log n) | Sorted array         |
+
+## Real-World Use Cases
+
+```c
+// Database index search
+typedef struct {
+    int id;
+    char data[100];
+} Record;
+
+int searchById(Record records[], int n, int targetId) {
+    // Binary search on indexed field
+    int left = 0, right = n - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        if (records[mid].id == targetId) return mid;
+        if (records[mid].id < targetId) left = mid + 1;
+        else right = mid - 1;
+    }
+    return -1;
+}
+
+// Search in symbol table
+typedef struct Symbol {
+    char name[50];
+    char type[20];
+    struct Symbol *next;
+} Symbol;
+
+Symbol *searchSymbolTable(Symbol *table[], char *name) {
+    unsigned int hash = hashName(name) % TABLE_SIZE;
+    Symbol *current = table[hash];
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+```

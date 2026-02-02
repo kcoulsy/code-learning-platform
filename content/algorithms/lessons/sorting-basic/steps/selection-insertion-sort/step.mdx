@@ -1,0 +1,145 @@
+---
+id: selection-insertion-sort
+title: Selection and Insertion Sort
+order: 2
+---
+
+# Selection and Insertion Sort
+
+Two more O(n²) algorithms with different approaches.
+
+## Selection Sort
+
+Finds the minimum element and places it at the beginning.
+
+```c
+void selectionSort(int arr[], int n) {
+    for (int i = 0; i < n - 1; i++) {
+        int minIdx = i;
+
+        for (int j = i + 1; j < n; j++) {
+            if (arr[j] < arr[minIdx]) {
+                minIdx = j;
+            }
+        }
+
+        // Swap found minimum with first unsorted
+        int temp = arr[i];
+        arr[i] = arr[minIdx];
+        arr[minIdx] = temp;
+    }
+}
+
+// Recursive selection sort
+void selectionSortRecursive(int arr[], int n, int idx) {
+    if (idx >= n - 1) return;
+
+    int minIdx = idx;
+    for (int i = idx + 1; i < n; i++) {
+        if (arr[i] < arr[minIdx]) {
+            minIdx = i;
+        }
+    }
+
+    int temp = arr[idx];
+    arr[idx] = arr[minIdx];
+    arr[minIdx] = temp;
+
+    selectionSortRecursive(arr, n, idx + 1);
+}
+```
+
+## Insertion Sort
+
+Builds the sorted array one element at a time by inserting each element into its correct position.
+
+```c
+void insertionSort(int arr[], int n) {
+    for (int i = 1; i < n; i++) {
+        int key = arr[i];
+        int j = i - 1;
+
+        // Move elements greater than key forward
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = key;
+    }
+}
+
+// Binary insertion sort (reduces comparisons)
+void binaryInsertionSort(int arr[], int n) {
+    for (int i = 1; i < n; i++) {
+        int key = arr[i];
+        int pos = binarySearch(arr, 0, i - 1, key);
+
+        // Shift elements
+        for (int j = i; j > pos; j--) {
+            arr[j] = arr[j - 1];
+        }
+        arr[pos] = key;
+    }
+}
+```
+
+## Comparison
+
+| Aspect   | Selection Sort | Insertion Sort |
+| -------- | -------------- | -------------- |
+| Best     | O(n²)          | O(n)           |
+| Average  | O(n²)          | O(n²)          |
+| Worst    | O(n²)          | O(n²)          |
+| Space    | O(1)           | O(1)           |
+| Stable   | No             | Yes            |
+| Adaptive | No             | Yes            |
+| In-place | Yes            | Yes            |
+
+## When to Use
+
+```c
+// Insertion sort for small arrays or nearly sorted
+void hybridSort(int arr[], int n) {
+    // Use insertion sort for small subarrays
+    if (n < 10) {
+        insertionSort(arr, n);
+        return;
+    }
+    // For larger, use merge sort or quick sort
+    // ...
+}
+
+// Nearly sorted - insertion sort is optimal
+void sortNearlySorted(int arr[], int n) {
+    // Insertion sort handles this in O(n) time
+    insertionSort(arr, n);
+}
+```
+
+## Application: Sorting Linked List
+
+```c
+void sortLinkedList(Node **head) {
+    Node *sorted = NULL;
+    Node *current = *head;
+
+    while (current != NULL) {
+        Node *next = current->next;
+
+        // Find insertion point
+        if (sorted == NULL || current->data < sorted->data) {
+            current->next = sorted;
+            sorted = current;
+        } else {
+            Node *temp = sorted;
+            while (temp->next != NULL && temp->next->data < current->data) {
+                temp = temp->next;
+            }
+            current->next = temp->next;
+            temp->next = current;
+        }
+        current = next;
+    }
+    *head = sorted;
+}
+```

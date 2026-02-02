@@ -1,0 +1,97 @@
+---
+id: dnc-paradigm
+title: The Divide and Conquer Paradigm
+order: 1
+---
+
+# The Divide and Conquer Paradigm
+
+Three steps: **Divide** the problem, **Conquer** subproblems, **Combine** solutions.
+
+## Template
+
+```c
+ReturnType solve(Problem problem) {
+    // Base case
+    if (problem is small) {
+        return solveDirectly(problem);
+    }
+
+    // Divide
+    SubProblem[] subProblems = divide(problem);
+
+    // Conquer
+    Result[] results;
+    for each subProblem in subProblems {
+        results.push_back(solve(subProblem));
+    }
+
+    // Combine
+    return combine(results);
+}
+```
+
+## Key Characteristics
+
+1. **Optimal Substructure**: Solution uses optimal subproblem solutions
+2. **Overlapping Subproblems**: Subproblems may repeat (use DP!)
+3. **Divide Size**: Usually divide in half (log n levels)
+
+## Example: Power Calculation
+
+```c
+// Naive: O(n)
+double power(double x, int n) {
+    double result = 1;
+    for (int i = 0; i < n; i++) {
+        result *= x;
+    }
+    return result;
+}
+
+// Divide and conquer: O(log n)
+double powerDC(double x, int n) {
+    if (n == 0) return 1;
+    if (n == 1) return x;
+
+    double half = powerDC(x, n / 2);
+
+    if (n % 2 == 0) {
+        return half * half;
+    } else {
+        return half * half * x;
+    }
+}
+
+// Matrix multiplication - Strassen's algorithm
+// O(n^2.81) vs O(n^3)
+typedef struct {
+    double a11, a12, a21, a22;
+} Matrix2x2;
+
+Matrix2x2 multiplyDC(Matrix2x2 A, Matrix2x2 B) {
+    // Strassen's 7 multiplications instead of 8
+    Matrix2x2 result;
+    // ... implementation
+    return result;
+}
+```
+
+## Master Theorem
+
+For recurrence T(n) = aT(n/b) + f(n):
+
+| Case | Condition              | T(n)                |
+| ---- | ---------------------- | ------------------- |
+| 1    | f(n) = O(n^log_b(a-ε)) | Θ(n^log_b(a))       |
+| 2    | f(n) = Θ(n^log_b(a))   | Θ(n^log_b(a) log n) |
+| 3    | f(n) = Ω(n^log_b(a+ε)) | Θ(f(n))             |
+
+## Example: Merge Sort
+
+```
+T(n) = 2T(n/2) + O(n)
+a = 2, b = 2, f(n) = O(n)
+f(n) = Θ(n^log_2(2)) = Θ(n)
+Case 2: T(n) = Θ(n log n)
+```

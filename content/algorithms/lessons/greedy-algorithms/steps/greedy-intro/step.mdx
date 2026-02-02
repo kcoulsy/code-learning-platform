@@ -1,0 +1,114 @@
+---
+id: greedy-intro
+title: Greedy Algorithm Basics
+order: 1
+---
+
+# Greedy Algorithm Basics
+
+Greedy algorithms work when making the best choice at each step leads to the optimal solution.
+
+## Greedy Choice Property
+
+A problem has the **greedy choice property** if a global optimum can be reached by making locally optimal choices.
+
+## Structure
+
+```c
+Result greedy(Problem problem) {
+    Result result = empty;
+    while problem not empty:
+        choice = selectBestChoice(problem);
+        problem = removeChoice(problem, choice);
+        result = addToResult(result, choice);
+    return result;
+}
+```
+
+## When Greedy Works
+
+1. **Greedy choice property**: Local optimum leads to global optimum
+2. **Optimal substructure**: Optimal solution contains optimal subsolutions
+
+## Activity Selection
+
+```c
+typedef struct {
+    int start;
+    int finish;
+} Activity;
+
+int compareFinish(const void *a, const void *b) {
+    Activity *a1 = (Activity *)a;
+    Activity *b1 = (Activity *)b;
+    return a1->finish > b1->finish ? 1 : -1;
+}
+
+Activity* selectActivities(Activity activities[], int n, int *resultCount) {
+    qsort(activities, n, sizeof(Activity), compareFinish);
+
+    Activity *result = malloc(n * sizeof(Activity));
+    *resultCount = 0;
+
+    result[*resultCount] = activities[0];
+    (*resultCount)++;
+
+    int lastFinish = activities[0].finish;
+
+    for (int i = 1; i < n; i++) {
+        if (activities[i].start >= lastFinish) {
+            result[*resultCount] = activities[i];
+            (*resultCount)++;
+            lastFinish = activities[i].finish;
+        }
+    }
+    return result;
+}
+```
+
+## Fractional Knapsack
+
+```c
+typedef struct {
+    int value;
+    int weight;
+} Item;
+
+int compareRatio(const void *a, const void *b) {
+    Item *a1 = (Item *)a;
+    Item *b1 = (Item *)b;
+    double r1 = (double)a1->value / a1->weight;
+    double r2 = (double)b1->value / b1->weight;
+    return r1 < r2 ? 1 : -1;
+}
+
+double fractionalKnapsack(Item items[], int n, int capacity) {
+    qsort(items, n, sizeof(Item), compareRatio);
+
+    double totalValue = 0;
+    int currentWeight = 0;
+
+    for (int i = 0; i < n; i++) {
+        if (currentWeight + items[i].weight <= capacity) {
+            currentWeight += items[i].weight;
+            totalValue += items[i].value;
+        } else {
+            int remaining = capacity - currentWeight;
+            totalValue += (double)items[i].value * remaining / items[i].weight;
+            break;
+        }
+    }
+    return totalValue;
+}
+```
+
+## Greedy vs Dynamic Programming
+
+| Problem             | Greedy Works? | DP Needed? | Why                        |
+| ------------------- | ------------- | ---------- | -------------------------- |
+| Activity Select     | Yes           | No         | Greedy choice property     |
+| Fractional Knapsack | Yes           | No         | Fractional allowed         |
+| 0/1 Knapsack        | No            | Yes        | Can't take fraction        |
+| Huffman Coding      | Yes           | No         | Merge smallest frequencies |
+| Shortest Path       | No            | Yes        | Local choice not optimal   |
+| Traveling Salesman  | No            | Yes        | NP-hard problem            |

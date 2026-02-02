@@ -1,0 +1,97 @@
+---
+id: bubble-sort
+title: Bubble Sort
+order: 1
+---
+
+# Bubble Sort
+
+Bubble sort repeatedly swaps adjacent elements if they're in the wrong order, "bubbling" larger elements to the end.
+
+## Implementation
+
+```c
+void bubbleSort(int arr[], int n) {
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                // Swap
+                int temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+            }
+        }
+    }
+}
+
+// Optimized - stop if no swaps
+void bubbleSortOptimized(int arr[], int n) {
+    int swapped;
+    for (int i = 0; i < n - 1; i++) {
+        swapped = 0;
+        for (int j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                int temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+                swapped = 1;
+            }
+        }
+        if (!swapped) break;  // Already sorted
+    }
+}
+
+// Cocktail shaker sort (bidirectional)
+void cocktailSort(int arr[], int n) {
+    int swapped = 1;
+    int left = 0, right = n - 1;
+
+    while (swapped) {
+        swapped = 0;
+        // Forward pass
+        for (int i = left; i < right; i++) {
+            if (arr[i] > arr[i + 1]) {
+                int temp = arr[i];
+                arr[i] = arr[i + 1];
+                arr[i + 1] = temp;
+                swapped = 1;
+            }
+        }
+        right--;
+
+        // Backward pass
+        if (swapped) {
+            swapped = 0;
+            for (int i = right; i > left; i--) {
+                if (arr[i] < arr[i - 1]) {
+                    int temp = arr[i];
+                    arr[i] = arr[i - 1];
+                    arr[i - 1] = temp;
+                    swapped = 1;
+                }
+            }
+            left++;
+        }
+    }
+}
+```
+
+## Time Complexity
+
+| Case    | Complexity | Notes                             |
+| ------- | ---------- | --------------------------------- |
+| Best    | O(n)       | With optimization, already sorted |
+| Average | O(n²)      |                                   |
+| Worst   | O(n²)      |                                   |
+| Space   | O(1)       | In-place                          |
+| Stable  | Yes        | Equal elements preserve order     |
+
+## Trace Example
+
+```
+[64, 34, 25, 12, 22]
+→ [34, 25, 12, 22, 64]  (64 bubbled)
+→ [25, 12, 22, 34, 64]  (34 bubbled)
+→ [12, 22, 25, 34, 64]  (25 bubbled)
+→ [12, 22, 25, 34, 64]  (22 in place)
+```

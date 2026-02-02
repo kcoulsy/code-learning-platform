@@ -1,0 +1,186 @@
+---
+id: project-graph
+title: Graph Data Structures
+order: 2
+---
+
+# Graph Data Structures
+
+Create the graph representation for the pathfinding application.
+
+## Header File (pathfinding.h)
+
+```c
+#ifndef PATHFINDING_H
+#define PATHFINDING_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <limits.h>
+
+#define MAX_NODES 100
+#define INF INT_MAX
+
+typedef struct {
+    int id;
+    char name[50];
+    double x, y;
+} Node;
+
+typedef struct Edge {
+    int to;
+    double weight;
+    struct Edge *next;
+} Edge;
+
+typedef struct {
+    Node nodes[MAX_NODES];
+    Edge *adjList[MAX_NODES];
+    int nodeCount;
+    int edgeCount;
+} Graph;
+
+typedef struct {
+    int parent[MAX_NODES];
+    double distance[MAX_NODES];
+    int visited[MAX_NODES];
+} PathResult;
+
+// Graph functions
+void initGraph(Graph *g);
+int addNode(Graph *g, int id, const char *name, double x, double y);
+void addEdge(Graph *g, int from, int to, double weight);
+void freeGraph(Graph *g);
+
+// Path algorithms
+void dijkstra(Graph *g, int src, int dest, PathResult *result);
+void bellmanFord(Graph *g, int src, int dest, PathResult *result);
+void aStar(Graph *g, int src, int dest, PathResult *result, double heuristic[]);
+
+// Utility functions
+double heuristic(int from, int to, Node nodes[]);
+void printPath(PathResult *result, int dest);
+double getPathDistance(PathResult *result, int dest);
+
+// File I/O
+int loadMap(Graph *g, const char *filename);
+int saveMap(Graph *g, const char *filename);
+
+#endif
+```
+
+## Implementation (pathfinding.c)
+
+```c
+#include "pathfinding.h"
+
+void initGraph(Graph *g) {
+    g->nodeCount = 0;
+    g->edgeCount = 0;
+    for (int i = 0; i < MAX_NODES; i++) {
+        g->adjList[i] = NULL;
+    }
+}
+
+int addNode(Graph *g, int id, const char *name, double x, double y) {
+    if (g->nodeCount >= MAX_NODES) return 0;
+
+    g->nodes[g->nodeCount].id = id;
+    strcpy(g->nodes[g->nodeCount].name, name);
+    g->nodes[g->nodeCount].x = x;
+    g->nodes[g->nodeCount].y = y;
+
+    return g->nodeCount++;
+}
+
+void addEdge(Graph *g, int from, int to, double weight) {
+    Edge *newEdge = (Edge *)malloc(sizeof(Edge));
+    newEdge->to = to;
+    newEdge->weight = weight;
+    newEdge->next = g->adjList[from];
+    g->adjList[from] = newEdge;
+    g->edgeCount++;
+}
+
+void freeGraph(Graph *g) {
+    for (int i = 0; i < MAX_NODES; i++) {
+        Edge *current = g->adjList[i];
+        while (current != NULL) {
+            Edge *next = current->next;
+            free(current);
+            current = next;
+        }
+        g->adjList[i] = NULL;
+    }
+    g->nodeCount = 0;
+    g->edgeCount = 0;
+}
+
+int findNodeIndex(Graph *g, int id) {
+    for (int i = 0; i < g->nodeCount; i++) {
+        if (g->nodes[i].id == id) return i;
+    }
+    return -1;
+}
+
+void printPath(PathResult *result, int dest) {
+    if (result->distance[dest] == INF) {
+        printf("No path found\n");
+        return;
+    }
+
+    int current = dest;
+    int path[MAX_NODES];
+    int pathLen = 0;
+
+    while (current != -1) {
+        path[pathLen++] = current;
+        current = result->parent[current];
+    }
+
+    printf("Path: ");
+    for (int i = pathLen - 1; i >= 0; i--) {
+        printf("%d", path[i]);
+        if (i > 0) printf(" -> ");
+    }
+    printf("\nTotal distance: %.2f\n", result->distance[dest]);
+}
+
+double getPathDistance(PathResult *result, int dest) {
+    return result->distance[dest];
+}
+```
+
+## Euclidean Heuristic
+
+```c
+double euclideanDistance(Node a, Node b) {
+    return sqrt((a.x - b.x) * (a.x - b.x) +
+                (a.y - b.y) * (a.y - b.y));
+}
+
+double heuristic(int from, int to, Node nodes[]) {
+    return euclideanDistance(nodes[from], nodes[to]);
+}
+```
+
+## Map File Format
+
+```plaintext
+# Node file: id name x y
+1 Start 0.0 0.0
+2 A 1.0 2.0
+3 B 3.0 1.0
+4 C 2.0 3.0
+5 End 5.0 2.0
+
+# Edge file: from to weight
+1 2 2.5
+1 3 3.0
+2 4 1.5
+3 4 1.0
+3 5 4.0
+4 5 2.0
+```

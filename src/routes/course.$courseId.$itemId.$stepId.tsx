@@ -6,6 +6,7 @@ import { MarkdownContent } from "@/components/markdown-content";
 import { StepNavigation } from "@/components/step-navigation";
 import { StepChat } from "@/components/step-chat";
 import { StepCompletionToggle } from "@/components/step-completion-toggle";
+import { CopyContentButton } from "@/components/copy-content-button";
 import { useTrackVisit } from "@/lib/progress-hooks";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import {
@@ -16,6 +17,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarLayout } from "@/hooks/use-sidebar-layout";
 import { useEffect, useRef } from "react";
+import { usePanelRef, type ImperativePanelHandle } from "react-resizable-panels";
 
 export const Route = createFileRoute("/course/$courseId/$itemId/$stepId")({
   component: StepPage,
@@ -52,10 +54,11 @@ function DesktopLayout({
 }) {
   const { layout, saveLayout } = useSidebarLayout();
   const { open } = useSidebar();
-  const sidebarPanelRef = useRef<any>(null);
+  const sidebarPanelRef = usePanelRef();
 
   // Collapse/expand the sidebar panel when the open state changes
   useEffect(() => {
+    console.log('Sidebar open state changed:',sidebarPanelRef, open);
     if (sidebarPanelRef.current) {
       if (open) {
         sidebarPanelRef.current.expand();
@@ -73,7 +76,7 @@ function DesktopLayout({
     >
       {/* Sidebar panel */}
       <ResizablePanel
-        ref={sidebarPanelRef}
+        panelRef={sidebarPanelRef}
         defaultSize={layout.sidebarSize}
         minSize={200}
         maxSize={400}
@@ -107,12 +110,15 @@ function DesktopLayout({
             <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div className="flex-1" />
-                <StepCompletionToggle
-                  courseId={courseId}
-                  itemId={itemId}
-                  stepId={stepId}
-                  key={`${courseId}-${itemId}-${stepId}`}
-                />
+                <div className="flex items-center gap-2">
+                  <CopyContentButton content={step.content} />
+                  <StepCompletionToggle
+                    courseId={courseId}
+                    itemId={itemId}
+                    stepId={stepId}
+                    key={`${courseId}-${itemId}-${stepId}`}
+                  />
+                </div>
               </div>
               <MarkdownContent content={step.content} />
             </div>
@@ -170,12 +176,15 @@ function StepPage() {
                 <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
                   <div className="flex items-start justify-between gap-4 mb-6">
                     <div className="flex-1" />
-                    <StepCompletionToggle
-                      courseId={courseId}
-                      itemId={itemId}
-                      stepId={stepId}
-                      key={`${courseId}-${itemId}-${stepId}`}
-                    />
+                    <div className="flex items-center gap-2">
+                      <CopyContentButton content={step.content} />
+                      <StepCompletionToggle
+                        courseId={courseId}
+                        itemId={itemId}
+                        stepId={stepId}
+                        key={`${courseId}-${itemId}-${stepId}`}
+                      />
+                    </div>
                   </div>
                   <MarkdownContent content={step.content} />
                 </div>

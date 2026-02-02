@@ -1,0 +1,97 @@
+---
+id: 03-status-codes
+title: 'Status Codes Deep Dive'
+order: 3
+---
+
+# Status Codes Deep Dive
+
+Let's explore the most important HTTP status codes and when to use them.
+
+## 2xx Success
+
+| Code | Meaning    | When to Use                                        |
+| ---- | ---------- | -------------------------------------------------- |
+| 200  | OK         | Successful GET, successful non-mutating PUT/DELETE |
+| 201  | Created    | After POST creates a resource                      |
+| 202  | Accepted   | Request accepted for processing                    |
+| 204  | No Content | DELETE successful, no body to return               |
+
+```c
+// 201 Created with Location header
+void send_created(int client_fd, const char *path) {
+    char headers[512];
+    http_status status = get_status(201);
+
+    snprintf(headers, sizeof(headers),
+             "HTTP/1.1 %d %s\r\n"
+             "Content-Length: 0\r\n"
+             "Location: %s\r\n"
+             "Connection: close\r\n"
+             "\r\n",
+             status.code, status.reason, path);
+
+    send(client_fd, headers, strlen(headers), 0);
+}
+```
+
+## 4xx Client Error
+
+| Code | Meaning            | When to Use                      |
+| ---- | ------------------ | -------------------------------- |
+| 400  | Bad Request        | Malformed request syntax         |
+| 401  | Unauthorized       | Authentication required          |
+| 403  | Forbidden          | Authenticated but not authorized |
+| 404  | Not Found          | Resource doesn't exist           |
+| 405  | Method Not Allowed | Method not supported for path    |
+| 408  | Request Timeout    | Client took too long             |
+| 413  | Payload Too Large  | Request body too big             |
+| 429  | Too Many Requests  | Rate limiting                    |
+
+## 5xx Server Error
+
+| Code | Meaning               | When to Use            |
+| ---- | --------------------- | ---------------------- |
+| 500  | Internal Server Error | Unhandled exception    |
+| 502  | Bad Gateway           | Upstream server error  |
+| 503  | Service Unavailable   | Overloaded/maintenance |
+| 504  | Gateway Timeout       | Upstream timeout       |
+
+## Conditional Responses
+
+```c
+// Check If-None-Match for ETag caching
+char *etag = get_etag(path);
+char *if_none_match = headers.if_none_match;
+
+if (if_none_match && etag && strcmp(if_none_match, etag) == 0) {
+    // Send 304 Not Modified
+    send(client_fd, "HTTP/1.1 304 Not Modified\r\n\r\n", 32, 0);
+    return;
+}
+```
+
+## Redirection
+
+```c
+// 301 Moved Permanently
+void redirect(int client_fd, const char *new_path) {
+    char response[512];
+    snprintf(response, sizeof(response),
+             "HTTP/1.1 301 Moved Permanently\r\n"
+             "Location: %s\r\n"
+             "Content-Length: 0\r\n"
+             "Connection: close\r\n"
+             "\r\n",
+             new_path);
+    send(client_fd, response, strlen(response), 0);
+}
+```
+
+## Request ID Header
+
+For debugging and logging, add a request ID:
+
+```
+X-Request-ID: a1b2c3d4e5f6
+```

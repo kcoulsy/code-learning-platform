@@ -1,0 +1,137 @@
+---
+id: 01-forking
+title: 'Fork-based Server'
+order: 1
+---
+
+# Fork-based Server
+
+The fork model uses separate processes for each client, providing isolation but using more resources.
+
+## How Fork Works
+
+```c
+pid_t pid = fork();
+
+if (pid == 0) {
+    // Child: handle this client
+    close(server_fd);  // Don't need listening socket
+    handle_client(client_fd);
+    close(client_fd);
+    exit(0);
+} else if (pid > 0) {
+    // Parent: continue accepting
+    close(client_fd);  // Don't need client socket
+    waitpid(-1, NULL, WNOHANG);  // Clean up dead children
+} else {
+    // Error
+    perror("fork");
+}
+```
+
+## Complete Forked Server
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
+#define PORT 8080
+#define BUFFER_SIZE 1024
+
+void handle_client(int client_fd) {
+    char buffer[BUFFER_SIZE];
+
+    while (1) {
+        ssize_t n = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
+
+        if (n <= 0) {
+            if (n == 0) printf("[Child %d] Client disconnected\n", getpid());
+            else perror("recv");
+            break;
+        }
+
+        buffer[n] = '\0';
+        printf("[Child %d] Received: %s", getpid(), buffer);
+        send(client_fd, buffer, n, 0);
+    }
+
+    close(client_fd);
+}
+
+int main() {
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
+    listen(server_fd, 5);
+
+    printf("Fork server listening on port %d\n", PORT);
+
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+
+        pid_t pid = fork();
+
+        if (pid == 0) {
+            // Child process
+            close(server_fd);
+
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &client_addr.sin_addr, ip, sizeof(ip));
+            printf("[Child %d] Connected to %s:%d\n",
+                   getpid(), ip, ntohs(client_addr.sin_port));
+
+            handle_client(client_fd);
+            exit(0);
+
+        } else if (pid > 0) {
+            // Parent process
+            close(client_fd);
+            // Reap any dead children
+            while (waitpid(-1, NULL, WNOHANG) > 0);
+        } else {
+            perror("fork");
+        }
+    }
+
+    close(server_fd);
+    return 0;
+}
+```
+
+## Testing
+
+```bash
+./fork_server &
+# Start 3 clients in different terminals
+nc localhost 8080 &
+nc localhost 8080 &
+nc localhost 8080 &
+
+# Check processes
+ps aux | grep fork_server
+# Shows parent + 3 child processes
+```
+
+## Pros and Cons
+
+| Pros                                | Cons                          |
+| ----------------------------------- | ----------------------------- |
+| Process isolation (crash-resistant) | Heavyweight (8KB+ stack each) |
+| Simple programming model            | No shared memory              |
+| Security isolation                  | Slower to create              |
+| Mature debugging tools              | Limited by ulimit             |

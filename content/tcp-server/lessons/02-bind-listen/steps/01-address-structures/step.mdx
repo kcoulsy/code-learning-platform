@@ -1,0 +1,102 @@
+---
+id: 01-address-structures
+title: 'Address Structures and Byte Order'
+order: 1
+---
+
+# Address Structures and Byte Order
+
+Let's dive deeper into working with address structures and understanding network byte order.
+
+## The sockaddr_in Structure
+
+```c
+#include <netinet/in.h>
+
+struct sockaddr_in {
+    sa_family_t    sin_family;    // Address family (always AF_INET for IPv4)
+    in_port_t      sin_port;      // Port number (16 bits)
+    struct in_addr sin_addr;      // IP address (32 bits)
+    char           sin_zero[8];   // Padding to match struct sockaddr size
+};
+
+struct in_addr {
+    in_addr_t s_addr;  // 32-bit IPv4 address (typically uint32_t)
+};
+```
+
+The `sin_zero` array is unused but ensures the structure is the same size as `struct sockaddr`.
+
+## Converting IP Addresses
+
+Use `inet_pton()` (presentation to numeric) and `inet_ntop()` (numeric to presentation):
+
+```c
+#include <arpa/inet.h>
+
+// String to binary
+const char *ip_str = "192.168.1.100";
+struct in_addr addr;
+int result = inet_pton(AF_INET, ip_str, &addr);
+if (result == 1) {
+    printf("Converted successfully: %lu\n", (unsigned long)addr.s_addr);
+} else if (result == 0) {
+    printf("Invalid address format\n");
+}
+
+// Binary to string
+char str[INET_ADDRSTRLEN];
+inet_ntop(AF_INET, &addr, str, sizeof(str));
+printf("IP: %s\n", str);
+```
+
+## Port Numbers
+
+Ports are 16-bit values (0-65535). Well-known ports (0-1023) require root access.
+
+```c
+#include <netinet/in.h>
+
+in_port_t port = htons(8080);  // Host to Network Short
+// Now port is in network byte order (big-endian)
+```
+
+## Why Byte Order Matters
+
+Different architectures use different byte orders:
+
+| Order         | Meaning                      | Example Systems |
+| ------------- | ---------------------------- | --------------- |
+| Big-endian    | Most significant byte first  | PowerPC, SPARC  |
+| Little-endian | Least significant byte first | x86, x64        |
+
+Network byte order is **big-endian**. Always use `htons()` and `htonl()` when setting values!
+
+```c
+// WRONG: May work on little-endian, fail on big-endian
+address.sin_port = 8080;
+
+// CORRECT: Always works
+address.sin_port = htons(8080);
+```
+
+## Generic sockaddr
+
+Many socket functions use the generic `struct sockaddr` instead of `sockaddr_in`:
+
+```c
+struct sockaddr {
+    sa_family_t sa_family;  // Address family
+    char        sa_data[];  // Variable-length address data
+};
+```
+
+When calling functions, cast between them:
+
+```c
+struct sockaddr_in addr;
+// ... fill addr ...
+
+// Cast to sockaddr* for socket functions
+bind(fd, (struct sockaddr*)&addr, sizeof(addr));
+```

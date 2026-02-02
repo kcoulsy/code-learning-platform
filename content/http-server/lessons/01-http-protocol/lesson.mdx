@@ -1,0 +1,144 @@
+---
+id: 01-http-protocol
+title: 'The HTTP Protocol'
+description: Understand HTTP requests, responses, status codes, headers, and the stateless request-response cycle that powers the web.
+type: lesson
+order: 1
+---
+
+# The HTTP Protocol
+
+HTTP (Hypertext Transfer Protocol) is the foundation of the web. Understanding it deeply is essential for building web servers.
+
+## HTTP Overview
+
+HTTP is a **request-response** protocol:
+
+```
+Client (Browser)                              Server
+   |                                            |
+   |  GET /index.html HTTP/1.1                 |
+   |  Host: example.com                        |
+   |  User-Agent: Mozilla/5.0                  |
+   |  Accept: text/html                        |
+   |------------------------------------------>|
+   |                                            |
+   |  HTTP/1.1 200 OK                          |
+   |  Content-Type: text/html                  |
+   |  Content-Length: 1234                     |
+   |                                            |
+   |  <html>...</html>                         |
+   |<------------------------------------------|
+```
+
+## HTTP Request Structure
+
+An HTTP request has three parts:
+
+```
+METHOD PATH HTTP/VERSION\r\n
+Header1: value\r\n
+Header2: value\r\n
+\r\n
+[optional body]
+```
+
+**Example:**
+
+```
+GET /users/123 HTTP/1.1
+Host: api.example.com
+Accept: application/json
+Authorization: Bearer token123
+
+```
+
+## HTTP Methods
+
+| Method   | Purpose                 | Idempotent? |
+| -------- | ----------------------- | ----------- |
+| `GET`    | Retrieve resource       | Yes         |
+| `POST`   | Create resource         | No          |
+| `PUT`    | Update/Replace resource | Yes         |
+| `PATCH`  | Partial update          | No          |
+| `DELETE` | Delete resource         | Yes         |
+| `HEAD`   | Like GET, no body       | Yes         |
+
+## HTTP Response Structure
+
+```
+HTTP/VERSION STATUS_CODE REASON\r\n
+Header1: value\r\n
+Header2: value\r\n
+\r\n
+[response body]
+```
+
+**Example:**
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 2345
+Connection: keep-alive
+
+<!DOCTYPE html>
+<html>...</html>
+```
+
+## Status Codes
+
+| Code | Meaning       | Examples                                         |
+| ---- | ------------- | ------------------------------------------------ |
+| 1xx  | Informational | 100 Continue                                     |
+| 2xx  | Success       | 200 OK, 201 Created, 204 No Content              |
+| 3xx  | Redirection   | 301 Moved Permanently, 304 Not Modified          |
+| 4xx  | Client Error  | 400 Bad Request, 401 Unauthorized, 404 Not Found |
+| 5xx  | Server Error  | 500 Internal Server Error, 502 Bad Gateway       |
+
+## Common Headers
+
+**Request Headers:**
+
+```
+Host: example.com
+User-Agent: Mozilla/5.0
+Accept: text/html
+Accept-Language: en-US
+Cookie: session=abc123
+Content-Type: application/json
+Content-Length: 123
+```
+
+**Response Headers:**
+
+```
+Content-Type: text/html
+Content-Length: 1234
+Connection: keep-alive
+Server: Apache/2.4.41
+Set-Cookie: session=abc123; Path=/; HttpOnly
+```
+
+## The Host Header
+
+HTTP/1.1 requires the `Host` header, allowing one server to serve multiple domains:
+
+```
+GET / HTTP/1.1
+Host: www.example.com
+```
+
+## Summary
+
+In this lesson, you learned:
+
+- HTTP's request-response model
+- Request structure (method, path, headers)
+- Response structure (status, headers, body)
+- Common methods and status codes
+- The importance of the Host header
+
+## Next Steps
+
+In the next lesson, we'll parse HTTP requests in code!

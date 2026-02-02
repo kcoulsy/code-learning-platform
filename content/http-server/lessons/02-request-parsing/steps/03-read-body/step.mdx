@@ -1,0 +1,177 @@
+---
+id: 03-read-body
+title: 'Reading Request Body'
+order: 3
+---
+
+# Reading Request Body
+
+POST and PUT requests include a body. We need to read it based on Content-Length.
+
+## Body Length Determination
+
+The `Content-Length` header tells us how many bytes to read:
+
+```
+POST /submit HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 13
+
+name=John+Doe
+```
+
+## Reading the Body
+
+```c
+#include <stdlib.h>
+#include <string.h>
+
+char *read_request_body(int client_fd, const char *content_length_str, size_t *body_len) {
+    if (!content_length_str) {
+        *body_len = 0;
+        return NULL;
+    }
+
+    size_t content_length = atoi(content_length_str);
+    if (content_length == 0) {
+        *body_len = 0;
+        return NULL;
+    }
+
+    // Limit body size to prevent memory exhaustion
+    if (content_length > 1024 * 1024) {  // 1MB limit
+        return NULL;
+    }
+
+    char *body = malloc(content_length + 1);
+    if (!body) return NULL;
+
+    size_t total_read = 0;
+    while (total_read < content_length) {
+        ssize_t n = recv(client_fd, body + total_read,
+                         content_length - total_read, 0);
+
+        if (n <= 0) {
+            free(body);
+            *body_len = 0;
+            return NULL;
+        }
+        total_read += n;
+    }
+
+    body[content_length] = '\0';
+    *body_len = content_length;
+
+    return body;
+}
+```
+
+## Handling Chunked Transfer
+
+For chunked transfer encoding, bodies arrive as chunks:
+
+```
+5\r\n
+hello\r\n
+5\r\n
+world\r\n
+0\r\n
+\r\n
+```
+
+```c
+char *read_chunked_body(int client_fd, size_t *body_len) {
+    char *body = malloc(1024);
+    size_t body_size = 1024;
+    size_t body_used = 0;
+
+    while (1) {
+        // Read chunk size line
+        char size_line[32];
+        ssize_t n = recv_line(client_fd, size_line, sizeof(size_line));
+        if (n <= 0) break;
+
+        // Parse chunk size (hex)
+        size_t chunk_size = strtol(size_line, NULL, 16);
+
+        if (chunk_size == 0) {
+            // Last chunk
+            break;
+        }
+
+        // Ensure buffer has space
+        if (body_used + chunk_size + 1 > body_size) {
+            body_size *= 2;
+            body = realloc(body, body_size);
+        }
+
+        // Read chunk data
+        n = recv(client_fd, body + body_used, chunk_size, 0);
+        if (n <= 0) break;
+        body_used += n;
+
+        // Read trailing \r\n after chunk
+        char crlf[2];
+        recv(client_fd, crlf, 2, 0);
+    }
+
+    body[body_used] = '\0';
+    *body_len = body_used;
+    return body;
+}
+```
+
+## Parsing Form Data
+
+```c
+#include <strings.h>
+
+typedef struct {
+    char **names;
+    char **values;
+    int count;
+} form_data_t;
+
+void free_form_data(form_data_t *data) {
+    for (int i = 0; i < data->count; i++) {
+        free(data->names[i]);
+        free(data->values[i]);
+    }
+    free(data->names);
+    free(data->values);
+}
+
+form_data_t parse_form_urlencoded(const char *body, size_t len) {
+    form_data_t data = {0};
+
+    char *copy = malloc(len + 1);
+    strncpy(copy, body, len);
+    copy[len] = '\0';
+
+    char *token = strtok(copy, "&");
+    while (token) {
+        char *eq = strchr(token, '=');
+        if (eq) {
+            *eq = '\0';
+
+            data->names = realloc(data->names, sizeof(char*) * (data->count + 1));
+            data->values = realloc(data->values, sizeof(char*) * (data->count + 1));
+
+            data->names[data->count] = url_decode(token);
+            data->values[data->count] = url_decode(eq + 1);
+            data->count++;
+        }
+        token = strtok(NULL, "&");
+    }
+
+    free(copy);
+    return data;
+}
+```
+
+## Security Considerations
+
+- Validate `Content-Length` before reading
+- Set reasonable limits (1MB default)
+- Check for maliciously large values
+- Handle memory allocation failures

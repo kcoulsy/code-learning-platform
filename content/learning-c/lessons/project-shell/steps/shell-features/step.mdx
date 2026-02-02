@@ -1,0 +1,761 @@
+---
+title: 'Shell Advanced Features'
+order: 4
+---
+
+# Shell Advanced Features
+
+## Introduction
+
+Your shell can now execute commands and handle built-ins. In this step, we'll add the advanced features that make a shell truly powerful: I/O redirection, pipelines, background processes, and signal handling.
+
+These features are more complex, but by the end, you'll have a shell that rivals basic Unix shells in functionality.
+
+## Part 1: I/O Redirection
+
+### Understanding File Descriptors
+
+Every process has three standard file descriptors:
+
+- 0: stdin (standard input)
+- 1: stdout (standard output)
+- 2: stderr (standard error)
+
+Redirection changes where these point:
+
+```bash
+ls > output.txt      # stdout → output.txt
+cat < input.txt      # stdin ← input.txt
+gcc program.c 2> errors.txt  # stderr → errors.txt
+```
+
+### Extended Command Structure
+
+Update your command structure to store redirection info:
+
+```c
+typedef struct Command {
+    char *args[MAX_ARGS];
+    char *input_file;      // NULL if no input redirection
+    char *output_file;     // NULL if no output redirection
+    int append_mode;       // 1 for >>, 0 for >
+} Command;
+```
+
+### Parsing Redirection
+
+Enhance your parser to detect redirection operators:
+
+```c
+Command *parse_command(char *line) {
+    Command *cmd = malloc(sizeof(Command));
+    if (!cmd) {
+        perror("malloc");
+        return NULL;
+    }
+
+    // Initialize
+    cmd->input_file = NULL;
+    cmd->output_file = NULL;
+    cmd->append_mode = 0;
+
+    int arg_index = 0;
+    char *token = strtok(line, TOKEN_DELIM);
+
+    while (token != NULL) {
+        if (strcmp(token, "<") == 0) {
+            // Input redirection
+            token = strtok(NULL, TOKEN_DELIM);
+            if (token == NULL) {
+                fprintf(stderr, "syntax error: expected filename after '<'\n");
+                free_command(cmd);
+                return NULL;
+            }
+            cmd->input_file = strdup(token);
+
+        } else if (strcmp(token, ">") == 0) {
+            // Output redirection (overwrite)
+            token = strtok(NULL, TOKEN_DELIM);
+            if (token == NULL) {
+                fprintf(stderr, "syntax error: expected filename after '>'\n");
+                free_command(cmd);
+                return NULL;
+            }
+            cmd->output_file = strdup(token);
+            cmd->append_mode = 0;
+
+        } else if (strcmp(token, ">>") == 0) {
+            // Output redirection (append)
+            token = strtok(NULL, TOKEN_DELIM);
+            if (token == NULL) {
+                fprintf(stderr, "syntax error: expected filename after '>>'\n");
+                free_command(cmd);
+                return NULL;
+            }
+            cmd->output_file = strdup(token);
+            cmd->append_mode = 1;
+
+        } else {
+            // Regular argument
+            cmd->args[arg_index++] = strdup(token);
+        }
+
+        token = strtok(NULL, TOKEN_DELIM);
+    }
+
+    cmd->args[arg_index] = NULL;  // NULL-terminate
+    return cmd;
+}
+```
+
+**Important**: Use `strdup()` because `strtok()` modifies the original string. Without copying, tokens would reference freed memory.
+
+### Implementing Redirection
+
+Create a function to set up redirections before exec:
+
+```c
+int setup_redirections(Command *cmd) {
+    int fd;
+
+    // Handle input redirection
+    if (cmd->input_file != NULL) {
+        fd = open(cmd->input_file, O_RDONLY);
+        if (fd < 0) {
+            perror(cmd->input_file);
+            return -1;
+        }
+
+        if (dup2(fd, STDIN_FILENO) < 0) {
+            perror("dup2");
+            close(fd);
+            return -1;
+        }
+
+        close(fd);  // Close original fd, we have a copy at STDIN
+    }
+
+    // Handle output redirection
+    if (cmd->output_file != NULL) {
+        int flags = O_WRONLY | O_CREAT;
+        flags |= cmd->append_mode ? O_APPEND : O_TRUNC;
+
+        fd = open(cmd->output_file, flags, 0644);
+        if (fd < 0) {
+            perror(cmd->output_file);
+            return -1;
+        }
+
+        if (dup2(fd, STDOUT_FILENO) < 0) {
+            perror("dup2");
+            close(fd);
+            return -1;
+        }
+
+        close(fd);
+    }
+
+    return 0;
+}
+```
+
+**Key Points**:
+
+- `O_RDONLY`: Open for reading
+- `O_WRONLY | O_CREAT`: Open for writing, create if doesn't exist
+- `O_TRUNC`: Truncate (overwrite) file
+- `O_APPEND`: Append to end of file
+- `0644`: File permissions (rw-r--r--)
+
+### Updated execute_command()
+
+```c
+int execute_command(Command *cmd) {
+    pid_t pid;
+    int status;
+
+    if (cmd->args[0] == NULL) {
+        return 1;
+    }
+
+    if (is_builtin(cmd->args)) {
+        return execute_builtin(cmd);
+    }
+
+    pid = fork();
+
+    if (pid == 0) {
+        // Child process
+
+        // Set up redirections before exec
+        if (setup_redirections(cmd) < 0) {
+            exit(EXIT_FAILURE);
+        }
+
+        // Execute command
+        if (execvp(cmd->args[0], cmd->args) == -1) {
+            perror("myshell");
+        }
+        exit(EXIT_FAILURE);
+
+    } else if (pid < 0) {
+        perror("fork");
+    } else {
+        // Parent process
+        do {
+            waitpid(pid, &status, WUNTRACED);
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    }
+
+    return 1;
+}
+```
+
+### Testing Redirection
+
+```bash
+myshell> echo "Hello, World!" > test.txt
+myshell> cat test.txt
+Hello, World!
+myshell> echo "Line 2" >> test.txt
+myshell> cat test.txt
+Hello, World!
+Line 2
+myshell> cat < test.txt
+Hello, World!
+Line 2
+myshell> wc < test.txt > count.txt
+myshell> cat count.txt
+  2  4 22
+```
+
+## Part 2: Pipelines
+
+### Understanding Pipes
+
+A pipe connects the stdout of one process to the stdin of another:
+
+```
+Command 1               Command 2
+  stdout ───┐        ┌─── stdin
+             │        │
+         [pipe fd]
+          /    \
+     write    read
+     end      end
+```
+
+### The pipe() System Call
+
+```c
+int pipefd[2];
+if (pipe(pipefd) == -1) {
+    perror("pipe");
+    exit(EXIT_FAILURE);
+}
+
+// pipefd[0] is the read end
+// pipefd[1] is the write end
+```
+
+### Pipeline Structure
+
+Extend your structure to support pipelines:
+
+```c
+#define MAX_PIPELINE 10
+
+typedef struct Pipeline {
+    Command *commands[MAX_PIPELINE];
+    int num_commands;
+    int background;  // 1 if ends with &
+} Pipeline;
+```
+
+### Parsing Pipelines
+
+```c
+Pipeline *parse_pipeline(char *line) {
+    Pipeline *pipeline = malloc(sizeof(Pipeline));
+    if (!pipeline) {
+        perror("malloc");
+        return NULL;
+    }
+
+    pipeline->num_commands = 0;
+    pipeline->background = 0;
+
+    // Check for background operator at end
+    size_t len = strlen(line);
+    if (len > 0 && line[len - 1] == '&') {
+        pipeline->background = 1;
+        line[len - 1] = '\0';  // Remove &
+    }
+
+    // Split by pipe operator
+    char *cmd_str = strtok(line, "|");
+    while (cmd_str != NULL && pipeline->num_commands < MAX_PIPELINE) {
+        pipeline->commands[pipeline->num_commands] = parse_command(cmd_str);
+        pipeline->num_commands++;
+        cmd_str = strtok(NULL, "|");
+    }
+
+    return pipeline;
+}
+```
+
+### Executing Pipelines
+
+```c
+int execute_pipeline(Pipeline *pipeline) {
+    if (pipeline->num_commands == 1) {
+        // Single command, no pipe needed
+        return execute_command(pipeline->commands[0]);
+    }
+
+    int num_pipes = pipeline->num_commands - 1;
+    int pipefds[num_pipes][2];
+    pid_t pids[pipeline->num_commands];
+
+    // Create all pipes
+    for (int i = 0; i < num_pipes; i++) {
+        if (pipe(pipefds[i]) == -1) {
+            perror("pipe");
+            return 1;
+        }
+    }
+
+    // Fork and execute each command
+    for (int i = 0; i < pipeline->num_commands; i++) {
+        pids[i] = fork();
+
+        if (pids[i] == 0) {
+            // Child process
+
+            // If not first command, get input from previous pipe
+            if (i > 0) {
+                if (dup2(pipefds[i-1][0], STDIN_FILENO) < 0) {
+                    perror("dup2");
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            // If not last command, send output to next pipe
+            if (i < pipeline->num_commands - 1) {
+                if (dup2(pipefds[i][1], STDOUT_FILENO) < 0) {
+                    perror("dup2");
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            // Close all pipe fds in child
+            for (int j = 0; j < num_pipes; j++) {
+                close(pipefds[j][0]);
+                close(pipefds[j][1]);
+            }
+
+            // Set up any file redirections
+            if (setup_redirections(pipeline->commands[i]) < 0) {
+                exit(EXIT_FAILURE);
+            }
+
+            // Execute command
+            execvp(pipeline->commands[i]->args[0],
+                   pipeline->commands[i]->args);
+            perror("execvp");
+            exit(EXIT_FAILURE);
+
+        } else if (pids[i] < 0) {
+            perror("fork");
+            return 1;
+        }
+    }
+
+    // Parent process: close all pipes
+    for (int i = 0; i < num_pipes; i++) {
+        close(pipefds[i][0]);
+        close(pipefds[i][1]);
+    }
+
+    // Wait for all children (unless background)
+    if (!pipeline->background) {
+        for (int i = 0; i < pipeline->num_commands; i++) {
+            int status;
+            waitpid(pids[i], &status, 0);
+        }
+    } else {
+        printf("[Started background pipeline with %d processes]\n",
+               pipeline->num_commands);
+    }
+
+    return 1;
+}
+```
+
+**Critical Details**:
+
+1. **Pipe creation**: Create all pipes before forking
+2. **dup2 logic**:
+   - First command: only redirect stdout (if not last)
+   - Middle commands: redirect both stdin and stdout
+   - Last command: only redirect stdin (if not first)
+3. **Close pipes**: Every process must close all pipe fds it doesn't need
+4. **Order matters**: Close pipes in parent after all children are created
+
+### Testing Pipelines
+
+```bash
+myshell> ls | grep ".c"
+myshell> cat file.txt | grep pattern | sort
+myshell> ls -la | wc -l
+myshell> cat /etc/passwd | cut -d: -f1 | sort | head -10
+```
+
+## Part 3: Background Processes
+
+### Background Execution
+
+When a command ends with `&`, don't wait for it:
+
+```c
+int execute_pipeline(Pipeline *pipeline) {
+    // ... fork and exec logic ...
+
+    // Wait for children
+    if (!pipeline->background) {
+        for (int i = 0; i < pipeline->num_commands; i++) {
+            waitpid(pids[i], &status, 0);
+        }
+    } else {
+        // Print job info and return immediately
+        printf("[%d] %d\n", job_id, pids[0]);
+    }
+
+    return 1;
+}
+```
+
+### Reaping Background Processes
+
+Problem: Background processes become zombies when they finish.
+
+Solution: Reap them asynchronously using SIGCHLD handler:
+
+```c
+#include <signal.h>
+
+void sigchld_handler(int signo) {
+    (void)signo;  // Unused
+
+    // Reap all finished children
+    while (waitpid(-1, NULL, WNOHANG) > 0) {
+        // Child was reaped
+    }
+}
+
+void setup_signal_handlers(void) {
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+}
+```
+
+Call `setup_signal_handlers()` in main before the shell loop.
+
+**Flags**:
+
+- `SA_RESTART`: Automatically restart interrupted system calls
+- `SA_NOCLDSTOP`: Only trigger on child termination, not stop
+- `WNOHANG`: Return immediately if no child has exited
+
+## Part 4: Signal Handling
+
+### The Problem
+
+By default, Ctrl+C sends SIGINT to all processes in foreground group, including the shell. We want it to kill only the foreground command, not the shell.
+
+### Solution: Ignore SIGINT in Shell
+
+```c
+void setup_signal_handlers(void) {
+    struct sigaction sa_chld, sa_int;
+
+    // Handle SIGCHLD (child termination)
+    sa_chld.sa_handler = sigchld_handler;
+    sigemptyset(&sa_chld.sa_mask);
+    sa_chld.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &sa_chld, NULL);
+
+    // Ignore SIGINT (Ctrl+C)
+    sa_int.sa_handler = SIG_IGN;
+    sigemptyset(&sa_int.sa_mask);
+    sa_int.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &sa_int, NULL);
+}
+```
+
+Now Ctrl+C will terminate the foreground process but not the shell.
+
+### Alternative: Custom Handler
+
+For more control, use a custom handler:
+
+```c
+volatile sig_atomic_t foreground_pid = 0;
+
+void sigint_handler(int signo) {
+    (void)signo;
+
+    if (foreground_pid > 0) {
+        // Forward SIGINT to foreground process
+        kill(foreground_pid, SIGINT);
+    }
+
+    // Print newline for clean prompt
+    write(STDOUT_FILENO, "\n", 1);
+}
+```
+
+Update execution to track foreground process:
+
+```c
+// Before waitpid in execute_pipeline
+foreground_pid = pids[0];
+
+// After waitpid
+foreground_pid = 0;
+```
+
+## Part 5: Environment Variables
+
+### Reading Environment Variables
+
+Already works! Commands inherit shell's environment:
+
+```bash
+myshell> echo $PATH
+# Runs /bin/echo with PATH from shell's environment
+```
+
+### Setting Environment Variables
+
+Implement `export` built-in:
+
+```c
+int builtin_export(char **args) {
+    if (args[1] == NULL) {
+        // No arguments: print all environment variables
+        extern char **environ;
+        for (int i = 0; environ[i] != NULL; i++) {
+            printf("%s\n", environ[i]);
+        }
+        return 1;
+    }
+
+    // Parse VAR=value format
+    char *equals = strchr(args[1], '=');
+    if (equals == NULL) {
+        fprintf(stderr, "export: invalid format (use VAR=value)\n");
+        return 1;
+    }
+
+    *equals = '\0';  // Split into name and value
+    char *name = args[1];
+    char *value = equals + 1;
+
+    if (setenv(name, value, 1) != 0) {
+        perror("setenv");
+    }
+
+    return 1;
+}
+```
+
+### Unsetting Environment Variables
+
+Implement `unset` built-in:
+
+```c
+int builtin_unset(char **args) {
+    if (args[1] == NULL) {
+        fprintf(stderr, "unset: expected argument\n");
+        return 1;
+    }
+
+    if (unsetenv(args[1]) != 0) {
+        perror("unsetenv");
+    }
+
+    return 1;
+}
+```
+
+## Advanced Exercises
+
+### Exercise 1: stderr Redirection
+
+Add support for `2>` and `2>>`:
+
+```bash
+myshell> gcc program.c 2> errors.txt
+myshell> ./program 2>&1  # Redirect stderr to stdout
+```
+
+**Hints**:
+
+- Parse `2>` like `>` but redirect `STDERR_FILENO` instead
+- For `2>&1`, use `dup2(STDOUT_FILENO, STDERR_FILENO)`
+
+### Exercise 2: Job Control
+
+Implement job tracking:
+
+- List background jobs with `jobs` command
+- Bring job to foreground with `fg %1`
+- Send job to background with `bg %1`
+
+**Hints**:
+
+```c
+typedef struct Job {
+    int job_id;
+    pid_t pid;
+    char *command;
+    int running;  // 1 if running, 0 if stopped
+} Job;
+
+static Job jobs[MAX_JOBS];
+```
+
+### Exercise 3: Command Substitution
+
+Support `$(command)` syntax:
+
+```bash
+myshell> echo "Today is $(date)"
+myshell> cat $(ls *.txt)
+```
+
+**Hints**:
+
+- Detect `$(` and matching `)`
+- Fork and exec inner command with stdout to pipe
+- Read output and substitute into outer command
+
+### Exercise 4: Here Documents
+
+Support `<<` for multi-line input:
+
+```bash
+myshell> cat << EOF
+> line 1
+> line 2
+> EOF
+```
+
+**Hints**:
+
+- Read lines until delimiter
+- Write to temporary file or pipe
+- Redirect command's stdin from temp file/pipe
+
+## Testing Strategy
+
+### Create Test Script
+
+```bash
+#!/bin/bash
+# test_shell.sh
+
+echo "=== Testing Basic Commands ==="
+echo "ls" | ./myshell
+
+echo "=== Testing Redirection ==="
+echo "echo test > /tmp/test.txt" | ./myshell
+echo "cat /tmp/test.txt" | ./myshell
+
+echo "=== Testing Pipes ==="
+echo "ls | wc -l" | ./myshell
+
+echo "=== Testing Background ==="
+echo "sleep 2 &" | ./myshell
+
+echo "=== Testing Environment ==="
+echo "export TEST=hello" | ./myshell
+echo "echo \$TEST" | ./myshell
+```
+
+### Stress Testing
+
+Test edge cases:
+
+- Very long pipelines: `cat file | sort | uniq | wc | head | tail`
+- Multiple redirections: `cat < in.txt > out.txt 2> err.txt`
+- Complex commands: `(cat file.txt && echo done) | grep pattern > output.txt &`
+
+## Debugging Complex Issues
+
+### Common Pipeline Bugs
+
+**Symptom**: Pipeline hangs indefinitely
+
+**Cause**: Unclosed pipe file descriptors
+
+**Fix**: Ensure all processes close all pipe fds they don't need
+
+**Debug**:
+
+```bash
+# Check open file descriptors
+ls -la /proc/<pid>/fd
+```
+
+### Memory Leaks
+
+```bash
+valgrind --leak-check=full ./myshell
+```
+
+### Race Conditions
+
+Use printf debugging carefully (output may be buffered):
+
+```c
+fprintf(stderr, "DEBUG: pid=%d, before exec\n", getpid());
+fflush(stderr);
+```
+
+## Milestone Checklist
+
+Before moving to project completion, ensure:
+
+- [ ] Input redirection (`<`) works correctly
+- [ ] Output redirection (`>`) overwrites files
+- [ ] Append redirection (`>>`) appends to files
+- [ ] Pipelines of 2+ commands work
+- [ ] Multiple pipes work: `cmd1 | cmd2 | cmd3`
+- [ ] Background processes (`&`) don't block shell
+- [ ] Ctrl+C kills foreground process, not shell
+- [ ] Zombies are reaped automatically
+- [ ] `export` sets environment variables
+- [ ] `unset` removes environment variables
+- [ ] Complex combinations work: `cat < in.txt | sort > out.txt &`
+- [ ] No file descriptor leaks
+- [ ] No memory leaks
+
+## Next Steps
+
+Congratulations! Your shell now has all major features. In the final step, we'll focus on:
+
+- Comprehensive testing
+- Documentation
+- Code cleanup and polish
+- Presentation and reflection
+
+Your shell is nearly complete!

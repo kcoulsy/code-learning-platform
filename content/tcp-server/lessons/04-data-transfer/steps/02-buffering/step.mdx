@@ -1,0 +1,109 @@
+---
+id: 02-buffering
+title: 'Buffering and Message Boundaries'
+order: 2
+---
+
+# Buffering and Message Boundaries
+
+TCP is a **stream protocol**, not a message protocol. This has important implications!
+
+## Stream vs. Datagram
+
+| Protocol | Boundary  | Behavior          |
+| -------- | --------- | ----------------- |
+| TCP      | None      | Stream of bytes   |
+| UDP      | Preserved | Discrete messages |
+
+With TCP, if you send two 100-byte messages, the receiver might get:
+
+- One 200-byte read
+- Two 100-byte reads
+- A 50-byte read followed by a 150-byte read
+- Any other combination!
+
+## Demonstrating Message Boundaries
+
+```c
+// Client sends two messages
+send(fd, "Hello", 5, 0);   // Message 1: "Hello"
+send(fd, "World", 5, 0);   // Message 2: "World"
+
+// Receiver might get:
+recv(fd, buffer, 10, 0);   // "HelloWorld" (10 bytes combined)
+```
+
+## Solution: Message Framing
+
+Add delimiters or length prefixes:
+
+**Delimiter-based:**
+
+```
+MESSAGE\n
+```
+
+**Length-prefixed:**
+
+```
+[4-byte length][data]
+```
+
+## Delimiter Example
+
+```c
+// Send with newline delimiter
+const char *msg = "Hello\n";
+send(fd, msg, strlen(msg), 0);
+
+// Receive until newline
+char buffer[1024];
+int pos = 0;
+
+while (1) {
+    char c;
+    ssize_t n = recv(fd, &c, 1, 0);
+
+    if (n <= 0) break;  // Error or disconnect
+
+    if (c == '\n') {
+        buffer[pos] = '\0';
+        printf("Complete message: %s\n", buffer);
+        pos = 0;
+    } else {
+        buffer[pos++] = c;
+        if (pos >= sizeof(buffer) - 1) {
+            fprintf(stderr, "Message too long\n");
+            break;
+        }
+    }
+}
+```
+
+## Fixed-Length Records
+
+```c
+#define RECORD_SIZE 64
+
+// Send
+char record[RECORD_SIZE];
+snprintf(record, RECORD_SIZE, "Data: %d", value);
+send(fd, record, RECORD_SIZE, 0);
+
+// Receive (must read exactly 64 bytes)
+char record[RECORD_SIZE];
+ssize_t total = 0;
+while (total < RECORD_SIZE) {
+    ssize_t n = recv(fd, record + total, RECORD_SIZE - total, 0);
+    if (n <= 0) break;
+    total += n;
+}
+```
+
+## Best Practices
+
+1. **Never assume message boundaries**
+2. **Use length prefixes for binary data**
+3. **Use delimiters for text protocols**
+4. **Handle partial reads**
+5. **Set reasonable buffer sizes** (1024-4096 bytes typically)

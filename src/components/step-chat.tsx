@@ -105,20 +105,20 @@ The student has a question about this specific content. Answer clearly and conci
     setIsLoading(true)
 
     try {
-      // Convert chat messages to CoreMessage format
-      const coreMessages = messages.map((msg) => ({
+      // Convert chat messages to ModelMessage format
+      const modelMessages = messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       }))
 
       // Add the new user message
-      coreMessages.push({
+      modelMessages.push({
         role: "user",
         content: userQuestion,
       })
 
       // Stream the response
-      const result = await streamClientChat(config, coreMessages, systemPrompt)
+      const stream = await streamClientChat(config, modelMessages, systemPrompt)
 
       // Create assistant message placeholder
       const assistantMessage: ChatMessage = {
@@ -130,18 +130,24 @@ The student has a question about this specific content. Answer clearly and conci
 
       setMessages((prev) => [...prev, assistantMessage])
 
-      // Stream the text
+      // Stream the text with chunk-based handling
       let fullText = ""
-      for await (const textPart of result.textStream) {
-        fullText += textPart
-        setMessages((prev) => {
-          const newMessages = [...prev]
-          const lastMessage = newMessages[newMessages.length - 1]
-          if (lastMessage && lastMessage.role === "assistant") {
-            lastMessage.content = fullText
-          }
-          return newMessages
-        })
+      for await (const chunk of stream) {
+        if (chunk.type === 'content') {
+          fullText += chunk.delta
+          setMessages((prev) => {
+            const newMessages = [...prev]
+            const lastMessage = newMessages[newMessages.length - 1]
+            if (lastMessage && lastMessage.role === "assistant") {
+              lastMessage.content = fullText
+            }
+            return newMessages
+          })
+        } else if (chunk.type === 'done') {
+          break
+        } else if (chunk.type === 'error') {
+          throw new Error(chunk.error.message)
+        }
       }
     } catch (err) {
       console.error("Chat error:", err)

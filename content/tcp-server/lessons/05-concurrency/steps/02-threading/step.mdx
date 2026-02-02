@@ -1,0 +1,161 @@
+---
+id: 02-threading
+title: 'Thread-based Server'
+order: 2
+---
+
+# Thread-based Server
+
+Threads are lighter than processes and share memory, making them ideal for most server applications.
+
+## Thread Basics
+
+```c
+#include <pthread.h>
+
+// Thread function signature
+void *thread_func(void *arg) {
+    int fd = *(int*)arg;
+    free(arg);
+    handle_client(fd);
+    return NULL;
+}
+
+// Creating a thread
+pthread_t thread;
+int *client_copy = malloc(sizeof(int));
+*client_copy = client_fd;
+
+pthread_create(&thread, NULL, thread_func, client_copy);
+pthread_detach(thread);  // Auto-cleanup when done
+```
+
+## Complete Threaded Server
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define PORT 8080
+#define BUFFER_SIZE 1024
+
+void *handle_client_thread(void *arg) {
+    int client_fd = *(int*)arg;
+    free(arg);
+
+    char buffer[BUFFER_SIZE];
+
+    printf("[Thread %lu] Client connected\n", pthread_self());
+
+    while (1) {
+        ssize_t n = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
+
+        if (n <= 0) {
+            if (n == 0) printf("[Thread %lu] Client disconnected\n", pthread_self());
+            else perror("recv");
+            break;
+        }
+
+        buffer[n] = '\0';
+        printf("[Thread %lu] Received: %s", pthread_self(), buffer);
+        send(client_fd, buffer, n, 0);
+    }
+
+    close(client_fd);
+    return NULL;
+}
+
+int main() {
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
+    listen(server_fd, 5);
+
+    printf("Threaded server listening on port %d\n", PORT);
+
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+
+        pthread_t thread;
+        int *client_copy = malloc(sizeof(int));
+        *client_copy = client_fd;
+
+        pthread_create(&thread, NULL, handle_client_thread, client_copy);
+        pthread_detach(thread);
+    }
+
+    close(server_fd);
+    return 0;
+}
+```
+
+## Thread Safety
+
+**Shared resources need protection:**
+
+```c
+// Shared counter - UNSAFE!
+int client_count = 0;
+
+// Thread 1: client_count++
+// Thread 2: client_count++
+// Result: Might be +1 instead of +2!
+
+// Safe version with mutex
+pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_mutex_lock(&count_mutex);
+client_count++;
+pthread_mutex_unlock(&count_mutex);
+```
+
+## Pros and Cons
+
+| Pros                            | Cons                     |
+| ------------------------------- | ------------------------ |
+| Lightweight (~8KB stack vs 8MB) | Race conditions possible |
+| Shared memory                   | Debugging harder         |
+| Fast to create/destroy          | Stack overflow risk      |
+| Good for I/O-bound tasks        | No process isolation     |
+
+## Thread Pool (Advanced)
+
+For production servers, use a thread pool to avoid thread creation overhead:
+
+```c
+#define NUM_THREADS 4
+pthread_t thread_pool[NUM_THREADS];
+int queue[100];
+int queue_head = 0, queue_tail = 0;
+pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t queue_cond = PTHREAD_COND_INITIALIZER;
+
+void *worker_thread(void *arg) {
+    while (1) {
+        int fd;
+        pthread_mutex_lock(&queue_mutex);
+        while (queue_head == queue_tail) {
+            pthread_cond_wait(&queue_cond, &queue_mutex);
+        }
+        fd = queue[queue_head++];
+        pthread_mutex_unlock(&queue_mutex);
+        handle_client(fd);
+    }
+    return NULL;
+}
+```

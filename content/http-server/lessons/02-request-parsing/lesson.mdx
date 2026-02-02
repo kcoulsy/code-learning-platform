@@ -1,0 +1,241 @@
+---
+id: 02-request-parsing
+title: 'Request Parsing'
+description: Build a robust HTTP request parser that handles partial reads, different line endings, and malformed requests.
+type: lesson
+order: 2
+---
+
+# Request Parsing
+
+Parsing HTTP requests requires careful handling of network I/O, different line endings, and edge cases.
+
+## The Parsing Challenge
+
+TCP delivers a stream of bytes. We need to:
+
+1. Read until we have a complete request
+2. Parse the request line and headers
+3. Handle body content (for POST/PUT)
+4. Deal with partial reads and buffering
+
+## Buffer-Based Parser
+
+```c
+#include <string.h>
+#include <stdlib.h>
+
+#define READ_BUFFER_SIZE 8192
+#define MAX_HEADERS 32
+#define MAX_HEADER_SIZE 1024
+
+typedef struct {
+    char method[16];
+    char path[256];
+    char version[16];
+} request_line_t;
+
+typedef struct {
+    char name[128];
+    char value[256];
+} header_t;
+
+typedef struct {
+    request_line_t request_line;
+    header_t headers[MAX_HEADERS];
+    int header_count;
+    char *body;
+    size_t body_length;
+} http_request_t;
+
+typedef struct {
+    char buffer[READ_BUFFER_SIZE];
+    size_t buffer_pos;
+    size_t buffer_len;
+    http_request_t request;
+    enum {
+        PARSE_REQUEST_LINE,
+        PARSE_HEADERS,
+        PARSE_BODY,
+        PARSE_COMPLETE,
+        PARSE_ERROR
+    } state;
+} parser_t;
+```
+
+## State Machine Parser
+
+```c
+void parser_init(parser_t *parser) {
+    memset(parser, 0, sizeof(*parser));
+    parser->state = PARSE_REQUEST_LINE;
+}
+
+int parse_request_line(parser_t *parser, char *data, size_t len) {
+    char *line_end = strstr(data, "\r\n");
+    if (!line_end) return 0;  // Need more data
+
+    size_t line_len = line_end - data;
+    if (line_len >= sizeof(parser->request.request_line.method)) {
+        parser->state = PARSE_ERROR;
+        return -1;
+    }
+
+    char line[512];
+    strncpy(line, data, line_len);
+    line[line_len] = '\0';
+
+    char *method = strtok(line, " ");
+    char *path = strtok(NULL, " ");
+    char *version = strtok(NULL, " ");
+
+    if (!method || !path || !version) {
+        parser->state = PARSE_ERROR;
+        return -1;
+    }
+
+    strncpy(parser->request.request_line.method, method, sizeof(method) - 1);
+    strncpy(parser->request.request_line.path, path, sizeof(path) - 1);
+    strncpy(parser->request.request_line.version, version, sizeof(version) - 1);
+
+    parser->buffer_pos += line_len + 2;  // Skip \r\n
+    parser->state = PARSE_HEADERS;
+
+    return 1;
+}
+
+int parse_headers(parser_t *parser, char *data, size_t len) {
+    char *pos = data;
+
+    while (parser->request.header_count < MAX_HEADERS) {
+        // Check for end of headers (\r\n\r\n)
+        if (pos[0] == '\r' && pos[1] == '\n') {
+            parser->buffer_pos += 2;
+            parser->state = PARSE_BODY;
+            return 1;
+        }
+
+        // Find end of line
+        char *line_end = strstr(pos, "\r\n");
+        if (!line_end) return 0;  // Need more data
+
+        size_t line_len = line_end - pos;
+
+        // Parse header (name: value)
+        char *colon = strchr(pos, ':');
+        if (!colon || colon > line_end) {
+            parser->state = PARSE_ERROR;
+            return -1;
+        }
+
+        size_t name_len = colon - pos;
+        size_t value_len = line_len - name_len - 3;  // Skip ": "
+
+        if (name_len >= sizeof(parser->request.headers[0].name) ||
+            value_len >= sizeof(parser->request.headers[0].value)) {
+            parser->state = PARSE_ERROR;
+            return -1;
+        }
+
+        strncpy(parser->request.headers[parser->request.header_count].name,
+                pos, name_len);
+        parser->request.headers[parser->request.header_count].name[name_len] = '\0';
+
+        strncpy(parser->request.headers[parser->request.header_count].value,
+                colon + 2, value_len);
+        parser->request.headers[parser->request.header_count].value[value_len] = '\0';
+
+        parser->request.header_count++;
+        pos = line_end + 2;
+    }
+
+    parser->state = PARSE_ERROR;
+    return -1;
+}
+
+int parser_feed(parser_t *parser, char *data, size_t len) {
+    // Copy new data to buffer
+    if (parser->buffer_pos + len >= READ_BUFFER_SIZE) {
+        parser->state = PARSE_ERROR;
+        return -1;
+    }
+
+    memcpy(parser->buffer + parser->buffer_pos, data, len);
+    parser->buffer_len += len;
+    parser->buffer_pos = 0;
+
+    while (1) {
+        switch (parser->state) {
+            case PARSE_REQUEST_LINE:
+                if (parse_request_line(parser, parser->buffer, parser->buffer_len) == 0) {
+                    return 0;  // Need more data
+                }
+                break;
+
+            case PARSE_HEADERS:
+                if (parse_headers(parser, parser->buffer + parser->buffer_pos,
+                                  parser->buffer_len - parser->buffer_pos) == 0) {
+                    return 0;  // Need more data
+                }
+                break;
+
+            case PARSE_BODY:
+                // Handle body based on Content-Length or Transfer-Encoding
+                parser->state = PARSE_COMPLETE;
+                return 1;
+
+            case PARSE_COMPLETE:
+                return 1;
+
+            case PARSE_ERROR:
+                return -1;
+        }
+    }
+}
+```
+
+## Get Header Helper
+
+```c
+const char *get_header(http_request_t *req, const char *name) {
+    for (int i = 0; i < req->header_count; i++) {
+        if (strcasecmp(req->headers[i].name, name) == 0) {
+            return req->headers[i].value;
+        }
+    }
+    return NULL;
+}
+```
+
+## Usage Example
+
+```c
+parser_t parser;
+parser_init(&parser);
+
+char buffer[8192];
+ssize_t bytes_read;
+
+while ((bytes_read = recv(client_fd, buffer, sizeof(buffer), 0)) > 0) {
+    int result = parser_feed(&parser, buffer, bytes_read);
+
+    if (result < 0) {
+        send_error_response(client_fd, 400, "Bad Request");
+        break;
+    }
+
+    if (result > 0) {
+        // Complete request parsed
+        http_request_t *req = &parser.request;
+
+        printf("Method: %s\n", req->request_line.method);
+        printf("Path: %s\n", req->request_line.path);
+        printf("Version: %s\n", req->request_line.version);
+
+        const char *host = get_header(req, "Host");
+        if (host) printf("Host: %s\n", host);
+
+        break;
+    }
+}
+```

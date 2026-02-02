@@ -1,0 +1,278 @@
+---
+id: 02-in-memory-kv-store
+title: 'In-Memory Key-Value Store'
+description: Build an in-memory key-value store with CRUD operations, iteration, and type support.
+type: lesson
+order: 2
+---
+
+# In-Memory Key-Value Store
+
+Let's build a robust in-memory key-value store that will be the foundation of our database.
+
+## Data Types
+
+```c
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+typedef enum {
+    TYPE_NULL,
+    TYPE_INT,
+    TYPE_FLOAT,
+    TYPE_TEXT,
+    TYPE_BLOB
+} value_type_t;
+
+typedef struct {
+    value_type_t type;
+    union {
+        int64_t int_val;
+        double float_val;
+        char *text_val;
+        struct {
+            void *data;
+            size_t size;
+        } blob_val;
+    };
+} value_t;
+
+void value_free(value_t *v) {
+    if (v->type == TYPE_TEXT || v->type == TYPE_BLOB) {
+        free(v->text_val);
+    }
+    v->type = TYPE_NULL;
+}
+```
+
+## Hash Table Implementation
+
+```c
+#define HT_INITIAL_CAPACITY 1024
+
+typedef struct ht_entry {
+    char *key;
+    value_t value;
+    int deleted;
+    struct ht_entry *next;  // For chaining
+} ht_entry_t;
+
+typedef struct {
+    ht_entry_t **buckets;
+    size_t capacity;
+    size_t size;  // Active entries
+    size_t tombstones;
+} hash_table_t;
+
+hash_table_t *ht_create(size_t capacity) {
+    hash_table_t *ht = malloc(sizeof(hash_table_t));
+    ht->capacity = capacity;
+    ht->size = 0;
+    ht->tombstones = 0;
+    ht->buckets = calloc(capacity, sizeof(ht_entry_t*));
+    return ht;
+}
+
+static uint64_t ht_hash(const char *key) {
+    uint64_t h = 1469598103934665603ULL;  // FNV offset basis
+    while (*key) {
+        h ^= (unsigned char)*key++;
+        h *= 1099511628211ULL;  // FNV prime
+    }
+    return h;
+}
+
+int ht_set(hash_table_t *ht, const char *key, value_t value) {
+    if ((ht->size + ht->tombstones) * 2 >= ht->capacity) {
+        ht_resize(ht, ht->capacity * 2);  // Grow if > 50% full
+    }
+
+    uint64_t h = ht_hash(key);
+    size_t idx = h % ht->capacity;
+
+    ht_entry_t *prev = NULL;
+    ht_entry_t *entry = ht->buckets[idx];
+
+    while (entry) {
+        if (strcmp(entry->key, key) == 0) {
+            // Key exists - update
+            value_free(&entry->value);
+            entry->value = value;
+            if (entry->deleted) {
+                entry->deleted = 0;
+                ht->tombstones--;
+            }
+            return 0;
+        }
+        prev = entry;
+        entry = entry->next;
+    }
+
+    // Not found - insert new
+    ht_entry_t *new_entry = malloc(sizeof(ht_entry_t));
+    new_entry->key = strdup(key);
+    new_entry->value = value;
+    new_entry->deleted = 0;
+    new_entry->next = NULL;
+
+    if (prev) {
+        prev->next = new_entry;
+    } else {
+        ht->buckets[idx] = new_entry;
+    }
+
+    ht->size++;
+    return 0;
+}
+
+value_t *ht_get(hash_table_t *ht, const char *key) {
+    uint64_t h = ht_hash(key);
+    size_t idx = h % ht->capacity;
+
+    ht_entry_t *entry = ht->buckets[idx];
+    while (entry) {
+        if (!entry->deleted && strcmp(entry->key, key) == 0) {
+            return &entry->value;
+        }
+        entry = entry->next;
+    }
+
+    return NULL;
+}
+
+int ht_delete(hash_table_t *ht, const char *key) {
+    uint64_t h = ht_hash(key);
+    size_t idx = h % ht->capacity;
+
+    ht_entry_t *entry = ht->buckets[idx];
+    while (entry) {
+        if (!entry->deleted && strcmp(entry->key, key) == 0) {
+            entry->deleted = 1;
+            value_free(&entry->value);
+            ht->tombstones++;
+            ht->size--;
+            return 0;
+        }
+        entry = entry->next;
+    }
+
+    return -1;
+}
+```
+
+## Iterator
+
+```c
+typedef struct {
+    hash_table_t *ht;
+    size_t bucket_idx;
+    ht_entry_t *entry;
+} ht_iter_t;
+
+ht_iter_t *ht_iter_create(hash_table_t *ht) {
+    ht_iter_t *iter = malloc(sizeof(ht_iter_t));
+    iter->ht = ht;
+    iter->bucket_idx = 0;
+    iter->entry = NULL;
+
+    // Find first non-deleted entry
+    ht_iter_next(iter);
+    return iter;
+}
+
+int ht_iter_next(ht_iter_t *iter) {
+    while (iter->bucket_idx < iter->ht->capacity) {
+        if (iter->entry) {
+            iter->entry = iter->entry->next;
+        }
+
+        if (iter->entry && !iter->entry->deleted) {
+            return 1;
+        }
+
+        iter->bucket_idx++;
+        if (iter->bucket_idx < iter->ht->capacity) {
+            iter->entry = iter->ht->buckets[iter->bucket_idx];
+        }
+    }
+    return 0;  // No more entries
+}
+
+const char *ht_iter_key(ht_iter_t *iter) {
+    return iter->entry ? iter->entry->key : NULL;
+}
+
+value_t *ht_iter_value(ht_iter_t *iter) {
+    return iter->entry ? &iter->entry->value : NULL;
+}
+
+void ht_iter_free(ht_iter_t *iter) {
+    free(iter);
+}
+```
+
+## REPL Interface
+
+```c
+#include <stdio.h>
+#include <ctype.h>
+
+void repl(hash_table_t *ht) {
+    char line[1024];
+
+    printf("> ");
+    while (fgets(line, sizeof(line), stdin)) {
+        // Parse command
+        char *cmd = strtok(line, " \t\n");
+        if (!cmd) {
+            printf("> ");
+            continue;
+        }
+
+        if (strcmp(cmd, "SET") == 0) {
+            char *key = strtok(NULL, " \t\n");
+            char *val = strtok(NULL, "\n");
+            if (key && val) {
+                value_t v = {TYPE_TEXT, .text_val = strdup(val)};
+                ht_set(ht, key, v);
+                printf("OK\n");
+            }
+        } else if (strcmp(cmd, "GET") == 0) {
+            char *key = strtok(NULL, " \t\n");
+            if (key) {
+                value_t *v = ht_get(ht, key);
+                if (v) {
+                    printf("%s\n", v->text_val);
+                } else {
+                    printf("(null)\n");
+                }
+            }
+        } else if (strcmp(cmd, "DEL") == 0) {
+            char *key = strtok(NULL, " \t\n");
+            if (key && ht_delete(ht, key) == 0) {
+                printf("OK\n");
+            }
+        } else if (strcmp(cmd, "LIST") == 0) {
+            ht_iter_t *iter = ht_iter_create(ht);
+            while (ht_iter_next(iter)) {
+                printf("%s = %s\n", ht_iter_key(iter),
+                       ht_iter_value(iter)->text_val);
+            }
+            ht_iter_free(iter);
+        } else if (strcmp(cmd, "QUIT") == 0) {
+            break;
+        }
+
+        printf("> ");
+    }
+}
+
+int main() {
+    hash_table_t *ht = ht_create(HT_INITIAL_CAPACITY);
+    printf("Key-Value Store v1.0\n");
+    printf("Commands: SET key value, GET key, DEL key, LIST, QUIT\n\n");
+    repl(ht);
+    return 0;
+}
+```

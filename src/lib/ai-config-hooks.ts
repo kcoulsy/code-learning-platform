@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
-import { useLiveQuery } from '@tanstack/react-db'
-import { eq } from '@tanstack/db'
-import { aiConfigCollection, type AIConfig } from './ai-config-collection'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, type AIConfig } from './db'
 
 const CONFIG_ID = 'default'
 
@@ -9,22 +8,14 @@ const CONFIG_ID = 'default'
  * Get AI configuration and management functions
  */
 export function useAIConfig() {
-  const { data } = useLiveQuery((q) =>
-    q
-      .from({ config: aiConfigCollection })
-      .where(({ config }) => eq(config.id, CONFIG_ID))
-      .orderBy(({ config }) => config.id, 'desc')
-      .limit(1),
-  )
-
-  const config = data?.[0] ?? null
+  const config = useLiveQuery(() => db.aiConfig.get(CONFIG_ID))
 
   const updateConfig = useCallback(
     (updates: Partial<Omit<AIConfig, 'id' | 'createdAt' | 'updatedAt'>>) => {
       const now = new Date()
       const existingConfig = config
 
-      aiConfigCollection.insert({
+      db.aiConfig.put({
         id: CONFIG_ID,
         provider: updates.provider ?? existingConfig?.provider ?? 'openai',
         model: updates.model ?? existingConfig?.model ?? '',
@@ -33,11 +24,11 @@ export function useAIConfig() {
         updatedAt: now,
       })
     },
-    [config],
+    [config]
   )
 
   const clearConfig = useCallback(() => {
-    aiConfigCollection.delete(CONFIG_ID)
+    db.aiConfig.delete(CONFIG_ID)
   }, [])
 
   const hasValidConfig = useCallback(() => {
@@ -57,10 +48,7 @@ export function useAIConfig() {
       return false
     }
 
-    if (
-      config.provider === 'anthropic' &&
-      !config.apiKey.startsWith('sk-ant-')
-    ) {
+    if (config.provider === 'anthropic' && !config.apiKey.startsWith('sk-ant-')) {
       return false
     }
 
@@ -68,7 +56,7 @@ export function useAIConfig() {
   }, [config])
 
   return {
-    config,
+    config: config ?? null,
     updateConfig,
     clearConfig,
     hasValidConfig: hasValidConfig(),

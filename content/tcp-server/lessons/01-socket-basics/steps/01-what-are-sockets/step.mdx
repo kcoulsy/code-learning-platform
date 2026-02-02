@@ -1,0 +1,74 @@
+---
+id: 01-what-are-sockets
+title: 'What Are Sockets?'
+order: 1
+---
+
+# What Are Sockets?
+
+Sockets are the fundamental abstraction for network communication. They provide a standardized way for programs to send and receive data across a network, regardless of the underlying hardware or protocol.
+
+## The Socket Abstraction
+
+Think of a socket like a telephone:
+
+- **The socket itself** is like a telephone handset
+- **The IP address** is like a phone number identifying which phone to call
+- **The port number** is like an extension number to reach a specific person
+- **The network** is like the telephone system connecting everything
+
+When two programs want to communicate over a network, they each create a socket and then connect those sockets together.
+
+## Socket Domains
+
+Sockets can communicate using different "address families":
+
+| Domain     | Purpose | Address Format                                   |
+| ---------- | ------- | ------------------------------------------------ |
+| `AF_INET`  | IPv4    | 32-bit addresses like 192.168.1.1                |
+| `AF_INET6` | IPv6    | 128-bit addresses like 2001:db8::1               |
+| `AF_UNIX`  | Local   | Filesystem paths for inter-process communication |
+
+We'll use `AF_INET` (IPv4) throughout this course.
+
+## Socket Types
+
+Within each domain, we can use different communication styles:
+
+| Type          | Characteristics                           | Use Cases                             |
+| ------------- | ----------------------------------------- | ------------------------------------- |
+| `SOCK_STREAM` | Sequential, reliable, connection-oriented | HTTP, SSH, email                      |
+| `SOCK_DGRAM`  | No ordering, no reliability guarantee     | DNS, video streaming                  |
+| `SOCK_RAW`    | Direct access to IP protocol              | Network diagnostics, custom protocols |
+
+`SOCK_STREAM` over IPv4 corresponds to the TCP protocol.
+
+## How TCP Works
+
+TCP (Transmission Control Protocol) provides reliable, ordered, error-checked delivery of data between applications. Key characteristics:
+
+- **Connection-oriented**: Must establish connection before data flow
+- **Reliable**: Data is guaranteed to arrive (or error is reported)
+- **Ordered**: Messages arrive in the order sent
+- **Flow control**: Prevents sender from overwhelming receiver
+- **Congestion control**: Adapts to network conditions
+
+This reliability comes at the cost of some overhead and latency compared to UDP.
+
+## Your Turn
+
+Try creating a socket and printing its file descriptor:
+
+```c
+#include <stdio.h>
+#include <sys/socket.h>
+
+int main() {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    printf("Socket file descriptor: %d\n", fd);
+    close(fd);
+    return 0;
+}
+```
+
+What values do you see? What happens if you try invalid arguments?

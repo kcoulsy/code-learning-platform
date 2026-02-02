@@ -1,0 +1,151 @@
+---
+id: 01-data-structures
+title: 'Data Structures for Databases'
+description: Explore the data structures that power databases—hash tables, B-trees, and LSM trees—and understand when to use each.
+type: lesson
+order: 1
+---
+
+# Data Structures for Databases
+
+Databases rely on carefully chosen data structures for efficient storage and retrieval. Let's explore the options.
+
+## Hash Tables
+
+**Best for: Point queries (get by exact key)**
+
+```c
+// Simple hash table implementation
+#define TABLE_SIZE 4096
+
+typedef struct {
+    char *key;
+    char *value;
+    int used;
+} entry_t;
+
+typedef struct {
+    entry_t entries[TABLE_SIZE];
+    size_t count;
+} hash_table_t;
+
+unsigned int hash(const char *key) {
+    unsigned int h = 0;
+    while (*key) {
+        h = h * 31 + *key++;
+    }
+    return h % TABLE_SIZE;
+}
+
+int hash_set(hash_table_t *ht, const char *key, const char *value) {
+    unsigned int h = hash(key);
+
+    // Linear probing
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        unsigned int idx = (h + i) % TABLE_SIZE;
+
+        if (!ht->entries[idx].used) {
+            ht->entries[idx].key = strdup(key);
+            ht->entries[idx].value = strdup(value);
+            ht->entries[idx].used = 1;
+            ht->count++;
+            return 0;
+        }
+
+        if (strcmp(ht->entries[idx].key, key) == 0) {
+            free(ht->entries[idx].value);
+            ht->entries[idx].value = strdup(value);
+            return 0;
+        }
+    }
+
+    return -1;  // Full
+}
+```
+
+**Pros:** O(1) average lookup, simple implementation
+**Cons:** No range queries, poor iteration order, grows poorly
+
+## B-Trees
+
+**Best for: Range queries, ordered iteration**
+
+```c
+typedef struct btree_node {
+    int is_leaf;
+    int count;
+    int keys[ORDER - 1];
+    struct btree_node *children[ORDER];
+} btree_node_t;
+
+typedef struct {
+    btree_node_t *root;
+    int order;  // Typically 4-256
+} btree_t;
+```
+
+**Properties:**
+
+- Balanced tree (all leaves at same depth)
+- Nodes contain 1-ORDER-1 keys
+- Children = keys + 1
+- Height = O(log n)
+- Excellent for disk-based storage (fewer reads)
+
+**Operations:**
+
+- Search: O(log n)
+- Insert: O(log n)
+- Delete: O(log n)
+- Range query: Efficient
+
+## B+ Trees (Most Databases Use This)
+
+Variation where:
+
+- Data only in leaves
+- Internal nodes store keys for routing
+- Leaves linked for range scans
+- Better cache locality
+
+## LSM Trees (Log-Structured Merge)
+
+**Used by: LevelDB, RocksDB, Cassandra**
+
+```
+Memory                Disk
+┌─────────┐          ┌─────────┐
+│ MemTable│   ──►    │   SST   │
+│ (B-Tree)│   dump   │  Files  │
+└─────────┘          └─────────┘
+```
+
+**How it works:**
+
+1. Write to in-memory table (fast)
+2. When full, write to disk (sorted, immutable files)
+3. Background compaction merges files
+
+**Pros:** Write-optimized, great for SSDs
+**Cons:** Read can be slower, more complex
+
+## Comparison
+
+| Structure  | Read     | Write    | Range Query | Space  |
+| ---------- | -------- | -------- | ----------- | ------ |
+| Hash Table | O(1)     | O(1)     | ✗           | Medium |
+| B-Tree     | O(log n) | O(log n) | ✓           | Medium |
+| B+ Tree    | O(log n) | O(log n) | ✓           | Low    |
+| LSM Tree   | O(log n) | O(1)     | ✓           | Low    |
+
+## Choosing the Right Structure
+
+| Use Case         | Recommended    |
+| ---------------- | -------------- |
+| Key-value cache  | Hash table     |
+| Time-series data | LSM tree       |
+| Financial data   | B+ tree        |
+| Search index     | B+ tree or LSM |
+| Analytics        | Columnar       |
+
+For our project, we'll start with a hash table for simplicity, then add a B-tree index.

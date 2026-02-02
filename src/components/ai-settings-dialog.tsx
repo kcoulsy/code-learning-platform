@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAIConfig } from '@/lib/ai-config-hooks'
-import { PROVIDER_MODELS } from '@/lib/ai-config-collection'
+import { PROVIDER_MODELS } from '@/lib/db'
 import { cn } from '@/lib/utils'
 
 interface AISettingsDialogProps {

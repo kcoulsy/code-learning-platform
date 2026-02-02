@@ -1,0 +1,283 @@
+---
+id: build-database
+title: 'Build Your Own Database'
+description: From in-memory key-value store to persistent storage with append-only log and B-tree indexes. Learn database internals by building one from scratch.
+type: project
+order: 6
+---
+
+# Project: Build Your Own Database
+
+Build a complete key-value store with persistence, recovery, and basic SQL support.
+
+## Project Overview
+
+You'll build a database in 6 incremental phases:
+
+1. **In-memory hash table** — Basic CRUD operations
+2. **Append-only log** — Persistence to disk
+3. **Recovery** — Rebuild state on restart
+4. **B-tree index** — Fast lookups
+5. **SQL parser** — Basic query execution
+6. **Final integration** — Full database
+
+## Final Features
+
+### Key-Value Operations
+
+```
+SET name John
+GET name           -> John
+DELETE name
+LIST               -> Lists all keys
+COUNT              -> Number of keys
+```
+
+### SQL Subset
+
+```
+CREATE TABLE users (id INT, name TEXT, email TEXT)
+INSERT INTO users VALUES (1, 'John', 'john@email.com')
+SELECT * FROM users WHERE id = 1
+UPDATE users SET email = 'new@email.com' WHERE id = 1
+DELETE FROM users WHERE id = 1
+```
+
+### Persistence
+
+- All changes written to `data.bin`
+- Recovery on restart
+- Automatic compaction
+
+## Phase 1: In-Memory Hash Table
+
+```c
+#include <stdlib.h>
+#include <string.h>
+
+#define TABLE_SIZE 1024
+
+typedef struct {
+    char *key;
+    char *value;
+    int deleted;
+} kv_entry_t;
+
+typedef struct {
+    kv_entry_t entries[TABLE_SIZE];
+    int count;
+} kv_store_t;
+
+void kv_init(kv_store_t *store) {
+    memset(store, 0, sizeof(*store));
+}
+
+int kv_set(kv_store_t *store, const char *key, const char *value) {
+    // Find or create entry
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        if (store->entries[i].deleted) continue;
+
+        if (strcmp(store->entries[i].key, key) == 0) {
+            // Update existing
+            free(store->entries[i].value);
+            store->entries[i].value = strdup(value);
+            return 0;
+        }
+
+        if (!store->entries[i].key) {
+            // Create new
+            store->entries[i].key = strdup(key);
+            store->entries[i].value = strdup(value);
+            store->count++;
+            return 0;
+        }
+    }
+    return -1;  // Full
+}
+
+const char *kv_get(kv_store_t *store, const char *key) {
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        if (!store->entries[i].deleted &&
+            store->entries[i].key &&
+            strcmp(store->entries[i].key, key) == 0) {
+            return store->entries[i].value;
+        }
+    }
+    return NULL;
+}
+
+int kv_delete(kv_store_t *store, const char *key) {
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        if (!store->entries[i].deleted &&
+            store->entries[i].key &&
+            strcmp(store->entries[i].key, key) == 0) {
+            store->entries[i].deleted = 1;
+            store->count--;
+            return 0;
+        }
+    }
+    return -1;
+}
+```
+
+## Phase 2: Append-Only Log
+
+```c
+#include <stdio.h>
+#include <time.h>
+
+#define LOG_FILE "data.bin"
+
+typedef enum {
+    OP_SET,
+    OP_DELETE
+} op_type_t;
+
+typedef struct {
+    op_type_t type;
+    time_t timestamp;
+    size_t key_len;
+    size_t value_len;
+    // Followed by key and value data
+} log_entry_t;
+
+void log_write(int fd, op_type_t type, const char *key, const char *value) {
+    log_entry_t entry;
+    entry.type = type;
+    entry.timestamp = time(NULL);
+    entry.key_len = strlen(key) + 1;  // Include null terminator
+    entry.value_len = value ? strlen(value) + 1 : 0;
+
+    write(fd, &entry, sizeof(entry));
+    write(fd, key, entry.key_len);
+    if (value) {
+        write(fd, value, entry.value_len);
+    }
+}
+
+void log_recover(kv_store_t *store) {
+    FILE *f = fopen(LOG_FILE, "rb");
+    if (!f) return;  // No log file = empty database
+
+    while (1) {
+        log_entry_t entry;
+        if (fread(&entry, sizeof(entry), 1, f) != 1) break;
+
+        char key[256];
+        char value[1024];
+
+        fread(key, 1, entry.key_len, f);
+
+        if (entry.value_len > 0) {
+            fread(value, 1, entry.value_len, f);
+        }
+
+        if (entry.type == OP_SET) {
+            kv_set(store, key, value);
+        } else if (entry.type == OP_DELETE) {
+            kv_delete(store, key);
+        }
+    }
+
+    fclose(f);
+}
+```
+
+## SQL Parser (Simplified)
+
+```c
+typedef enum {
+    TOK_CREATE,
+    TOK_INSERT,
+    TOK_SELECT,
+    TOK_UPDATE,
+    TOK_DELETE,
+    TOK_FROM,
+    TOK_WHERE,
+    TOK_SET,
+    TOK_INTO,
+    TOK_VALUES,
+    TOK_IDENT,
+    TOK_NUMBER,
+    TOK_STRING,
+    TOK_EOF
+} token_type_t;
+
+typedef struct {
+    token_type_t type;
+    char text[256];
+} token_t;
+
+token_t *tokenize(const char *sql) {
+    // Simple tokenizer - split by spaces
+    // Returns array of tokens
+}
+
+typedef enum {
+    STMT_CREATE_TABLE,
+    STMT_INSERT,
+    STMT_SELECT,
+    STMT_UPDATE,
+    STMT_DELETE
+} stmt_type_t;
+
+typedef struct {
+    stmt_type_t type;
+    // For CREATE TABLE: table name, columns
+    // For INSERT: table name, values
+    // For SELECT: columns, table, where clause
+    // etc.
+} statement_t;
+
+statement_t parse_statement(token_t *tokens) {
+    // Convert tokens to structured statement
+}
+```
+
+## Project Structure
+
+```
+db/
+├── db.c              # Main entry point
+├── kv.h/.c           # Key-value store
+├── log.h/.c          # WAL implementation
+├── btree.h/.c        # B-tree index
+├── parser.h/.c       # SQL parser
+├── table.h/.c        # Table schema
+└── main.c            # REPL and server
+```
+
+## Testing
+
+```bash
+# Run as REPL
+./db
+> SET name Alice
+OK
+> GET name
+Alice
+> SET age 30
+OK
+> LIST
+name = Alice
+age = 30
+> DELETE age
+OK
+> QUIT
+
+# Run as server
+./db --port 8080
+# Connect with netcat
+nc localhost 8080
+SET key value
+GET key
+```
+
+## Bonus Features
+
+- [ ] B-tree index for O(log n) lookups
+- [ ] Transactions (BEGIN/COMMIT/ROLLBACK)
+- [ ] Table schemas with types
+- [ ] Indexes on columns
+- [ ] HTTP API interface
+- [ ] Compaction (clean up log)

@@ -1,14 +1,6 @@
 import { useCallback, useEffect } from 'react'
-import { useLiveQuery } from '@tanstack/react-db'
-import { and, eq } from '@tanstack/db'
-import {
-  stepProgressCollection,
-  lessonProgressCollection,
-  courseVisitCollection,
-  type StepProgress,
-  type LessonProgress,
-  type CourseVisit,
-} from './progress-collections'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, type StepProgress, type LessonProgress } from './db'
 import type { Course, CourseItem } from './course-data'
 
 /**
@@ -17,21 +9,15 @@ import type { Course, CourseItem } from './course-data'
 export function useStepCompletion(courseId: string, itemId: string, stepId: string) {
   const compositeId = `${courseId}:${itemId}:${stepId}`
 
-  const { data } = useLiveQuery((q) =>
-    q
-      .from({ step: stepProgressCollection })
-      .where(({ step }) => eq(step.id, compositeId))
-      .orderBy(({ step }) => step.id, 'desc')
-      .limit(1)
-  )
+  const data = useLiveQuery(() => db.stepProgress.where('id').equals(compositeId).first())
 
-  const isComplete = data?.[0]?.completed ?? false
+  const isComplete = data?.completed ?? false
 
   const toggle = useCallback(() => {
     if (isComplete) {
-      stepProgressCollection.delete(compositeId)
+      db.stepProgress.delete(compositeId)
     } else {
-      stepProgressCollection.insert({
+      db.stepProgress.add({
         id: compositeId,
         courseId,
         itemId,
@@ -44,7 +30,7 @@ export function useStepCompletion(courseId: string, itemId: string, stepId: stri
 
   const markComplete = useCallback(() => {
     if (!isComplete) {
-      stepProgressCollection.insert({
+      db.stepProgress.add({
         id: compositeId,
         courseId,
         itemId,
@@ -64,22 +50,16 @@ export function useStepCompletion(courseId: string, itemId: string, stepId: stri
 export function useLessonCompletion(courseId: string, itemId: string) {
   const compositeId = `${courseId}:${itemId}`
 
-  const { data } = useLiveQuery((q) =>
-    q
-      .from({ lesson: lessonProgressCollection })
-      .where(({ lesson }) => eq(lesson.id, compositeId))
-      .orderBy(({ lesson }) => lesson.id, 'desc')
-      .limit(1)
-  )
+  const data = useLiveQuery(() => db.lessonProgress.where('id').equals(compositeId).first())
 
-  const isComplete = data?.[0]?.completed ?? false
-  const manuallySet = data?.[0]?.manuallySet ?? false
+  const isComplete = data?.completed ?? false
+  const manuallySet = data?.manuallySet ?? false
 
   const toggle = useCallback(() => {
     if (isComplete) {
-      lessonProgressCollection.delete(compositeId)
+      db.lessonProgress.delete(compositeId)
     } else {
-      lessonProgressCollection.insert({
+      db.lessonProgress.add({
         id: compositeId,
         courseId,
         itemId,
@@ -97,8 +77,8 @@ export function useLessonCompletion(courseId: string, itemId: string) {
  * Get course progress percentage and stats
  */
 export function useCourseProgress(courseId: string, course: Course) {
-  const { data: completedSteps } = useLiveQuery((q) =>
-    q.from({ step: stepProgressCollection }).where(({ step }) => eq(step.courseId, courseId))
+  const completedSteps = useLiveQuery(() =>
+    db.stepProgress.where('courseId').equals(courseId).toArray()
   )
 
   const totalSteps = course.items.reduce((sum, item) => sum + item.steps.length, 0)
@@ -112,12 +92,12 @@ export function useCourseProgress(courseId: string, course: Course) {
  * Get completion status for all steps in a course (for outline view)
  */
 export function useCourseOutlineProgress(courseId: string) {
-  const { data: completedSteps } = useLiveQuery((q) =>
-    q.from({ step: stepProgressCollection }).where(({ step }) => eq(step.courseId, courseId))
+  const completedSteps = useLiveQuery(() =>
+    db.stepProgress.where('courseId').equals(courseId).toArray()
   )
 
-  const { data: completedLessons } = useLiveQuery((q) =>
-    q.from({ lesson: lessonProgressCollection }).where(({ lesson }) => eq(lesson.courseId, courseId))
+  const completedLessons = useLiveQuery(() =>
+    db.lessonProgress.where('courseId').equals(courseId).toArray()
   )
 
   const completedStepsMap = new Map<string, StepProgress>()
@@ -157,13 +137,25 @@ export function useCourseOutlineProgress(courseId: string) {
  */
 export function useTrackVisit(courseId: string, itemId: string, stepId: string) {
   useEffect(() => {
-    courseVisitCollection.insert({
-      id: courseId,
-      courseId,
-      lastItemId: itemId,
-      lastStepId: stepId,
-      lastVisitedAt: new Date(),
-    })
+    const updateVisit = async () => {
+      const existingVisit = await db.courseVisits.get(courseId)
+      if (existingVisit) {
+        await db.courseVisits.update(courseId, {
+          lastItemId: itemId,
+          lastStepId: stepId,
+          lastVisitedAt: new Date(),
+        })
+      } else {
+        await db.courseVisits.add({
+          id: courseId,
+          courseId,
+          lastItemId: itemId,
+          lastStepId: stepId,
+          lastVisitedAt: new Date(),
+        })
+      }
+    }
+    updateVisit()
   }, [courseId, itemId, stepId])
 }
 
@@ -171,23 +163,17 @@ export function useTrackVisit(courseId: string, itemId: string, stepId: string) 
  * Get last visited step for a course
  */
 export function useLastVisit(courseId: string) {
-  const { data } = useLiveQuery((q) =>
-    q
-      .from({ visit: courseVisitCollection })
-      .where(({ visit }) => eq(visit.courseId, courseId))
-      .orderBy(({ visit }) => visit.lastVisitedAt, 'desc')
-      .limit(1)
-  )
+  const data = useLiveQuery(() => db.courseVisits.where('courseId').equals(courseId).first())
 
-  return data?.[0] ?? null
+  return data ?? null
 }
 
 /**
  * Get next incomplete step for a course
  */
 export function useNextIncompleteStep(courseId: string, course: Course) {
-  const { data: completedSteps } = useLiveQuery((q) =>
-    q.from({ step: stepProgressCollection }).where(({ step }) => eq(step.courseId, courseId))
+  const completedSteps = useLiveQuery(() =>
+    db.stepProgress.where('courseId').equals(courseId).toArray()
   )
 
   const completedStepsSet = new Set(completedSteps?.map((s) => s.id) ?? [])
@@ -217,39 +203,45 @@ export function useNextIncompleteStep(courseId: string, course: Course) {
  * Auto-complete lesson when all steps are done (unless manually overridden)
  */
 export function useAutoLessonComplete(courseId: string, itemId: string, totalSteps: number) {
-  const { data: completedSteps } = useLiveQuery((q) =>
-    q
-      .from({ step: stepProgressCollection })
-      .where(({ step }) => and(eq(step.courseId, courseId), eq(step.itemId, itemId)))
+  const completedSteps = useLiveQuery(() =>
+    db.stepProgress.where({ courseId, itemId }).toArray()
   )
 
-  const { data: lessonProgress } = useLiveQuery((q) =>
-    q
-      .from({ lesson: lessonProgressCollection })
-      .where(({ lesson }) => eq(lesson.id, `${courseId}:${itemId}`))
-      .orderBy(({ lesson }) => lesson.id, 'desc')
-      .limit(1)
+  const lessonProgress = useLiveQuery(() =>
+    db.lessonProgress.where('id').equals(`${courseId}:${itemId}`).first()
   )
 
   useEffect(() => {
-    const allStepsComplete = completedSteps?.length === totalSteps
-    const lessonData = lessonProgress?.[0]
+    const autoComplete = async () => {
+      const allStepsComplete = completedSteps?.length === totalSteps
+      const lessonData = lessonProgress
 
-    // Only auto-complete if not manually set and all steps are done
-    if (allStepsComplete && totalSteps > 0 && !lessonData?.manuallySet) {
-      const compositeId = `${courseId}:${itemId}`
-      lessonProgressCollection.insert({
-        id: compositeId,
-        courseId,
-        itemId,
-        completed: true,
-        manuallySet: false,
-        completedAt: new Date(),
-      })
+      // Only auto-complete if not manually set and all steps are done
+      if (allStepsComplete && totalSteps > 0 && !lessonData?.manuallySet) {
+        const compositeId = `${courseId}:${itemId}`
+        const existingLesson = await db.lessonProgress.get(compositeId)
+        if (existingLesson) {
+          await db.lessonProgress.update(compositeId, {
+            completed: true,
+            manuallySet: false,
+            completedAt: new Date(),
+          })
+        } else {
+          await db.lessonProgress.add({
+            id: compositeId,
+            courseId,
+            itemId,
+            completed: true,
+            manuallySet: false,
+            completedAt: new Date(),
+          })
+        }
+      }
+      // Auto-uncomplete if manually set to complete but not all steps are done
+      else if (!allStepsComplete && lessonData?.completed && !lessonData?.manuallySet) {
+        await db.lessonProgress.delete(`${courseId}:${itemId}`)
+      }
     }
-    // Auto-uncomplete if manually set to complete but not all steps are done
-    else if (!allStepsComplete && lessonData?.completed && !lessonData?.manuallySet) {
-      lessonProgressCollection.delete(`${courseId}:${itemId}`)
-    }
+    autoComplete()
   }, [completedSteps, totalSteps, lessonProgress, courseId, itemId])
 }

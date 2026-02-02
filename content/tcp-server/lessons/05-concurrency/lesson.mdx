@@ -1,0 +1,145 @@
+---
+id: 05-concurrency
+title: "Concurrency Models"
+description: Learn different approaches to handling multiple clients simultaneously: forking processes, threading, and event-driven I/O with select/poll.
+type: lesson
+order: 5
+---
+
+# Concurrency Models
+
+A single client at a time is limiting. Let's explore three common approaches to handling multiple clients simultaneously.
+
+## Why Concurrency?
+
+```
+Single-threaded:          Multi-threaded:
+┌─────────────┐           ┌─────────────┐
+│  Client 1   │──────────▶│             │
+│             │           │  Thread 1   │
+│  Client 2   │    ✗      │             │
+│             │           ├─────────────┤
+│  Client 3   │    ✗      │  Thread 2   │
+│             │           │             │
+│  Client N   │    ✗      ├─────────────┤
+└─────────────┘           │  Thread N   │
+                          └─────────────┘
+```
+
+## Three Models
+
+| Model           | Pros                        | Cons                          | Use Case              |
+| --------------- | --------------------------- | ----------------------------- | --------------------- |
+| **Fork**        | Process isolation, simple   | Heavyweight, no shared memory | High security needs   |
+| **Threads**     | Lightweight, shared memory  | Race conditions, debugging    | Most applications     |
+| **select/poll** | Single thread, low overhead | Complex, not parallel         | High connection count |
+
+## Model 1: Fork-based
+
+Each connection gets its own process:
+
+```c
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+while (1) {
+    int client_fd = accept(server_fd, (struct sockaddr*)&addr, &len);
+
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        close(server_fd);  // Child doesn't need listening socket
+        handle_client(client_fd);
+        close(client_fd);
+        exit(0);
+    } else if (pid > 0) {
+        // Parent process
+        close(client_fd);  // Parent doesn't need client socket
+        waitpid(-1, NULL, WNOHANG);  // Reap dead children
+    } else {
+        perror("fork");
+    }
+}
+```
+
+## Model 2: Thread-based
+
+Each connection gets its own thread:
+
+```c
+#include <pthread.h>
+
+void *client_thread(void *arg) {
+    int client_fd = *(int*)arg;
+    free(arg);
+    handle_client(client_fd);
+    close(client_fd);
+    return NULL;
+}
+
+while (1) {
+    int client_fd = accept(server_fd, (struct sockaddr*)&addr, &len);
+
+    pthread_t thread;
+    int *client_copy = malloc(sizeof(int));
+    *client_copy = client_fd;
+
+    pthread_create(&thread, NULL, client_thread, client_copy);
+    pthread_detach(thread);
+}
+```
+
+## Model 3: select() - Event-driven
+
+Single thread monitors multiple sockets:
+
+```c
+#include <sys/select.h>
+
+fd_set read_fds;
+int max_fd = server_fd + 1;
+
+while (1) {
+    FD_ZERO(&read_fds);
+    FD_SET(server_fd, &read_fds);
+
+    for (int i = 0; i < max_clients; i++) {
+        if (client_fds[i] != -1) {
+            FD_SET(client_fds[i], &read_fds);
+        }
+    }
+
+    struct timeval timeout = {1, 0};  // 1 second
+    int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+
+    if (activity < 0) break;
+
+    if (FD_ISSET(server_fd, &read_fds)) {
+        // New connection
+        int client_fd = accept(server_fd, ...);
+        add_client(client_fd);
+    }
+
+    for (int i = 0; i < max_clients; i++) {
+        if (FD_ISSET(client_fds[i], &read_fds)) {
+            // Client sent data
+            handle_client(client_fds[i]);
+        }
+    }
+}
+```
+
+## Summary
+
+In this lesson, you learned:
+
+- Why concurrency is needed for multi-client servers
+- Three common concurrency models: fork, threads, select
+- Trade-offs between models
+- Basic implementation patterns
+
+## Next Steps
+
+In the final project, you'll implement all three models and compare them!

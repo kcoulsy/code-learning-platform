@@ -1,0 +1,126 @@
+---
+id: 03-socket-api-overview
+title: 'The Socket API'
+order: 3
+---
+
+# The Socket API
+
+Let's explore all the functions in the socket API with a simple echo client that connects to a server.
+
+## Complete Socket API Reference
+
+```c
+#include <sys/socket.h>
+
+// Create a socket
+int socket(int domain, int type, int protocol);
+
+// Bind socket to an address
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+
+// Start listening for connections (server only)
+int listen(int sockfd, int backlog);
+
+// Accept a connection (server only)
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+
+// Connect to a server (client only)
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+
+// Send data
+ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+
+// Receive data
+ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+
+// Close a socket
+int close(int fd);
+```
+
+## Client-Server Model
+
+TCP sockets follow a client-server model:
+
+**Server:**
+
+1. Create socket with `socket()`
+2. Bind to address:port with `bind()`
+3. Start listening with `listen()`
+4. Accept connections with `accept()`
+5. Communicate with `send()` and `recv()`
+6. Close with `close()`
+
+**Client:**
+
+1. Create socket with `socket()`
+2. Connect to server with `connect()`
+3. Communicate with `send()` and `recv()`
+4. Close with `close()`
+
+## Echo Client Example
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+int main() {
+    // 1. Create socket
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("socket");
+        return 1;
+    }
+
+    // 2. Define server address
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(8080);
+    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+    // 3. Connect to server
+    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        perror("connect");
+        return 1;
+    }
+
+    printf("Connected to server!\n");
+
+    // 4. Send data
+    const char *msg = "Hello, server!";
+    send(sockfd, msg, strlen(msg), 0);
+
+    // 5. Receive response
+    char buffer[1024] = {0};
+    recv(sockfd, buffer, sizeof(buffer) - 1, 0);
+    printf("Server replied: %s\n", buffer);
+
+    close(sockfd);
+    return 0;
+}
+```
+
+## Helper Functions
+
+Modern code often uses these helpers:
+
+```c
+#include <arpa/inet.h>
+
+// Convert IP string to binary
+int inet_pton(int af, const char *src, void *dst);
+
+// Convert binary IP to string
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+```
+
+```c
+// Example usage
+struct in_addr addr;
+inet_pton(AF_INET, "192.168.1.1", &addr);
+char ip_str[INET_ADDRSTRLEN];
+inet_ntop(AF_INET, &addr, ip_str, sizeof(ip_str));
+```

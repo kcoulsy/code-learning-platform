@@ -1,0 +1,89 @@
+---
+id: 01-three-way-handshake
+title: 'The Three-Way Handshake'
+order: 1
+---
+
+# The Three-Way Handshake
+
+Let's understand exactly what happens during TCP connection establishment.
+
+## Detailed Handshake Process
+
+```
+Time    Client                              Server
+  |     ------                              ------
+  |     [Application opens socket]
+  |     socket() -> fd
+  |     bind() -> local port
+  |     listen() -> socket in LISTEN state
+  |
+  |     connect() initiates handshake
+  |
+ T1     ---- SYN seq=1000 ----------------->
+       Client sends SYN, enters SYN_SENT state
+                                           Server receives SYN
+                                           Enters SYN_RCVD state
+ T2     <--- SYN+ACK seq=2000, ack=1001 ----
+       Server sends SYN+ACK
+                                           Server's seq=2000
+                                           Client's ack=1001 (1000+1)
+ T3     ---- ACK ack=2001 ----------------->
+       Client sends final ACK
+       Enters ESTABLISHED state
+                                           Server receives ACK
+                                           Enters ESTABLISHED state
+  |     ------                              ------
+  |     [Both sides in ESTABLISHED state]
+```
+
+## Sequence Numbers
+
+Every TCP segment has a sequence number. The SYN and FIN flags consume one sequence number each (even though they carry no data).
+
+- **Client's initial sequence number (ISN)**: 1000
+- **Server's initial sequence number (ISN)**: 2000
+- **Client's ACK**: 1001 (acknowledges server's SYN)
+- **Server's ACK**: 2001 (acknowledges client's SYN)
+
+## Viewing the Handshake
+
+Use `tcpdump` or Wireshark to observe the handshake:
+
+```bash
+# In one terminal, run your server
+./server
+
+# In another terminal, use tcpdump
+sudo tcpdump -i lo -n port 8080
+
+# In a third terminal, connect
+nc localhost 8080
+```
+
+You'll see:
+
+```
+13:45:01.123456 IP 127.0.0.1.54321 > 127.0.0.1.8080: Flags [S], seq 1000
+13:45:01.123500 IP 127.0.0.1.8080 > 127.0.0.1.54321: Flags [S.], seq 2000, ack 1001
+13:45:01.123550 IP 127.0.0.1.54321 > 127.0.0.1.8080: Flags [.], ack 2001
+```
+
+## Common Handshake Issues
+
+| Problem            | Symptom                     | Cause                          |
+| ------------------ | --------------------------- | ------------------------------ |
+| Connection timeout | Client hangs                | Firewall blocking SYN          |
+| Connection refused | "Connection refused" error  | No server listening            |
+| SYN flood          | Server becomes unresponsive | Too many half-open connections |
+
+## Connection States
+
+| State       | Side   | Meaning                        |
+| ----------- | ------ | ------------------------------ |
+| LISTEN      | Server | Waiting for connections        |
+| SYN_SENT    | Client | Sent SYN, waiting for response |
+| SYN_RCVD    | Server | Received SYN, sent SYN+ACK     |
+| ESTABLISHED | Both   | Normal data transfer           |
+| FIN_WAIT    | Both   | Connection closing             |
+| TIME_WAIT   | Both   | Waiting for late packets       |

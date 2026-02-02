@@ -1,0 +1,133 @@
+---
+id: 01-socket-basics
+title: 'Socket Basics'
+description: Learn what sockets are, how they enable network communication, and how to create your first socket in C.
+type: lesson
+order: 1
+---
+
+# Socket Basics
+
+Sockets are the fundamental building blocks of network communication. They provide an interface between your application and the network stack, allowing computers to exchange data across local networks and the internet.
+
+## What is a Socket?
+
+A socket is a communication endpoint—think of it as a combination of an IP address and a port number. Just as your house has an address, a socket has:
+
+- **IP Address**: Identifies the computer (like a street address)
+- **Port Number**: Identifies the specific application on that computer (like an apartment number)
+
+When you open a socket, you're creating a door through which data can flow in and out of your program.
+
+## Socket Types
+
+There are several types of sockets, but we'll focus on the most common:
+
+**TCP (SOCK_STREAM):**
+
+- Connection-oriented
+- Guarantees delivery
+- Maintains order of messages
+- Used by HTTP, SSH, email
+
+**UDP (SOCK_DGRAM):**
+
+- Connectionless
+- No delivery guarantee
+- Lower latency
+- Used by DNS, video streaming, gaming
+
+We'll use TCP sockets throughout this course since they form the foundation for HTTP.
+
+## Creating a Socket
+
+Let's create our first socket. The `socket()` function returns a file descriptor that we use for all subsequent operations:
+
+```c
+#include <sys/socket.h>
+#include <sys/types.h>
+
+int main() {
+    // Create a TCP socket (AF_INET = IPv4, SOCK_STREAM = TCP)
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (server_fd == -1) {
+        perror("socket failed");
+        return 1;
+    }
+
+    printf("Socket created successfully! fd = %d\n", server_fd);
+
+    close(server_fd);
+    return 0;
+}
+```
+
+The `socket()` function takes three arguments:
+
+1. **Domain**: `AF_INET` for IPv4, `AF_INET6` for IPv6
+2. **Type**: `SOCK_STREAM` for TCP, `SOCK_DGRAM` for UDP
+3. **Protocol**: Usually `0` (let the system choose)
+
+## The Socket API
+
+Here's an overview of the functions we'll use:
+
+| Function             | Purpose                               |
+| -------------------- | ------------------------------------- |
+| `socket()`           | Create a socket                       |
+| `bind()`             | Associate socket with an address:port |
+| `listen()`           | Start listening for connections       |
+| `accept()`           | Accept an incoming connection         |
+| `connect()`          | Connect to a server (client-side)     |
+| `send()` / `write()` | Send data                             |
+| `recv()` / `read()`  | Receive data                          |
+| `close()`            | Close the socket                      |
+
+## Address Structures
+
+To use these functions, we need to work with address structures. For IPv4 TCP sockets, we use `struct sockaddr_in`:
+
+```c
+#include <netinet/in.h>
+
+struct sockaddr_in {
+    sa_family_t    sin_family;   // Address family (AF_INET)
+    in_port_t      sin_port;     // Port number (16-bit)
+    struct in_addr sin_addr;     // IP address
+    char           sin_zero[8];  // Padding to match sockaddr size
+};
+
+struct in_addr {
+    in_addr_t s_addr;  // 32-bit IPv4 address
+};
+```
+
+## Port Numbers and Byte Order
+
+Port numbers are 16-bit values, and IP addresses are 32-bit values. Different computers use different byte orders (big-endian vs little-endian), so we must convert:
+
+- **htons()**: Host to Network Short (for port numbers)
+- **htonl()**: Host to Network Long (for IP addresses)
+- **ntohs()**: Network to Host Short
+- **ntohl()**: Network to Host Long
+
+```c
+#include <arpa/inet.h>
+
+in_port_t port = htons(8080);  // Convert 8080 to network byte order
+uint32_t ip = inet_addr("127.0.0.1");  // Convert IP string to binary
+```
+
+## Summary
+
+In this lesson, you learned:
+
+- What sockets are and why they matter
+- The difference between TCP and UDP
+- How to create a socket with `socket()`
+- Address structures and byte order conversion
+
+## Next Steps
+
+In the next lesson, we'll bind our socket to an address and start listening for connections.

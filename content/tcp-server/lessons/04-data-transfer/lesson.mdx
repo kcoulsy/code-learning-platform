@@ -1,0 +1,170 @@
+---
+id: 04-data-transfer
+title: 'Data Transfer'
+description: Learn to send and receive data over sockets, understand buffering, and build a simple echo server.
+type: lesson
+order: 4
+---
+
+# Data Transfer
+
+Now that we have established connections, let's send and receive actual data!
+
+## Send and Receive Functions
+
+TCP provides multiple functions for data transfer:
+
+```c
+#include <sys/socket.h>
+
+// Send data
+ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+ssize_t write(int sockfd, const void *buf, size_t len);  // Simpler, no flags
+
+// Receive data
+ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+ssize_t read(int sockfd, void *buf, size_t len);  // Simpler, no flags
+```
+
+**Return values:**
+
+- Positive: Number of bytes transferred
+- 0: Connection closed by peer
+- -1: Error
+
+## The send() Function
+
+```c
+const char *msg = "Hello, client!";
+ssize_t bytes_sent = send(client_fd, msg, strlen(msg), 0);
+
+if (bytes_sent == -1) {
+    perror("send");
+} else {
+    printf("Sent %zd bytes\n", bytes_sent);
+}
+```
+
+## The recv() Function
+
+```c
+char buffer[1024];
+ssize_t bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+if (bytes_received == -1) {
+    perror("recv");
+} else if (bytes_received == 0) {
+    printf("Client disconnected\n");
+} else {
+    buffer[bytes_received] = '\0';  // Null-terminate for printing
+    printf("Received: %s\n", buffer);
+}
+```
+
+## Important: Partial Transfers
+
+`send()` and `recv()` may not transfer all requested bytes in a single call!
+
+```c
+// WRONG: Assuming all bytes are sent
+ssize_t sent = send(fd, large_buffer, 100000, 0);  // May send less!
+
+// CORRECT: Handle partial sends
+const char *buf = large_buffer;
+size_t total = 100000;
+size_t sent = 0;
+
+while (sent < total) {
+    ssize_t n = send(fd, buf + sent, total - sent, 0);
+    if (n == -1) {
+        perror("send");
+        break;
+    }
+    sent += n;
+}
+```
+
+## Complete Echo Server
+
+Here's a simple echo server that receives and sends back:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
+#define PORT 8080
+
+void handle_client(int client_fd) {
+    char buffer[1024];
+
+    while (1) {
+        // Receive data
+        ssize_t n = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+        if (n <= 0) {
+            if (n == 0) {
+                printf("Client disconnected\n");
+            } else {
+                perror("recv");
+            }
+            break;
+        }
+
+        buffer[n] = '\0';
+        printf("Received: %s", buffer);
+
+        // Echo back
+        if (send(client_fd, buffer, n, 0) == -1) {
+            perror("send");
+            break;
+        }
+    }
+
+    close(client_fd);
+}
+
+int main() {
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
+    listen(server_fd, 5);
+
+    printf("Echo server listening on port %d\n", PORT);
+
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+
+    int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+    printf("Client connected\n");
+
+    handle_client(client_fd);
+
+    close(server_fd);
+    return 0;
+}
+```
+
+## Summary
+
+In this lesson, you learned:
+
+- How to use `send()` and `recv()` for data transfer
+- How to handle partial transfers
+- How to detect client disconnection
+- How to build a simple echo server
+
+## Next Steps
+
+In the next lesson, we'll explore different concurrency models to handle multiple clients simultaneously!

@@ -1,0 +1,93 @@
+---
+id: 02-bind-port
+title: 'Binding to a Port'
+order: 2
+---
+
+# Binding to a Port
+
+Let's write a complete program that binds to a specific port and handles common errors.
+
+## Complete Bind Example
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
+#define PORT 8080
+
+int main() {
+    // Create socket
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
+        perror("Failed to create socket");
+        return 1;
+    }
+
+    // Enable address reuse
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+        perror("setsockopt SO_REUSEADDR");
+        close(server_fd);
+        return 1;
+    }
+
+    // Prepare address structure
+    struct sockaddr_in address;
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;  // Bind to all interfaces
+    address.sin_port = htons(PORT);
+
+    // Bind
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) == -1) {
+        perror("bind failed");
+        close(server_fd);
+        return 1;
+    }
+
+    printf("Successfully bound to port %d\n", PORT);
+    printf("Server will accept connections on any interface\n");
+
+    close(server_fd);
+    return 0;
+}
+```
+
+## Common Bind Errors
+
+| Error           | Cause                    | Solution                               |
+| --------------- | ------------------------ | -------------------------------------- |
+| `EACCES`        | Port < 1024 without root | Use port > 1024 or run as root         |
+| `EADDRINUSE`    | Port already in use      | Use different port or set SO_REUSEADDR |
+| `EADDRNOTAVAIL` | Interface doesn't exist  | Check IP address validity              |
+
+## Testing the Bind
+
+```bash
+gcc -o bind_example bind_example.c
+./bind_example
+# Output: Successfully bound to port 8080
+
+# In another terminal
+netstat -tlnp | grep 8080
+# Should show your program listening
+```
+
+## Multiple Servers on Same Port?
+
+You cannot have two servers bound to the same IP:port combination. However, you can:
+
+- Bind to `INADDR_ANY` and use `getsockname()` to see which interface accepted
+- Use `SO_REUSEPORT` (Linux-specific) to allow multiple listeners on same port
+
+```c
+// Linux-only: Allow multiple listeners on same port
+#ifdef SO_REUSEPORT
+setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+#endif
+```

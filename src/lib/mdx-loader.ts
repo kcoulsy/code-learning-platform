@@ -212,7 +212,7 @@ export const getStepContent = createServerFn()
 
 // Server function to load all courses
 export const loadAllCourses = createServerFn().handler(async () => {
-  const courseIds = ['learning-c', 'advanced-c'] // Can be dynamically discovered later
+  const courseIds = ['learning-c', 'advanced-c', 'tcp-server', 'http-server', 'build-database'] // Can be dynamically discovered later
 
   const courses = await Promise.all(
     courseIds.map(async (courseId) => {

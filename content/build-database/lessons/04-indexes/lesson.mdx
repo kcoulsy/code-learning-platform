@@ -1,0 +1,283 @@
+---
+id: 04-indexes
+title: 'B-Tree Indexes'
+description: Implement a B-tree index for fast range queries and ordered iteration, transforming your KV store into a real database.
+type: lesson
+order: 4
+---
+
+# B-Tree Indexes
+
+Hash tables are great for exact lookups, but databases need more. Let's implement a B-tree for ordered data.
+
+## B-Tree Node Structure
+
+```c
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+#define BTREE_ORDER 4  // Children per node = 2*ORDER to 4*ORDER
+
+typedef struct bt_entry {
+    char *key;
+    void *value;
+    int is_leaf;
+} bt_entry_t;
+
+typedef struct btree_node {
+    int count;  // Number of entries
+    bt_entry_t entries[2 * BTREE_ORDER - 1];
+    struct btree_node *children[2 * BTREE_ORDER];
+} btree_node_t;
+
+typedef struct {
+    btree_node_t *root;
+    int (*compare)(const char *a, const char *b);
+} btree_t;
+
+btree_t *btree_create() {
+    btree_t *tree = malloc(sizeof(btree_t));
+    tree->root = NULL;
+    tree->compare = strcmp;
+    return tree;
+}
+```
+
+## Search
+
+```c
+btree_node_t *btree_search(btree_node_t *node, const char *key) {
+    if (!node) return NULL;
+
+    // Find position to search
+    int i = 0;
+    while (i < node->count &&
+           tree->compare(key, node->entries[i].key) > 0) {
+        i++;
+    }
+
+    // Check if found
+    if (i < node->count &&
+        tree->compare(key, node->entries[i].key) == 0) {
+        return node;
+    }
+
+    // Recurse into child
+    if (node->is_leaf) {
+        return NULL;
+    }
+
+    return btree_search(node->children[i], key);
+}
+```
+
+## Split and Insert
+
+When a node is full, split it:
+
+```c
+void btree_split_child(btree_node_t *parent, int index,
+                       btree_node_t *child) {
+    btree_node_t *new_node = malloc(sizeof(btree_node_t));
+    new_node->is_leaf = child->is_leaf;
+    new_node->count = BTREE_ORDER - 1;
+
+    // Copy second half to new node
+    for (int i = 0; i < BTREE_ORDER - 1; i++) {
+        new_node->entries[i] = child->entries[i + BTREE_ORDER];
+    }
+
+    if (!child->is_leaf) {
+        for (int i = 0; i < BTREE_ORDER; i++) {
+            new_node->children[i] = child->children[i + BTREE_ORDER];
+        }
+    }
+
+    // Move parent's middle entry down
+    parent->children[parent->count + 1] = parent->children[parent->count];
+
+    for (int i = index; i < parent->count; i++) {
+        parent->entries[i + 1] = parent->entries[i];
+    }
+
+    parent->entries[index] = child->entries[BTREE_ORDER - 1];
+    parent->children[index + 1] = new_node;
+    parent->count++;
+
+    child->count = BTREE_ORDER - 1;
+}
+
+void btree_insert_non_full(btree_node_t *node, const char *key, void *value) {
+    int i = node->count - 1;
+
+    if (node->is_leaf) {
+        // Find position
+        while (i >= 0 && tree->compare(key, node->entries[i].key) < 0) {
+            i--;
+        }
+
+        // Shift entries
+        for (int j = node->count; j > i + 1; j--) {
+            node->entries[j] = node->entries[j - 1];
+        }
+
+        node->entries[i + 1].key = strdup(key);
+        node->entries[i + 1].value = value;
+        node->count++;
+    } else {
+        // Find child
+        while (i >= 0 && tree->compare(key, node->entries[i].key) < 0) {
+            i--;
+        }
+
+        i++;
+
+        if (node->children[i]->count == 2 * BTREE_ORDER - 1) {
+            btree_split_child(node, i, node->children[i]);
+
+            if (tree->compare(key, node->entries[i].key) > 0) {
+                i++;
+            }
+        }
+
+        btree_insert_non_full(node->children[i], key, value);
+    }
+}
+
+int btree_insert(btree_t *tree, const char *key, void *value) {
+    if (!tree->root) {
+        tree->root = malloc(sizeof(btree_node_t));
+        tree->root->is_leaf = 1;
+        tree->root->count = 0;
+    }
+
+    if (tree->root->count == 2 * BTREE_ORDER - 1) {
+        btree_node_t *new_root = malloc(sizeof(btree_node_t));
+        new_root->is_leaf = 0;
+        new_root->count = 0;
+        new_root->children[0] = tree->root;
+
+        btree_split_child(new_root, 0, tree->root);
+        btree_insert_non_full(new_root, key, value);
+        tree->root = new_root;
+    } else {
+        btree_insert_non_full(tree->root, key, value);
+    }
+
+    return 0;
+}
+```
+
+## Range Queries
+
+```c
+typedef struct {
+    btree_node_t *node;
+    int index;
+} btree_iter_t;
+
+btree_iter_t *btree_iter_start(btree_t *tree, const char *start_key) {
+    btree_iter_t *iter = malloc(sizeof(btree_iter_t));
+
+    // Find leftmost node >= start_key
+    iter->node = tree->root;
+    while (!iter->node->is_leaf) {
+        int i = 0;
+        while (i < iter->node->count &&
+               tree->compare(start_key, iter->node->entries[i].key) > 0) {
+            i++;
+        }
+        iter->node = iter->node->children[i];
+    }
+
+    // Find first entry >= start_key
+    iter->index = 0;
+    while (iter->index < iter->node->count &&
+           tree->compare(start_key, iter->node->entries[iter->index].key) > 0) {
+        iter->index++;
+    }
+
+    return iter;
+}
+
+int btree_iter_next(btree_iter_t *iter) {
+    iter->index++;
+
+    while (iter->index >= iter->node->count && !iter->node->is_leaf) {
+        // Move to next leaf
+        iter->node = iter->node->children[iter->node->count];
+        iter->index = 0;
+    }
+
+    return iter->index < iter->node->count;
+}
+
+void *btree_iter_value(btree_iter_t *iter) {
+    return iter->node->entries[iter->index].value;
+}
+
+const char *btree_iter_key(btree_iter_t *iter) {
+    return iter->node->entries[iter->index].key;
+}
+
+void btree_iter_free(btree_iter_t *iter) {
+    free(iter);
+}
+```
+
+## Using B-Tree for Indexing
+
+```c
+typedef struct {
+    btree_t *by_name;
+    btree_t *by_email;
+    hash_table_t *data;  // Store full records
+} indexed_db_t;
+
+int db_insert(indexed_db_t *db, const char *name,
+              const char *email, int age) {
+    // Create record
+    record_t *rec = malloc(sizeof(record_t));
+    rec->name = strdup(name);
+    rec->email = strdup(email);
+    rec->age = age;
+
+    // Store data
+    char key[256];
+    snprintf(key, sizeof(key), "%lld", (long long)rec);
+    ht_set(db->data, key, (value_t){TYPE_BLOB, .blob_val={rec, sizeof(*rec)}});
+
+    // Create indexes
+    btree_insert(db->by_name, name, key);
+    btree_insert(db->by_email, email, key);
+
+    return 0;
+}
+
+// Find by name (O(log n))
+record_t *db_find_by_name(indexed_db_t *db, const char *name) {
+    btree_node_t *node = btree_search(db->by_name->root, name);
+    if (!node) return NULL;
+
+    // Get record key and look up
+    return get_record(db, node->entries[0].value);
+}
+
+// Range query (all users named "John*")
+void db_find_by_name_prefix(indexed_db_t *db, const char *prefix) {
+    btree_iter_t *iter = btree_iter_start(db->by_name, prefix);
+
+    while (btree_iter_next(iter)) {
+        const char *name = btree_iter_key(iter);
+        if (strncmp(name, prefix, strlen(prefix)) != 0) {
+            break;
+        }
+
+        record_t *rec = get_record(db, btree_iter_value(iter));
+        printf("%s: %s (%d)\n", rec->name, rec->email, rec->age);
+    }
+
+    btree_iter_free(iter);
+}
+```

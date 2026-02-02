@@ -1,0 +1,670 @@
+---
+title: 'Shell Implementation: Core Functionality'
+order: 3
+---
+
+# Shell Implementation: Core Functionality
+
+## Introduction
+
+With your design in hand, it's time to start building! This step guides you through implementing the core shell functionality: the main loop, command parsing, and basic process execution.
+
+We'll build incrementally, testing each component before moving to the next. By the end of this step, you'll have a working shell that can execute simple commands.
+
+## Getting Started
+
+### Project Setup
+
+Create your project structure:
+
+```bash
+mkdir myshell
+cd myshell
+mkdir src include tests
+touch Makefile README.md
+```
+
+### Initial Makefile
+
+```makefile
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c99 -Iinclude -g
+LDFLAGS =
+
+SRC_DIR = src
+OBJ_DIR = obj
+BIN_DIR = .
+
+SOURCES = $(wildcard $(SRC_DIR)/*.c)
+OBJECTS = $(SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+TARGET = $(BIN_DIR)/myshell
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS) | $(BIN_DIR)
+	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
+
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET)
+
+run: $(TARGET)
+	./$(TARGET)
+```
+
+## Part 1: The Main Loop (REPL)
+
+### Header File: shell.h
+
+```c
+#ifndef SHELL_H
+#define SHELL_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
+
+#define MAX_LINE 1024
+#define MAX_ARGS 64
+
+// Function declarations
+void shell_loop(void);
+char *read_line(void);
+char **parse_line(char *line);
+int execute_command(char **args);
+
+#endif // SHELL_H
+```
+
+### Main Entry Point: main.c
+
+```c
+#include "shell.h"
+
+int main(int argc, char **argv) {
+    (void)argc;  // Unused
+    (void)argv;  // Unused
+
+    // Print welcome message
+    printf("MyShell v0.1\n");
+    printf("Type 'exit' to quit\n\n");
+
+    // Run the main loop
+    shell_loop();
+
+    return EXIT_SUCCESS;
+}
+
+void shell_loop(void) {
+    char *line;
+    char **args;
+    int status;
+
+    do {
+        // Print prompt
+        printf("myshell> ");
+        fflush(stdout);
+
+        // Read input
+        line = read_line();
+
+        // Parse input into arguments
+        args = parse_line(line);
+
+        // Execute command
+        status = execute_command(args);
+
+        // Free allocated memory
+        free(line);
+        free(args);
+
+    } while (status);  // Continue until status is 0 (exit)
+}
+```
+
+**Key Points**:
+
+- The loop continues until `execute_command` returns 0
+- We flush stdout to ensure prompt appears immediately
+- Memory is freed after each iteration
+
+### Reading Input: read_line()
+
+```c
+char *read_line(void) {
+    char *line = NULL;
+    size_t bufsize = 0;
+
+    if (getline(&line, &bufsize, stdin) == -1) {
+        // EOF or error
+        if (feof(stdin)) {
+            // User pressed Ctrl+D
+            printf("\n");
+            exit(EXIT_SUCCESS);
+        } else {
+            perror("read_line");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    return line;
+}
+```
+
+**Alternative with fgets()**:
+
+```c
+char *read_line(void) {
+    char *line = malloc(MAX_LINE);
+    if (!line) {
+        fprintf(stderr, "allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (fgets(line, MAX_LINE, stdin) == NULL) {
+        if (feof(stdin)) {
+            printf("\n");
+            exit(EXIT_SUCCESS);
+        } else {
+            perror("fgets");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    return line;
+}
+```
+
+**Design Choice**: `getline()` automatically allocates and resizes the buffer, while `fgets()` requires a fixed-size buffer. Choose based on whether you want to support arbitrarily long lines.
+
+## Part 2: Parsing Commands
+
+### Basic Tokenization: parse_line()
+
+```c
+#define TOKEN_DELIM " \t\r\n\a"
+
+char **parse_line(char *line) {
+    int bufsize = MAX_ARGS;
+    int position = 0;
+    char **tokens = malloc(bufsize * sizeof(char*));
+    char *token;
+
+    if (!tokens) {
+        fprintf(stderr, "allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    token = strtok(line, TOKEN_DELIM);
+    while (token != NULL) {
+        tokens[position] = token;
+        position++;
+
+        // Expand buffer if needed
+        if (position >= bufsize) {
+            bufsize += MAX_ARGS;
+            tokens = realloc(tokens, bufsize * sizeof(char*));
+            if (!tokens) {
+                fprintf(stderr, "allocation error\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        token = strtok(NULL, TOKEN_DELIM);
+    }
+
+    tokens[position] = NULL;  // NULL-terminate the array
+    return tokens;
+}
+```
+
+**Key Points**:
+
+- Uses `strtok()` to split by whitespace
+- Returns NULL-terminated array (required by `execvp()`)
+- Dynamically expands buffer if needed
+- Simple but doesn't handle quotes yet
+
+### Testing Parsing
+
+Add a debug function:
+
+```c
+void print_args(char **args) {
+    printf("Parsed args:\n");
+    for (int i = 0; args[i] != NULL; i++) {
+        printf("  [%d]: '%s'\n", i, args[i]);
+    }
+}
+```
+
+Test with:
+
+```
+myshell> echo hello world
+Parsed args:
+  [0]: 'echo'
+  [1]: 'hello'
+  [2]: 'world'
+```
+
+## Part 3: Executing Commands
+
+### Basic Execution: execute_command()
+
+```c
+int execute_command(char **args) {
+    pid_t pid;
+    int status;
+
+    // Empty command (user pressed Enter)
+    if (args[0] == NULL) {
+        return 1;
+    }
+
+    // Check for built-in commands
+    if (strcmp(args[0], "exit") == 0) {
+        return 0;  // Exit shell loop
+    }
+
+    // External command - fork and exec
+    pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        if (execvp(args[0], args) == -1) {
+            perror("myshell");
+        }
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        // Fork failed
+        perror("myshell");
+    } else {
+        // Parent process
+        do {
+            waitpid(pid, &status, WUNTRACED);
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    }
+
+    return 1;
+}
+```
+
+**Understanding the Code**:
+
+1. **Empty command check**: Prevents errors when user presses Enter
+
+2. **Built-in check**: `exit` must run in the shell process itself
+
+3. **Fork**: Creates a copy of the current process
+   - Returns 0 to child
+   - Returns child PID to parent
+   - Returns -1 on error
+
+4. **Child process**:
+   - Calls `execvp()` to replace itself with the command
+   - If `execvp()` returns, it failed
+   - Must exit to avoid running shell code
+
+5. **Parent process**:
+   - Waits for child to complete
+   - `WUNTRACED` flag handles stopped processes
+   - Loops until child exits or is killed
+
+### Important System Calls
+
+**fork()**: Creates a new process
+
+```c
+pid_t pid = fork();
+// Returns:
+//   0 in child process
+//   child's PID in parent process
+//   -1 on error
+```
+
+**execvp()**: Replaces current process with a new program
+
+```c
+int execvp(const char *file, char *const argv[]);
+// Searches PATH for 'file'
+// argv[0] should be program name
+// argv must be NULL-terminated
+// Only returns if error occurs
+```
+
+**waitpid()**: Waits for specific child process
+
+```c
+pid_t waitpid(pid_t pid, int *status, int options);
+// Returns when child changes state
+// WIFEXITED(status) - true if exited normally
+// WIFSIGNALED(status) - true if killed by signal
+// WEXITSTATUS(status) - gets exit code
+```
+
+## Part 4: Built-in Commands
+
+### Separating Built-ins: builtins.c
+
+Create `include/builtins.h`:
+
+```c
+#ifndef BUILTINS_H
+#define BUILTINS_H
+
+int is_builtin(char **args);
+int execute_builtin(char **args);
+
+#endif
+```
+
+Create `src/builtins.c`:
+
+```c
+#include "builtins.h"
+#include "shell.h"
+
+// List of built-in commands
+static const char *builtin_names[] = {
+    "cd",
+    "exit",
+    "help"
+};
+
+static const int num_builtins = sizeof(builtin_names) / sizeof(char*);
+
+// Check if command is a built-in
+int is_builtin(char **args) {
+    if (args[0] == NULL) {
+        return 0;
+    }
+
+    for (int i = 0; i < num_builtins; i++) {
+        if (strcmp(args[0], builtin_names[i]) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+// Execute built-in command
+int execute_builtin(char **args) {
+    if (strcmp(args[0], "cd") == 0) {
+        return builtin_cd(args);
+    } else if (strcmp(args[0], "exit") == 0) {
+        return builtin_exit(args);
+    } else if (strcmp(args[0], "help") == 0) {
+        return builtin_help(args);
+    }
+
+    return 1;
+}
+
+// cd: Change directory
+static int builtin_cd(char **args) {
+    if (args[1] == NULL) {
+        // No argument - go to home directory
+        char *home = getenv("HOME");
+        if (home == NULL) {
+            fprintf(stderr, "cd: HOME not set\n");
+            return 1;
+        }
+        if (chdir(home) != 0) {
+            perror("cd");
+        }
+    } else {
+        // Change to specified directory
+        if (chdir(args[1]) != 0) {
+            perror("cd");
+        }
+    }
+    return 1;
+}
+
+// exit: Exit the shell
+static int builtin_exit(char **args) {
+    // Optional: support exit code argument
+    if (args[1] != NULL) {
+        int code = atoi(args[1]);
+        exit(code);
+    }
+    return 0;  // Signal to exit main loop
+}
+
+// help: Display help information
+static int builtin_help(char **args) {
+    (void)args;  // Unused
+
+    printf("MyShell - Simple Unix Shell\n\n");
+    printf("Built-in commands:\n");
+    printf("  cd [directory]   Change working directory\n");
+    printf("  exit [code]      Exit the shell\n");
+    printf("  help             Display this help message\n");
+    printf("\nAll other commands are executed as external programs.\n");
+
+    return 1;
+}
+```
+
+### Updating execute_command()
+
+Modify `execute_command()` to use built-ins:
+
+```c
+int execute_command(char **args) {
+    pid_t pid;
+    int status;
+
+    if (args[0] == NULL) {
+        return 1;
+    }
+
+    // Check for built-in commands
+    if (is_builtin(args)) {
+        return execute_builtin(args);
+    }
+
+    // External command - fork and exec
+    pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        if (execvp(args[0], args) == -1) {
+            perror("myshell");
+        }
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        // Fork failed
+        perror("myshell");
+    } else {
+        // Parent process
+        do {
+            waitpid(pid, &status, WUNTRACED);
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    }
+
+    return 1;
+}
+```
+
+## Testing Your Shell
+
+### Compile and Run
+
+```bash
+make
+./myshell
+```
+
+### Test Commands
+
+Try these commands:
+
+```bash
+myshell> ls
+myshell> ls -la
+myshell> pwd
+myshell> echo hello world
+myshell> date
+myshell> cd /tmp
+myshell> pwd
+myshell> cd
+myshell> pwd
+myshell> help
+myshell> exit
+```
+
+### Test Edge Cases
+
+```bash
+myshell>                    # Empty input
+myshell> /bin/ls            # Absolute path
+myshell> ./myprogram        # Relative path
+myshell> nonexistent        # Command not found
+myshell> cd /nonexistent    # Directory doesn't exist
+```
+
+## Debugging Tips
+
+### Common Issues
+
+**1. Command not found even though it exists**
+
+- Check if PATH is set correctly
+- Try absolute path: `/bin/ls` instead of `ls`
+- Verify `execvp()` is called correctly
+
+**2. Shell exits unexpectedly**
+
+- Check if child calls `exit()` after failed exec
+- Ensure parent doesn't accidentally execute child code
+
+**3. Zombie processes**
+
+- Make sure parent always calls `waitpid()`
+- Check that you're not missing any child processes
+
+**4. Segmentation fault**
+
+- Check for NULL pointer dereferences
+- Ensure `args` array is NULL-terminated
+- Verify buffer sizes
+
+### Using GDB
+
+```bash
+gdb ./myshell
+(gdb) break main
+(gdb) run
+(gdb) next
+(gdb) print args
+(gdb) continue
+```
+
+For fork debugging:
+
+```bash
+(gdb) set follow-fork-mode child  # Follow child process
+(gdb) set follow-fork-mode parent # Follow parent process
+```
+
+## Exercises
+
+### Exercise 1: Add pwd Built-in
+
+Implement a `pwd` built-in that prints the current working directory.
+
+**Hints**:
+
+- Use `getcwd()` system call
+- Handle buffer size correctly
+- Test with `cd /tmp` then `pwd`
+
+### Exercise 2: Improve Error Messages
+
+Make error messages more helpful:
+
+- When command not found, suggest checking PATH
+- For cd errors, distinguish between different error types
+- Add line number to syntax errors
+
+### Exercise 3: Command History
+
+Add simple history:
+
+- Store last 10 commands in an array
+- Implement `history` built-in to display them
+- Bonus: Save to file `~/.myshell_history`
+
+**Hints**:
+
+```c
+static char *history[10];
+static int history_count = 0;
+
+void add_to_history(char *line) {
+    // Store line in history array
+}
+
+int builtin_history(char **args) {
+    // Print all commands in history
+}
+```
+
+### Exercise 4: Environment Variables
+
+Add environment variable support:
+
+- Implement `export VAR=value` built-in
+- Implement `unset VAR` built-in
+- Test with `export PATH=/usr/bin` then `echo $PATH`
+
+**Hints**:
+
+- Use `setenv()` and `unsetenv()`
+- Parse `VAR=value` format
+- Be careful with string manipulation
+
+## Milestone Checklist
+
+Before moving to the next step, ensure you have:
+
+- [ ] Working main loop that displays prompt
+- [ ] Input reading with EOF handling (Ctrl+D)
+- [ ] Command parsing into arguments
+- [ ] Process creation with fork()
+- [ ] Command execution with execvp()
+- [ ] Parent waiting for child with waitpid()
+- [ ] `exit` built-in that terminates shell
+- [ ] `cd` built-in that changes directory
+- [ ] `help` built-in that shows usage
+- [ ] Proper error handling for all system calls
+- [ ] No memory leaks (check with valgrind)
+- [ ] Clean compilation with no warnings
+
+## Next Steps
+
+Congratulations! You have a working basic shell. In the next step, we'll add advanced features:
+
+- I/O redirection (`>`, `<`, `>>`)
+- Pipelines (`|`)
+- Background processes (`&`)
+- Signal handling (Ctrl+C)
+
+These features will transform your shell from a simple command executor into a powerful Unix tool!

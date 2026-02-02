@@ -1,0 +1,141 @@
+---
+id: 02-response-format
+title: 'HTTP Response Format'
+order: 2
+---
+
+# HTTP Response Format
+
+Now let's build HTTP responses in code.
+
+## Response Structure
+
+```
+HTTP/1.1 STATUS_CODE REASON\r\n
+Header1: value\r\n
+Header2: value\r\n
+\r\n
+[response body]
+```
+
+**Example 200 OK:**
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 234
+
+<!DOCTYPE html>
+<html>...</html>
+```
+
+## Status Code Helper
+
+```c
+typedef struct {
+    int code;
+    const char *reason;
+} http_status;
+
+http_status get_status(int code) {
+    switch (code) {
+        case 200: return (http_status){200, "OK"};
+        case 201: return (http_status){201, "Created"};
+        case 204: return (http_status){204, "No Content"};
+        case 301: return (http_status){301, "Moved Permanently"};
+        case 304: return (http_status){304, "Not Modified"};
+        case 400: return (http_status){400, "Bad Request"};
+        case 401: return (http_status){401, "Unauthorized"};
+        case 403: return (http_status){403, "Forbidden"};
+        case 404: return (http_status){404, "Not Found"};
+        case 405: return (http_status){405, "Method Not Allowed"};
+        case 500: return (http_status){500, "Internal Server Error"};
+        case 502: return (http_status){502, "Bad Gateway"};
+        default:  return (http_status){500, "Internal Server Error"};
+    }
+}
+```
+
+## Building Response Headers
+
+```c
+void build_response_headers(char *buffer, size_t buffer_size,
+                            int status_code, const char *content_type,
+                            size_t content_length) {
+    http_status status = get_status(status_code);
+
+    snprintf(buffer, buffer_size,
+             "HTTP/1.1 %d %s\r\n"
+             "Content-Type: %s\r\n"
+             "Content-Length: %zu\r\n"
+             "Connection: close\r\n"
+             "\r\n",
+             status.code, status.reason,
+             content_type,
+             content_length);
+}
+```
+
+## Sending a Simple Response
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+
+void send_response(int client_fd, int status_code, const char *content_type,
+                   const char *body, size_t body_length) {
+    char headers[512];
+    build_response_headers(headers, sizeof(headers),
+                          status_code, content_type, body_length);
+
+    // Send headers
+    send(client_fd, headers, strlen(headers), 0);
+
+    // Send body
+    if (body && body_length > 0) {
+        send(client_fd, body, body_length, 0);
+    }
+}
+
+// Usage
+send_response(client_fd, 200, "text/plain", "Hello, World!", 13);
+```
+
+## Common Content Types
+
+```c
+const char *get_content_type(const char *path) {
+    const char *ext = strrchr(path, '.');
+    if (ext) {
+        if (strcmp(ext, ".html") == 0) return "text/html";
+        if (strcmp(ext, ".css") == 0) return "text/css";
+        if (strcmp(ext, ".js") == 0) return "application/javascript";
+        if (strcmp(ext, ".json") == 0) return "application/json";
+        if (strcmp(ext, ".png") == 0) return "image/png";
+        if (strcmp(ext, ".jpg") == 0) return "image/jpeg";
+        if (strcmp(ext, ".gif") == 0) return "image/gif";
+        if (strcmp(ext, ".ico") == 0) return "image/x-icon";
+    }
+    return "application/octet-stream";  // Default binary
+}
+```
+
+## Error Response Helper
+
+```c
+void send_error_response(int client_fd, int status_code, const char *message) {
+    char body[1024];
+    snprintf(body, sizeof(body),
+             "<html><body><h1>%d %s</h1></body></html>",
+             status_code, get_status(status_code).reason);
+
+    send_response(client_fd, status_code, "text/html", body, strlen(body));
+}
+
+// Usage
+if (strcmp(method, "GET") != 0) {
+    send_error_response(client_fd, 405, "Method Not Allowed");
+    return;
+}
+```

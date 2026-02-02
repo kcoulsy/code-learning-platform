@@ -1,0 +1,134 @@
+---
+id: 02-parse-headers
+title: 'Parsing Headers'
+order: 2
+---
+
+# Parsing Headers
+
+Headers are key-value pairs that provide metadata about the request or response.
+
+## Header Format
+
+```
+Header-Name: header value
+Host: localhost:8080
+Content-Type: application/json
+User-Agent: MyClient/1.0
+```
+
+## Parsing Headers
+
+```c
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
+
+#define MAX_HEADERS 64
+#define MAX_HEADER_NAME 128
+#define MAX_HEADER_VALUE 1024
+
+typedef struct {
+    char name[MAX_HEADER_NAME];
+    char value[MAX_HEADER_VALUE];
+} header_t;
+
+typedef struct {
+    header_t headers[MAX_HEADERS];
+    int count;
+} headers_t;
+
+int parse_header_line(const char *line, char *name, char *value) {
+    const char *colon = strchr(line, ':');
+    if (!colon) return -1;
+
+    size_t name_len = colon - line;
+    if (name_len == 0 || name_len >= MAX_HEADER_NAME) return -1;
+
+    // Validate name (token characters only)
+    for (size_t i = 0; i < name_len; i++) {
+        char c = line[i];
+        if (!isalnum((unsigned char)c) && c != '-' && c != '_') {
+            return -1;
+        }
+    }
+
+    strncpy(name, line, name_len);
+    name[name_len] = '\0';
+
+    // Skip ": " and get value
+    const char *value_start = colon + 2;  // Skip ": "
+    size_t value_len = strlen(value_start);
+
+    // Trim trailing whitespace
+    while (value_len > 0 && isspace((unsigned char)value_start[value_len - 1])) {
+        value_len--;
+    }
+
+    if (value_len >= MAX_HEADER_VALUE) return -1;
+    strncpy(value, value_start, value_len);
+    value[value_len] = '\0';
+
+    return 0;
+}
+
+int parse_headers(const char *data, size_t len, headers_t *headers) {
+    headers->count = 0;
+
+    const char *line = data;
+
+    while (headers->count < MAX_HEADERS) {
+        // Check for end of headers
+        if (line[0] == '\r' && line[1] == '\n') {
+            return 0;  // Success
+        }
+
+        // Find end of line
+        const char *line_end = strstr(line, "\r\n");
+        if (!line_end) return -1;  // Incomplete headers
+
+        size_t line_len = line_end - line;
+        if (line_len >= MAX_HEADER_NAME + MAX_HEADER_VALUE) return -1;
+
+        char line_copy[MAX_HEADER_NAME + MAX_HEADER_VALUE];
+        strncpy(line_copy, line, line_len);
+        line_copy[line_len] = '\0';
+
+        if (parse_header_line(line_copy,
+                              headers->headers[headers->count].name,
+                              headers->headers[headers->count].value) == 0) {
+            headers->count++;
+        }
+
+        line = line_end + 2;  // Skip \r\n
+    }
+
+    return -1;  // Too many headers
+}
+```
+
+## Getting Header Values
+
+```c
+const char *get_header(headers_t *headers, const char *name) {
+    for (int i = 0; i < headers->count; i++) {
+        if (strcasecmp(headers->headers[i].name, name) == 0) {
+            return headers->headers[i].value;
+        }
+    }
+    return NULL;
+}
+```
+
+## Common Headers
+
+| Header           | Meaning                 |
+| ---------------- | ----------------------- |
+| `Host`           | Domain and port         |
+| `Content-Length` | Body size in bytes      |
+| `Content-Type`   | Body format             |
+| `Authorization`  | Credentials             |
+| `Cookie`         | Session data            |
+| `Accept`         | Expected response types |
+| `User-Agent`     | Client identifier       |
+| `Referer`        | Previous page           |

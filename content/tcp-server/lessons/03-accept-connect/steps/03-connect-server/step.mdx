@@ -1,0 +1,128 @@
+---
+id: 03-connect-server
+title: 'Connecting as a Client'
+order: 3
+---
+
+# Connecting as a Client
+
+Let's build a complete client that connects to our server and verifies the connection.
+
+## Complete Client Example
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 8080
+
+int main() {
+    // Create socket
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("socket");
+        return 1;
+    }
+
+    // Prepare server address
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(SERVER_PORT);
+
+    // Convert IP string to binary
+    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0) {
+        perror("inet_pton");
+        close(sockfd);
+        return 1;
+    }
+
+    printf("Connecting to %s:%d...\n", SERVER_IP, SERVER_PORT);
+
+    // Connect to server
+    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        perror("connect");
+        close(sockfd);
+        return 1;
+    }
+
+    printf("Connected successfully!\n");
+    printf("Socket file descriptor: %d\n", sockfd);
+
+    // Get local socket info
+    struct sockaddr_in local_addr;
+    socklen_t local_len = sizeof(local_addr);
+    getsockname(sockfd, (struct sockaddr*)&local_addr, &local_len);
+
+    printf("Local endpoint: %s:%d\n",
+           inet_ntoa(local_addr.sin_addr),
+           ntohs(local_addr.sin_port));
+
+    // Get remote (server) socket info
+    struct sockaddr_in remote_addr;
+    socklen_t remote_len = sizeof(remote_addr);
+    getpeername(sockfd, (struct sockaddr*)&remote_addr, &remote_len);
+
+    printf("Remote endpoint: %s:%d\n",
+           inet_ntoa(remote_addr.sin_addr),
+           ntohs(remote_addr.sin_port));
+
+    close(sockfd);
+    return 0;
+}
+```
+
+## Testing Client and Server
+
+```bash
+# Terminal 1: Start server
+./accept_server
+# Server listening on port 8080
+# Waiting for connections...
+
+# Terminal 2: Run client
+./client
+# Connecting to 127.0.0.1:8080...
+# Connected successfully!
+# Socket file descriptor: 3
+# Local endpoint: 127.0.0.1:54322
+# Remote endpoint: 127.0.0.1:8080
+
+# Terminal 1 output:
+# === New Connection ===
+# Client IP: 127.0.0.1
+# Client port: 54322
+# Client socket fd: 4
+# ======================
+```
+
+## Common Connect Errors
+
+| Error          | Meaning             | Solution                    |
+| -------------- | ------------------- | --------------------------- |
+| `ECONNREFUSED` | No server listening | Start server or check port  |
+| `ETIMEDOUT`    | No route to host    | Check IP address            |
+| `ENETUNREACH`  | Network unreachable | Check network configuration |
+| `EACCES`       | Permission denied   | Port < 1024 needs root      |
+
+## Connecting to Remote Servers
+
+The same client code works for remote servers:
+
+```c
+// Connect to a web server
+struct sockaddr_in server_addr;
+server_addr.sin_family = AF_INET;
+server_addr.sin_port = htons(80);
+inet_pton(AF_INET, "93.184.216.34", &server_addr.sin_addr);  // example.com
+
+connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr));
+```
+
+You can then send HTTP requests using `send()`!

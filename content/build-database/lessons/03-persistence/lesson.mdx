@@ -1,0 +1,263 @@
+---
+id: 03-persistence
+title: 'Persistence and Recovery'
+description: Implement append-only logging (WAL) for durability and learn how to recover database state on restart.
+type: lesson
+order: 3
+---
+
+# Persistence and Recovery
+
+Now let's add persistence so our database survives restarts. We'll use a Write-Ahead Log (WAL).
+
+## Append-Only Log
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <stdint.h>
+
+#define WAL_FILE "wal.log"
+
+typedef enum {
+    OP_SET,
+    OP_DELETE
+} op_type_t;
+
+typedef struct {
+    uint8_t type;
+    uint64_t timestamp;
+    uint32_t key_len;
+    uint32_t value_len;
+    // Followed by key and value
+} wal_header_t;
+
+typedef struct {
+    FILE *file;
+    uint64_t next_offset;
+} wal_t;
+
+wal_t *wal_open(const char *filename) {
+    wal_t *wal = malloc(sizeof(wal_t));
+    wal->file = fopen(filename, "ab");  // Append binary
+    wal->next_offset = 0;
+
+    // Seek to end if file exists
+    fseek(wal->file, 0, SEEK_END);
+    wal->next_offset = ftell(wal->file);
+
+    return wal;
+}
+
+void wal_close(wal_t *wal) {
+    if (wal) {
+        fclose(wal->file);
+        free(wal);
+    }
+}
+
+uint64_t wal_append(wal_t *wal, op_type_t type,
+                    const char *key, const char *value) {
+    wal_header_t header;
+    header.type = (uint8_t)type;
+    header.timestamp = (uint64_t)time(NULL);
+    header.key_len = strlen(key) + 1;  // Include null terminator
+    header.value_len = value ? strlen(value) + 1 : 0;
+
+    uint64_t offset = wal->next_offset;
+
+    // Write header
+    fwrite(&header, sizeof(header), 1, wal->file);
+
+    // Write key
+    fwrite(key, 1, header.key_len, wal->file);
+
+    // Write value
+    if (value) {
+        fwrite(value, 1, header.value_len, wal->file);
+    }
+
+    // Flush to disk
+    fflush(wal->file);
+
+    wal->next_offset = ftell(wal->file);
+
+    return offset;
+}
+```
+
+## Recovery
+
+```c
+typedef struct {
+    op_type_t type;
+    char *key;
+    char *value;
+} recovered_op_t;
+
+int wal_recover(wal_t *wal, void (*callback)(op_type_t, const char*, const char*)) {
+    if (!wal || !wal->file) return 0;
+
+    // Seek to beginning
+    fseek(wal->file, 0, SEEK_SET);
+
+    while (1) {
+        wal_header_t header;
+
+        if (fread(&header, sizeof(header), 1, wal->file) != 1) {
+            break;  // EOF or error
+        }
+
+        // Read key
+        char key[1024];
+        if (fread(key, 1, header.key_len, wal->file) != header.key_len) {
+            break;
+        }
+
+        // Read value
+        char *value = NULL;
+        if (header.value_len > 0) {
+            value = malloc(header.value_len);
+            if (fread(value, 1, header.value_len, wal->file) != header.value_len) {
+                free(value);
+                break;
+            }
+        }
+
+        // Apply operation
+        callback(header.type, key, value);
+
+        if (value) free(value);
+    }
+
+    return 0;
+}
+```
+
+## Complete Database with WAL
+
+```c
+typedef struct {
+    hash_table_t *ht;
+    wal_t *wal;
+} database_t;
+
+database_t *db_open(const char *data_dir) {
+    database_t *db = malloc(sizeof(database_t));
+
+    db->ht = ht_create(1024);
+
+    char wal_path[256];
+    snprintf(wal_path, sizeof(wal_path), "%s/wal.log", data_dir);
+    db->wal = wal_open(wal_path);
+
+    // Recover from WAL
+    wal_recover(db->wal, apply_operation);
+
+    return db;
+}
+
+void apply_operation(op_type_t type, const char *key, const char *value) {
+    switch (type) {
+        case OP_SET: {
+            value_t v = {TYPE_TEXT, .text_val = strdup(value)};
+            ht_set(ht, key, v);
+            break;
+        }
+        case OP_DELETE:
+            ht_delete(ht, key);
+            break;
+    }
+}
+
+int db_set(database_t *db, const char *key, const char *value) {
+    // Write to WAL first (Write-Ahead!)
+    wal_append(db->wal, OP_SET, key, value);
+
+    // Then update in-memory
+    value_t v = {TYPE_TEXT, .text_val = strdup(value)};
+    ht_set(db->ht, key, v);
+
+    return 0;
+}
+
+int db_delete(database_t *db, const char *key) {
+    // Write to WAL first
+    wal_append(db->wal, OP_DELETE, key, NULL);
+
+    // Then update in-memory
+    ht_delete(db->ht, key);
+
+    return 0;
+}
+
+const char *db_get(database_t *db, const char *key) {
+    value_t *v = ht_get(db->ht, key);
+    return v ? v->text_val : NULL;
+}
+
+void db_close(database_t *db) {
+    wal_close(db->wal);
+    ht_destroy(db->ht);
+    free(db);
+}
+```
+
+## Compaction (Background Cleanup)
+
+Over time, the WAL grows. We need to compact it:
+
+```c
+void wal_compact(wal_t *wal, hash_table_t *ht) {
+    // Create new WAL file
+    wal_t *new_wal = wal_open("wal.log.new");
+
+    // Replay all live entries
+    ht_iter_t *iter = ht_iter_create(ht);
+    while (ht_iter_next(iter)) {
+        value_t *v = ht_iter_value(iter);
+        if (v && v->type == TYPE_TEXT) {
+            wal_append(new_wal, OP_SET,
+                       ht_iter_key(iter), v->text_val);
+        }
+    }
+    ht_iter_free(iter);
+
+    // Replace old WAL
+    wal_close(new_wal);
+    rename("wal.log.new", "wal.log");
+}
+```
+
+## Checkpointing
+
+For large databases, periodically checkpoint:
+
+```c
+void db_checkpoint(database_t *db) {
+    // Create snapshot file
+    FILE *f = fopen("checkpoint.snap", "wb");
+
+    // Write all entries
+    ht_iter_t *iter = ht_iter_create(db->ht);
+    while (ht_iter_next(iter)) {
+        value_t *v = ht_iter_value(iter);
+        if (v && v->type == TYPE_TEXT) {
+            uint32_t key_len = strlen(ht_iter_key(iter)) + 1;
+            uint32_t val_len = strlen(v->text_val) + 1;
+
+            fwrite(&key_len, sizeof(key_len), 1, f);
+            fwrite(ht_iter_key(iter), 1, key_len, f);
+            fwrite(&val_len, sizeof(val_len), 1, f);
+            fwrite(v->text_val, 1, val_len, f);
+        }
+    }
+    ht_iter_free(iter);
+
+    fclose(f);
+
+    // Can now truncate WAL
+    // (Implementation varies based on needs)
+}
+```

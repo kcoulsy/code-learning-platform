@@ -1,0 +1,178 @@
+---
+id: 06-project-http-server
+title: 'Project: Static File HTTP Server'
+description: Build a complete HTTP server that serves static files, handles common request types, and returns proper HTTP responses.
+type: project
+order: 6
+---
+
+# Project: Static File HTTP Server
+
+Build a complete HTTP server that serves static files from a directory with proper HTTP protocol handling.
+
+## Project Requirements
+
+### Core Features
+
+- [ ] Listen on configurable port (default 8080)
+- [ ] Serve files from `www/` directory
+- [ ] Support GET and HEAD methods
+- [ ] Parse HTTP/1.1 requests correctly
+- [ ] Return appropriate status codes (200, 404, 400, 405)
+- [ ] Set correct Content-Type headers
+- [ ] Handle connection: close header
+
+### Optional Extensions
+
+- [ ] Directory index (serve index.html for /)
+- [ ] MIME type detection
+- [ ] Last-Modified and If-Modified-Since
+- [ ] Range requests for partial content
+- [ ] HTTP/1.0 compatibility
+- [ ] Keep-alive connections
+- [ ] Request logging
+
+## Implementation Plan
+
+### Step 1: Request Parser
+
+```c
+// Parse HTTP request from socket
+http_request parse_request(int client_fd) {
+    char buffer[8192];
+    ssize_t n = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+    // ... parsing logic ...
+}
+```
+
+### Step 2: Router
+
+```c
+void route_request(int client_fd, http_request *req) {
+    if (strcmp(req->method, "GET") != 0 &&
+        strcmp(req->method, "HEAD") != 0) {
+        send_error(client_fd, 405, "Method Not Allowed");
+        return;
+    }
+
+    // Remove leading slash
+    char *path = req->path[0] == '/' ? req->path + 1 : req->path;
+
+    // Security: prevent path traversal
+    if (strstr(path, "..") != NULL) {
+        send_error(client_fd, 403, "Forbidden");
+        return;
+    }
+
+    // Build file path
+    char filepath[512];
+    snprintf(filepath, sizeof(filepath), "www/%s", path);
+
+    serve_file(client_fd, filepath);
+}
+```
+
+### Step 3: File Serving
+
+```c
+void serve_file(int client_fd, const char *filepath) {
+    FILE *f = fopen(filepath, "rb");
+    if (!f) {
+        send_error(client_fd, 404, "Not Found");
+        return;
+    }
+
+    // Get file size
+    fseek(f, 0, SEEK_END);
+    long filesize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    // Get content type
+    const char *content_type = get_mime_type(filepath);
+
+    // Build and send headers
+    char headers[512];
+    snprintf(headers, sizeof(headers),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %ld\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        content_type, filesize);
+    send(client_fd, headers, strlen(headers), 0);
+
+    // Send file content
+    char buffer[4096];
+    size_t n;
+    while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0) {
+        send(client_fd, buffer, n, 0);
+    }
+
+    fclose(f);
+}
+```
+
+### Step 4: Main Server Loop
+
+```c
+int main(int argc, char *argv[]) {
+    int port = 8080;
+    char *www_dir = "www";
+
+    // Parse args...
+
+    int server_fd = create_socket(port);
+    listen(server_fd, 10);
+
+    printf("HTTP server listening on port %d\n", port);
+    printf("Serving files from %s/\n", www_dir);
+
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+
+        int client_fd = accept(server_fd,
+                               (struct sockaddr*)&client_addr,
+                               &client_len);
+
+        http_request req = parse_request(client_fd);
+        route_request(client_fd, &req);
+
+        close(client_fd);
+    }
+
+    return 0;
+}
+```
+
+## Testing
+
+```bash
+# Create www directory and add files
+mkdir -p www
+echo "<h1>Hello!</h1>" > www/index.html
+echo "body { color: blue; }" > www/style.css
+echo "console.log('hi')" > www/app.js
+
+# Build and run
+gcc -o http_server http_server.c
+./http_server
+
+# Test with curl
+curl http://localhost:8080/
+curl http://localhost:8080/index.html
+curl http://localhost:8080/style.css -o style.css
+
+# Test error cases
+curl http://localhost:8080/nonexistent
+curl -X POST http://localhost:8080/  # Should return 405
+```
+
+## Evaluation Criteria
+
+- [ ] Correct HTTP request parsing
+- [ ] Proper status codes
+- [ ] Security against path traversal
+- [ ] Correct MIME types
+- [ ] Clean code structure
+- [ ] Error handling

@@ -1,0 +1,194 @@
+---
+id: 03-response-building
+title: 'Response Building'
+description: Build robust HTTP responses with proper headers, content types, and efficient memory handling.
+type: lesson
+order: 3
+---
+
+# Response Building
+
+Let's build a complete response builder that handles various content types and status codes.
+
+## Response Builder
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+typedef struct {
+    int status_code;
+    const char *status_text;
+    const char *content_type;
+    char *body;
+    size_t body_length;
+    char extra_headers[1024];
+} http_response;
+
+const char *get_status_text(int code) {
+    switch (code) {
+        case 200: return "OK";
+        case 201: return "Created";
+        case 204: return "No Content";
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+        case 304: return "Not Modified";
+        case 400: return "Bad Request";
+        case 401: return "Unauthorized";
+        case 403: return "Forbidden";
+        case 404: return "Not Found";
+        case 405: return "Method Not Allowed";
+        case 413: return "Payload Too Large";
+        case 500: return "Internal Server Error";
+        case 502: return "Bad Gateway";
+        case 503: return "Service Unavailable";
+        default:  return "Unknown";
+    }
+}
+
+const char *get_mime_type(const char *path) {
+    const char *ext = strrchr(path, '.');
+    if (!ext) return "application/octet-stream";
+
+    if (strcmp(ext, ".html") == 0) return "text/html; charset=utf-8";
+    if (strcmp(ext, ".htm") == 0) return "text/html; charset=utf-8";
+    if (strcmp(ext, ".css") == 0) return "text/css";
+    if (strcmp(ext, ".js") == 0) return "application/javascript";
+    if (strcmp(ext, ".json") == 0) return "application/json";
+    if (strcmp(ext, ".xml") == 0) return "application/xml";
+    if (strcmp(ext, ".png") == 0) return "image/png";
+    if (strcmp(ext, ".jpg") == 0) return "image/jpeg";
+    if (strcmp(ext, ".jpeg") == 0) return "image/jpeg";
+    if (strcmp(ext, ".gif") == 0) return "image/gif";
+    if (strcmp(ext, ".ico") == 0) return "image/x-icon";
+    if (strcmp(ext, ".svg") == 0) return "image/svg+xml";
+    if (strcmp(ext, ".txt") == 0) return "text/plain";
+    if (strcmp(ext, ".pdf") == 0) return "application/pdf";
+    if (strcmp(ext, ".woff") == 0) return "font/woff";
+    if (strcmp(ext, ".woff2") == 0) return "font/woff2";
+
+    return "application/octet-stream";
+}
+
+void add_header(http_response *resp, const char *name, const char *value) {
+    char header[512];
+    snprintf(header, sizeof(header), "%s: %s\r\n", name, value);
+    strcat(resp->extra_headers, header);
+}
+
+void set_cache_header(http_response *resp, int max_age) {
+    char cache_ctrl[128];
+    snprintf(cache_ctrl, sizeof(cache_ctrl), "max-age=%d, public", max_age);
+    add_header(resp, "Cache-Control", cache_ctrl);
+}
+
+http_response make_response(int status_code) {
+    http_response resp = {0};
+    resp.status_code = status_code;
+    resp.status_text = get_status_text(status_code);
+    return resp;
+}
+
+http_response text_response(const char *text) {
+    http_response resp = make_response(200);
+    resp.content_type = "text/plain; charset=utf-8";
+    resp.body = strdup(text);
+    resp.body_length = strlen(text);
+    return resp;
+}
+
+http_response html_response(const char *html) {
+    http_response resp = make_response(200);
+    resp.content_type = "text/html; charset=utf-8";
+    resp.body = strdup(html);
+    resp.body_length = strlen(html);
+    return resp;
+}
+
+http_response json_response(const char *json) {
+    http_response resp = make_response(200);
+    resp.content_type = "application/json";
+    resp.body = strdup(json);
+    resp.body_length = strlen(json);
+    return resp;
+}
+
+http_response error_response(int status_code, const char *message) {
+    char html[1024];
+    snprintf(html, sizeof(html),
+             "<html><head><title>Error %d</title></head>"
+             "<body><h1>Error %d: %s</h1></body></html>",
+             status_code, status_code, message);
+    http_response resp = make_response(status_code);
+    resp.content_type = "text/html; charset=utf-8";
+    resp.body = strdup(html);
+    resp.body_length = strlen(html);
+    return resp;
+}
+```
+
+## Sending Response
+
+```c
+void send_response(int client_fd, http_response *resp) {
+    char headers[2048];
+
+    // Build headers
+    int len = snprintf(headers, sizeof(headers),
+        "HTTP/1.1 %d %s\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: close\r\n"
+        "%s"
+        "\r\n",
+        resp->status_code, resp->status_text,
+        resp->content_type,
+        resp->body_length,
+        resp->extra_headers);
+
+    // Send headers
+    send(client_fd, headers, len, 0);
+
+    // Send body
+    if (resp->body && resp->body_length > 0) {
+        send(client_fd, resp->body, resp->body_length, 0);
+    }
+}
+
+void free_response(http_response *resp) {
+    if (resp->body) {
+        free(resp->body);
+        resp->body = NULL;
+    }
+}
+```
+
+## Usage Example
+
+```c
+void handle_request(int client_fd, http_request *req) {
+    http_response resp;
+
+    if (strcmp(req->method, "GET") != 0) {
+        resp = error_response(405, "Method Not Allowed");
+        send_response(client_fd, &resp);
+        free_response(&resp);
+        return;
+    }
+
+    if (strcmp(req->path, "/") == 0) {
+        resp = html_response("<h1>Welcome!</h1>");
+        send_response(client_fd, &resp);
+        free_response(&resp);
+    } else if (strcmp(req->path, "/api/status") == 0) {
+        resp = json_response("{\"status\": \"ok\"}");
+        send_response(client_fd, &resp);
+        free_response(&resp);
+    } else {
+        resp = error_response(404, "Not Found");
+        send_response(client_fd, &resp);
+        free_response(&resp);
+    }
+}
+```

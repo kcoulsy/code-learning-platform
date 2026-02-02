@@ -1,0 +1,395 @@
+---
+id: 05-sql-subset
+title: 'SQL Parser and Query Execution'
+description: Implement a basic SQL parser that handles CREATE TABLE, INSERT, SELECT, UPDATE, and DELETE with WHERE clauses.
+type: lesson
+order: 5
+---
+
+# SQL Parser and Query Execution
+
+Now let's add SQL support! We'll implement a simple parser for basic queries.
+
+## Tokenizer
+
+```c
+#include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+typedef enum {
+    TOK_CREATE,
+    TOK_TABLE,
+    TOK_INSERT,
+    TOK_INTO,
+    TOK_VALUES,
+    TOK_SELECT,
+    TOK_FROM,
+    TOK_WHERE,
+    TOK_UPDATE,
+    TOK_SET,
+    TOK_DELETE,
+    TOK_IDENT,
+    TOK_NUMBER,
+    TOK_STRING,
+    TOK_LPAREN,
+    TOK_RPAREN,
+    TOK_COMMA,
+    TOK_EQUALS,
+    TOK_STAR,
+    TOK_EOF
+} token_type_t;
+
+typedef struct {
+    token_type_t type;
+    char text[256];
+    int num_value;
+} token_t;
+
+typedef struct {
+    const char *sql;
+    size_t pos;
+    token_t current;
+} parser_t;
+
+static int is_ident_char(char c) {
+    return isalnum((unsigned char)c) || c == '_' || c == '$';
+}
+
+static void parser_advance(parser_t *p) {
+    // Skip whitespace
+    while (isspace((unsigned char)p->sql[p->pos])) p->pos++;
+
+    if (p->sql[p->pos] == '\0') {
+        p->current.type = TOK_EOF;
+        return;
+    }
+
+    char c = p->sql[p->pos];
+
+    // String literal
+    if (c == '\'' || c == '"') {
+        char quote = c;
+        p->pos++;
+        size_t i = 0;
+        while (p->sql[p->pos] && p->sql[p->pos] != quote && i < 254) {
+            p->current.text[i++] = p->sql[p->pos++];
+        }
+        p->current.text[i] = '\0';
+        if (p->sql[p->pos] == quote) p->pos++;  // Skip closing quote
+        p->current.type = TOK_STRING;
+        return;
+    }
+
+    // Number
+    if (isdigit((unsigned char)c)) {
+        size_t i = 0;
+        while (isdigit((unsigned char)p->sql[p->pos]) && i < 254) {
+            p->current.text[i++] = p->sql[p->pos++];
+        }
+        p->current.text[i] = '\0';
+        p->current.num_value = atoi(p->current.text);
+        p->current.type = TOK_NUMBER;
+        return;
+    }
+
+    // Identifier or keyword
+    if (is_ident_char(c)) {
+        size_t i = 0;
+        while (is_ident_char(p->sql[p->pos]) && i < 254) {
+            p->current.text[i++] = toupper((unsigned char)p->sql[p->pos++]);
+        }
+        p->current.text[i] = '\0';
+
+        // Check keywords
+        if (strcmp(p->current.text, "CREATE") == 0) p->current.type = TOK_CREATE;
+        else if (strcmp(p->current.text, "TABLE") == 0) p->current.type = TOK_TABLE;
+        else if (strcmp(p->current.text, "INSERT") == 0) p->current.type = TOK_INSERT;
+        else if (strcmp(p->current.text, "INTO") == 0) p->current.type = TOK_INTO;
+        else if (strcmp(p->current.text, "VALUES") == 0) p->current.type = TOK_VALUES;
+        else if (strcmp(p->current.text, "SELECT") == 0) p->current.type = TOK_SELECT;
+        else if (strcmp(p->current.text, "FROM") == 0) p->current.type = TOK_FROM;
+        else if (strcmp(p->current.text, "WHERE") == 0) p->current.type = TOK_WHERE;
+        else if (strcmp(p->current.text, "UPDATE") == 0) p->current.type = TOK_UPDATE;
+        else if (strcmp(p->current.text, "SET") == 0) p->current.type = TOK_SET;
+        else if (strcmp(p->current.text, "DELETE") == 0) p->current.type = TOK_DELETE;
+        else p->current.type = TOK_IDENT;
+        return;
+    }
+
+    // Single-char tokens
+    p->pos++;
+    switch (c) {
+        case '(': p->current.type = TOK_LPAREN; break;
+        case ')': p->current.type = TOK_RPAREN; break;
+        case ',': p->current.type = TOK_COMMA; break;
+        case '=': p->current.type = TOK_EQUALS; break;
+        case '*': p->current.type = TOK_STAR; break;
+        default: p->current.type = TOK_EOF; break;
+    }
+}
+
+static token_t parser_peek(parser_t *p) {
+    return p->current;
+}
+
+static token_t parser_consume(parser_t *p) {
+    token_t tok = p->current;
+    parser_advance(p);
+    return tok;
+}
+
+static int parser_expect(parser_t *p, token_type_t expected) {
+    if (p->current.type != expected) {
+        fprintf(stderr, "Syntax error: expected %d, got %d\n",
+                expected, p->current.type);
+        return 0;
+    }
+    parser_advance(p);
+    return 1;
+}
+```
+
+## Statement Types
+
+```c
+typedef enum {
+    STMT_CREATE_TABLE,
+    STMT_INSERT,
+    STMT_SELECT,
+    STMT_UPDATE,
+    STMT_DELETE
+} stmt_type_t;
+
+typedef struct column_def {
+    char name[64];
+    char type[16];
+    struct column_def *next;
+} column_def_t;
+
+typedef struct {
+    stmt_type_t type;
+    char table_name[64];
+    column_def_t *columns;
+} create_table_stmt_t;
+
+typedef struct {
+    stmt_type_t type;
+    char table_name[64];
+    char **values;
+    int value_count;
+} insert_stmt_t;
+
+typedef struct {
+    stmt_type_t type;
+    char table_name[64];
+    char **columns;
+    int column_count;
+    char where_col[64];
+    char where_value[256];
+} select_stmt_t;
+
+typedef union {
+    stmt_type_t type;
+    create_table_stmt_t create_table;
+    insert_stmt_t insert;
+    select_stmt_t select;
+    // ... UPDATE and DELETE
+} statement_t;
+```
+
+## Parsing Statements
+
+```c
+statement_t parse_statement(const char *sql) {
+    parser_t p = {sql, 0};
+    parser_advance(&p);
+
+    statement_t stmt = {0};
+
+    switch (p.current.type) {
+        case TOK_CREATE:
+            parser_consume(&p);  // Skip CREATE
+            parser_expect(&p, TOK_TABLE);
+
+            stmt.type = STMT_CREATE_TABLE;
+            token_t name = parser_consume(&p);
+            strcpy(stmt.create_table.table_name, name.text);
+
+            parser_expect(&p, TOK_LPAREN);
+
+            // Parse columns
+            column_def_t **tail = &stmt.create_table.columns;
+            while (p.current.type != TOK_RPAREN) {
+                *tail = malloc(sizeof(column_def_t));
+                token_t col_name = parser_consume(&p);
+                strcpy((*tail)->name, col_name.text);
+
+                token_t col_type = parser_consume(&p);
+                strcpy((*tail)->type, col_type.text);
+
+                tail = &(*tail)->next;
+
+                if (p.current.type == TOK_COMMA) {
+                    parser_consume(&p);
+                }
+            }
+            parser_expect(&p, TOK_RPAREN);
+            break;
+
+        case TOK_INSERT:
+            parser_consume(&p);  // Skip INSERT
+            parser_expect(&p, TOK_INTO);
+
+            token_t table_name = parser_consume(&p);
+            strcpy(stmt.insert.table_name, table_name.text);
+            parser_expect(&p, TOK_VALUES);
+            parser_expect(&p, TOK_LPAREN);
+
+            // Parse values
+            char **values = NULL;
+            int count = 0;
+
+            while (p.current.type != TOK_RPAREN) {
+                values = realloc(values, sizeof(char*) * (count + 1));
+                token_t val = parser_consume(&p);
+                values[count] = strdup(val.text);
+                count++;
+
+                if (p.current.type == TOK_COMMA) {
+                    parser_consume(&p);
+                }
+            }
+
+            stmt.insert.values = values;
+            stmt.insert.value_count = count;
+            parser_expect(&p, TOK_RPAREN);
+            break;
+
+        case TOK_SELECT:
+            parser_consume(&p);
+
+            // Check for *
+            if (p.current.type == TOK_STAR) {
+                parser_consume(&p);
+                stmt.select.column_count = -1;  // All columns
+            }
+
+            parser_expect(&p, TOK_FROM);
+
+            token_t sel_table = parser_consume(&p);
+            strcpy(stmt.select.table_name, sel_table.text);
+
+            // Parse WHERE
+            if (p.current.type == TOK_WHERE) {
+                parser_consume(&p);
+                token_t col = parser_consume(&p);
+                parser_expect(&p, TOK_EQUALS);
+                token_t val = parser_consume(&p);
+                strcpy(stmt.select.where_col, col.text);
+                strcpy(stmt.select.where_value, val.text);
+            }
+            break;
+
+        default:
+            fprintf(stderr, "Unknown statement type\n");
+            stmt.type = -1;
+    }
+
+    return stmt;
+}
+```
+
+## Query Execution
+
+```c
+typedef struct {
+    char name[64];
+    char type[16];
+} column_t;
+
+typedef struct {
+    char table_name[64];
+    column_t *columns;
+    int column_count;
+    hash_table_t *rows;  // Row ID -> row data
+} table_t;
+
+typedef struct {
+    hash_table_t *tables;  // Table name -> table_t
+} database_t;
+
+// Execute SELECT
+void execute_select(database_t *db, select_stmt_t *stmt) {
+    table_t *table = ht_get(db->tables, stmt->table_name);
+    if (!table) {
+        printf("Table '%s' not found\n", stmt->table_name);
+        return;
+    }
+
+    // Print header
+    if (stmt->column_count == -1) {
+        // SELECT *
+        for (int i = 0; i < table->column_count; i++) {
+            if (i > 0) printf(", ");
+            printf("%s", table->columns[i].name);
+        }
+        printf("\n");
+    }
+
+    // Iterate rows
+    ht_iter_t *iter = ht_iter_create(table->rows);
+    while (ht_iter_next(iter)) {
+        row_t *row = ht_iter_value(iter);
+
+        if (stmt->where_col[0]) {
+            // Filter by WHERE
+            value_t *col_val = ht_get(row->columns, stmt->where_col);
+            if (!col_val || strcmp(col_val->text_val, stmt->where_value) != 0) {
+                continue;
+            }
+        }
+
+        // Print row
+        if (stmt->column_count == -1) {
+            for (int i = 0; i < table->column_count; i++) {
+                if (i > 0) printf(", ");
+                value_t *v = ht_get(row->columns, table->columns[i].name);
+                printf("%s", v ? v->text_val : "NULL");
+            }
+            printf("\n");
+        }
+    }
+    ht_iter_free(iter);
+}
+
+// Execute INSERT
+void execute_insert(database_t *db, insert_stmt_t *stmt) {
+    table_t *table = ht_get(db->tables, stmt->table_name);
+    if (!table) {
+        printf("Table '%s' not found\n", stmt->table_name);
+        return;
+    }
+
+    // Create row
+    row_t *row = malloc(sizeof(row_t));
+    row->columns = ht_create(16);
+
+    for (int i = 0; i < stmt->value_count; i++) {
+        if (i >= table->column_count) break;
+
+        value_t v = {TYPE_TEXT, .text_val = strdup(stmt->values[i])};
+        ht_set(row->columns, table->columns[i].name, v);
+    }
+
+    // Generate row ID
+    char row_id[32];
+    snprintf(row_id, sizeof(row_id), "%lld", (long long)row);
+
+    // Store in table
+    value_t row_val = {TYPE_BLOB, .blob_val={row, sizeof(*row)}};
+    ht_set(table->rows, row_id, row_val);
+
+    printf("1 row inserted\n");
+}
+```

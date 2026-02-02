@@ -1,0 +1,188 @@
+---
+id: 03-select-multiplexing
+title: 'Event-Driven with select/poll'
+order: 3
+---
+
+# Event-Driven with select/poll
+
+Single-threaded event-driven servers can handle thousands of connections efficiently by multiplexing I/O.
+
+## The select() Function
+
+```c
+#include <sys/select.h>
+
+int select(int nfds, fd_set *readfds, fd_set *writefds,
+           fd_set *exceptfds, struct timeval *timeout);
+```
+
+- **nfds**: Highest file descriptor + 1
+- **readfds**: Monitor for incoming data
+- **writefds**: Monitor for ability to write
+- **exceptfds**: Monitor for exceptions
+- **timeout**: How long to wait (NULL = wait forever)
+
+## Working with fd_set
+
+```c
+fd_set read_fds;
+
+// Clear all
+FD_ZERO(&read_fds);
+
+// Add socket to monitor
+FD_SET(server_fd, &read_fds);
+
+// Check if set
+if (FD_ISSET(socket_fd, &read_fds)) {
+    // Socket has data/event
+}
+
+// Copy for select (it's modified!)
+fd_set active_fds = read_fds;
+```
+
+## Complete select-based Server
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/select.h>
+#include <unistd.h>
+
+#define PORT 8080
+#define MAX_CLIENTS 64
+#define BUFFER_SIZE 1024
+
+int main() {
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
+    listen(server_fd, 5);
+
+    printf("Select server listening on port %d\n", PORT);
+
+    // Client file descriptors
+    int client_fds[MAX_CLIENTS];
+    for (int i = 0; i < MAX_CLIENTS; i++) client_fds[i] = -1;
+
+    fd_set read_fds;
+    int max_fd = server_fd;
+
+    while (1) {
+        FD_ZERO(&read_fds);
+        FD_SET(server_fd, &read_fds);
+
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (client_fds[i] != -1) {
+                FD_SET(client_fds[i], &read_fds);
+                if (client_fds[i] > max_fd) max_fd = client_fds[i];
+            }
+        }
+
+        // Wait for activity
+        int activity = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
+
+        if (activity < 0) {
+            perror("select");
+            break;
+        }
+
+        // Check for new connections
+        if (FD_ISSET(server_fd, &read_fds)) {
+            struct sockaddr_in client_addr;
+            socklen_t client_len = sizeof(client_addr);
+
+            int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+
+            // Add to client list
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_fds[i] == -1) {
+                    client_fds[i] = client_fd;
+                    printf("New client (slot %d)\n", i);
+                    break;
+                }
+            }
+        }
+
+        // Check existing clients
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (client_fds[i] != -1 && FD_ISSET(client_fds[i], &read_fds)) {
+                char buffer[BUFFER_SIZE];
+                ssize_t n = recv(client_fds[i], buffer, BUFFER_SIZE - 1, 0);
+
+                if (n <= 0) {
+                    if (n == 0) printf("Client %d disconnected\n", i);
+                    else perror("recv");
+                    close(client_fds[i]);
+                    client_fds[i] = -1;
+                } else {
+                    buffer[n] = '\0';
+                    printf("Client %d: %s", i, buffer);
+                    send(client_fds[i], buffer, n, 0);
+                }
+            }
+        }
+    }
+
+    close(server_fd);
+    return 0;
+}
+```
+
+## poll() - Modern Alternative
+
+`select()` has limitations (FD_SETSIZE is often 1024). `poll()` is more flexible:
+
+```c
+#include <poll.h>
+
+struct pollfd fds[MAX_CLIENTS + 1];
+int nfds = 1;  // Start with server_fd
+
+fds[0].fd = server_fd;
+fds[0].events = POLLIN;  // Monitor for input
+
+// Add client
+fds[nfds].fd = client_fd;
+fds[nfds].events = POLLIN;
+nfds++;
+
+// Wait
+int activity = poll(fds, nfds, -1);  // -1 = wait forever
+
+// Check events
+for (int i = 0; i < nfds; i++) {
+    if (fds[i].revents & POLLIN) {
+        // Handle event on fds[i].fd
+    }
+}
+```
+
+## Pros and Cons
+
+| Pros                     | Cons                             |
+| ------------------------ | -------------------------------- |
+| Single thread = simple   | No parallelism on single CPU     |
+| Handles many connections | Complex state management         |
+| Low memory overhead      | Blocking I/O blocks all          |
+| Good for I/O-bound work  | CPU-bound tasks block event loop |
+
+## When to Use Which
+
+| Model       | Best For                         |
+| ----------- | -------------------------------- |
+| Fork        | Security isolation, simple code  |
+| Thread      | General purpose, shared state    |
+| select/poll | High connection count, I/O-bound |

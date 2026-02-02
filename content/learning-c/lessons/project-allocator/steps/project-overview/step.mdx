@@ -1,0 +1,164 @@
+---
+title: 'Project Overview: Memory Allocator'
+order: 1
+---
+
+# Project Overview: Memory Allocator
+
+## Introduction
+
+Welcome to the Custom Memory Allocator project! This is one of the most educational systems programming projects you can undertake - understanding how `malloc()` and `free()` work gives you deep insight into memory management.
+
+## What You'll Build
+
+A replacement for `malloc()` and `free()` that manages memory efficiently:
+
+- `my_malloc(size)` - Allocate memory blocks
+- `my_free(ptr)` - Free allocated blocks
+- `my_realloc(ptr, size)` - Resize allocations
+- `my_calloc(n, size)` - Allocate and zero memory
+
+With advanced features:
+
+- Free list management
+- Block coalescing (merging adjacent free blocks)
+- Block splitting (dividing large blocks)
+- Multiple allocation strategies (first-fit, best-fit)
+- Alignment handling
+- Debugging utilities (leak detection, corruption checking)
+
+## Example Usage
+
+```c
+// Initialize allocator
+allocator_init();
+
+// Allocate various sizes
+char *str = my_malloc(100);
+int *arr = my_malloc(50 * sizeof(int));
+struct data *d = my_malloc(sizeof(struct data));
+
+// Use memory
+strcpy(str, "Hello, world!");
+for (int i = 0; i < 50; i++) arr[i] = i * i;
+
+// Free memory
+my_free(str);
+my_free(arr);
+my_free(d);
+
+// Check for leaks
+allocator_report();
+```
+
+## Core Concepts
+
+### Memory Management
+
+- Managing a heap using `sbrk()` or `mmap()`
+- Metadata structures for tracking blocks
+- Pointer arithmetic and alignment
+
+### Data Structures
+
+- Linked lists for free blocks
+- Binary tree or other structures for fast searching
+
+### Algorithms
+
+- First-fit, best-fit, worst-fit allocation
+- Coalescing adjacent free blocks
+- Splitting blocks efficiently
+
+## Difficulty Assessment
+
+### Moderate Challenges
+
+- Implementing basic malloc/free
+- Maintaining free list
+- Pointer arithmetic and casting
+
+### Advanced Challenges
+
+- Efficient coalescing algorithm
+- Handling alignment requirements
+- Preventing fragmentation
+- Thread safety (optional)
+- Debugging memory corruption
+
+## Time Estimate
+
+- **Basic allocator (malloc/free with free list)**: 1 week
+- **Coalescing and splitting**: 3-4 days
+- **Advanced features (realloc, calloc, alignment)**: 3-4 days
+- **Testing and debugging utilities**: 2-3 days
+
+**Total**: 2-3 weeks
+
+## Learning Outcomes
+
+You'll gain deep understanding of:
+
+- How memory allocators work
+- Low-level memory layout
+- Data structure implementation in C
+- Performance optimization
+- Memory debugging techniques
+
+## Project Structure Recommendation
+
+```
+allocator/
+├── Makefile
+├── README.md
+├── DESIGN.md
+├── src/
+│   ├── allocator.c      # Main malloc/free implementation
+│   ├── free_list.c      # Free list management
+│   ├── coalesce.c       # Coalescing logic
+│   └── debug.c          # Debugging utilities
+├── include/
+│   ├── allocator.h      # Public API
+│   └── internal.h       # Internal definitions
+├── tests/
+│   ├── test_basic.c
+│   ├── test_coalesce.c
+│   └── test_stress.c
+└── docs/
+    └── ...
+```
+
+## Getting Started
+
+### Set Up Your Development Environment
+
+1. Create your project directory
+2. Set up a Makefile for building
+3. Initialize version control (git)
+4. Start with basic malloc/free implementation
+
+### First Steps
+
+1. Read through all project steps to understand the scope
+2. Design your data structures before coding
+3. Set up a testing strategy early
+4. Use version control from the beginning
+
+## Resources
+
+### General C Programming
+
+- man pages (man 2 for system calls, man 3 for library functions)
+- gdb for debugging
+- valgrind for memory checking
+
+### Allocator-Specific
+
+- "The C Programming Language" by K&R, Chapter 8
+- man pages: sbrk, mmap
+- glibc malloc source code
+- Papers on memory allocation algorithms
+
+## Next Steps
+
+Proceed to the Memory Allocator Design step where you'll learn about the architecture and plan your implementation!

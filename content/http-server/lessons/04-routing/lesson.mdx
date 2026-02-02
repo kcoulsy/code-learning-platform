@@ -1,0 +1,221 @@
+---
+id: 04-routing
+title: 'Routing'
+description: Implement URL routing to map paths to handlers, support path parameters, and serve static files.
+type: lesson
+order: 4
+---
+
+# Routing
+
+Routing maps incoming request paths to handler functions. Let's build a simple router.
+
+## Route Structure
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <regex.h>
+
+typedef struct {
+    const char *method;
+    const char *pattern;
+    void (*handler)(int, http_request*);
+} route;
+
+typedef struct {
+    char method[16];
+    char path[512];
+    char params[256];  // Extracted path parameters
+} parsed_request;
+
+// Route table
+route routes[] = {
+    {"GET", "/", handle_home},
+    {"GET", "/about", handle_about},
+    {"GET", "/users/[0-9]+", handle_user},
+    {"GET", "/api/users", handle_api_users},
+    {"POST", "/api/users", handle_create_user},
+    {"GET", "/static/*", handle_static},
+    {NULL, NULL, NULL}  // Sentinel
+};
+```
+
+## Simple Pattern Matching
+
+```c
+int match_route(const char *route_pattern, const char *path, char *params, size_t params_size) {
+    const char *p = route_pattern;
+    const char *q = path;
+
+    params[0] = '\0';
+
+    while (*p && *q) {
+        if (*p == '*') {
+            // Match everything to end
+            strncpy(params, q, params_size - 1);
+            return 1;
+        }
+
+        if (*p == '[') {
+            // Start of path parameter pattern
+            const char *close = strchr(p, ']');
+            if (!close) return 0;
+
+            // Extract pattern between brackets
+            char pattern[64];
+            strncpy(pattern, p + 1, close - p - 1);
+            pattern[close - p - 1] = '\0';
+
+            // Match pattern
+            regex_t regex;
+            if (regcomp(&regex, pattern, REG_EXTENDED) != 0) return 0;
+
+            // Match against path
+            char param_value[256];
+            regmatch_t matches[2];
+            if (regexec(&regex, q, 2, matches, 0) == 0) {
+                // Copy matched text to params
+                size_t match_len = matches[0].rm_eo - matches[0].rm_so;
+                strncpy(param_value, q, match_len);
+                param_value[match_len] = '\0';
+
+                if (params_size > strlen(params) + match_len + 1) {
+                    if (params[0]) strcat(params, "/");
+                    strcat(params, param_value);
+                }
+
+                q += match_len;
+                p = close + 1;
+                regfree(&regex);
+                continue;
+            }
+
+            regfree(&regex);
+            return 0;
+        }
+
+        if (*p != *q) return 0;
+
+        p++;
+        q++;
+    }
+
+    return (*p == '\0' && *q == '\0');
+}
+
+void route_request(int client_fd, http_request *req) {
+    for (int i = 0; routes[i].handler != NULL; i++) {
+        if (strcmp(req->method, routes[i].method) != 0) continue;
+
+        char params[256];
+        if (match_route(routes[i].pattern, req->path, params, sizeof(params))) {
+            routes[i].handler(client_fd, req);
+            return;
+        }
+    }
+
+    http_response resp = error_response(404, "Not Found");
+    send_response(client_fd, &resp);
+    free_response(&resp);
+}
+```
+
+## Path Parameter Extraction
+
+```c
+void parse_path_params(const char *pattern, const char *path, char *params) {
+    // Simple key=value extraction from matched patterns
+    const char *p = pattern;
+    const char *q = path;
+    char key[64], value[64];
+    int i = 0;
+
+    while (*p && *q) {
+        if (*p == '[') {
+            const char *close = strchr(p, ']');
+            if (!close) break;
+
+            strncpy(key, p + 1, close - p - 1);
+            key[close - p - 1] = '\0';
+
+            const char *next = close + 1;
+            // Assume next pattern segment is the value until /
+            const char *slash = strchr(q, '/');
+            size_t val_len = slash ? slash - q : strlen(q);
+            strncpy(value, q, val_len);
+            value[val_len] = '\0';
+
+            sprintf(params + strlen(params), "%s=%s&", key, value);
+
+            p = next;
+            q += val_len;
+            continue;
+        }
+
+        if (*p == *q) {
+            p++;
+            q++;
+        } else {
+            break;
+        }
+    }
+}
+
+// Usage
+char params[256] = {0};
+parse_path_params("/users/[id]", "/users/123", params);
+// params = "id=123&"
+```
+
+## Static File Routing
+
+```c
+void handle_static(int client_fd, http_request *req) {
+    // Extract file path from URL
+    const char *prefix = "/static/";
+    const char *file_path = req->path + strlen(prefix);
+
+    // Security: prevent directory traversal
+    if (strstr(file_path, "..") != NULL) {
+        http_response resp = error_response(403, "Forbidden");
+        send_response(client_fd, &resp);
+        free_response(&resp);
+        return;
+    }
+
+    // Build full path
+    char full_path[512];
+    snprintf(full_path, sizeof(full_path), "www%s", file_path);
+
+    // Open and read file
+    FILE *f = fopen(full_path, "rb");
+    if (!f) {
+        http_response resp = error_response(404, "Not Found");
+        send_response(client_fd, &resp);
+        free_response(&resp);
+        return;
+    }
+
+    // Get file size
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    // Read file content
+    char *content = malloc(file_size);
+    fread(content, 1, file_size, f);
+    fclose(f);
+
+    // Send response
+    http_response resp = make_response(200);
+    resp.content_type = get_mime_type(file_path);
+    resp.body = content;
+    resp.body_length = file_size;
+
+    add_header(&resp, "Cache-Control", "max-age=3600");
+
+    send_response(client_fd, &resp);
+    free_response(&resp);
+}
+```

@@ -1,0 +1,86 @@
+---
+id: 02-create-socket
+title: 'Creating Your First Socket'
+order: 2
+---
+
+# Creating Your First Socket
+
+Let's write a complete program that creates a socket and handles errors properly.
+
+## Complete Socket Creation Example
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <errno.h>
+
+int main() {
+    // Create a TCP socket
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    // Check for errors
+    if (server_fd == -1) {
+        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+        return 1;
+    }
+
+    printf("Socket created successfully!\n");
+    printf("File descriptor: %d\n", server_fd);
+
+    // Clean up
+    if (close(server_fd) == -1) {
+        fprintf(stderr, "Failed to close socket: %s\n", strerror(errno));
+        return 1;
+    }
+
+    printf("Socket closed.\n");
+    return 0;
+}
+```
+
+## Error Handling
+
+Always check return values! The socket functions return:
+
+- **Non-negative integer**: Success (file descriptor for sockets)
+- **-1**: Error (check `errno` for details)
+
+Common socket errors:
+
+| Error             | Meaning                      |
+| ----------------- | ---------------------------- |
+| `EACCES`          | Permission denied            |
+| `EMFILE`          | Too many open files          |
+| `ENFILE`          | System file table full       |
+| `EAFNOSUPPORT`    | Address family not supported |
+| `EPROTONOSUPPORT` | Protocol not supported       |
+
+## File Descriptor
+
+The return value is a **file descriptor**—a small non-negative integer that references an open file/socket in the operating system. File descriptors 0, 1, and 2 are reserved for stdin, stdout, and stderr.
+
+Your socket will typically get descriptor 3 or higher.
+
+## Compiling and Running
+
+```bash
+gcc -o create_socket create_socket.c
+./create_socket
+# Output: Socket created successfully! File descriptor: 3
+```
+
+## Experiment
+
+Try creating different types of sockets:
+
+1. Try `SOCK_DGRAM` instead of `SOCK_STREAM`
+2. Try `AF_INET6` instead of `AF_INET`
+3. What happens with invalid combinations?
+
+```c
+// Try UDP socket
+int udp_fd = socket(AF_INET, SOCK_DGRAM, 0);
+```

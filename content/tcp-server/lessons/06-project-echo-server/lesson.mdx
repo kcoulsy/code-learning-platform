@@ -1,0 +1,219 @@
+---
+id: 06-project-echo-server
+title: 'Project: Multi-Model Echo Server'
+description: Build an echo server that implements all three concurrency models—fork, threads, and select—and compare their performance.
+type: project
+order: 6
+---
+
+# Project: Multi-Model Echo Server
+
+In this project, you'll build a complete echo server with three concurrency models. You'll see how each approach handles multiple clients and compare their performance.
+
+## Project Overview
+
+You'll create a single program that can run in three modes:
+
+1. **Fork mode** (`./echo_server fork`) — One process per client
+2. **Thread mode** (`./echo_server thread`) — One thread per client
+3. **Select mode** (`./echo_server select`) — Single-threaded event loop
+
+The server should:
+
+- Listen on port 8080 (configurable)
+- Accept multiple simultaneous clients
+- Echo back all received data
+- Display connection/disconnection events
+- Include performance statistics
+
+## Requirements
+
+### Core Requirements
+
+- [ ] Accept command-line argument for concurrency model
+- [ ] Support: `fork`, `thread`, `select`
+- [ ] Echo all data received from clients
+- [ ] Log connections and disconnections
+- [ ] Handle Ctrl+C gracefully (cleanup)
+
+### Optional Extensions
+
+- [ ] Configurable port via `-p <port>`
+- [ ] Verbose mode via `-v`
+- [ ] Performance statistics (connections/sec, bytes/sec)
+- [ ] Connection limit (max clients)
+- [ ] Timeout idle clients
+
+## Implementation Plan
+
+### Step 1: Shared Code
+
+Create a common handler for client connections:
+
+```c
+void handle_client(int client_fd) {
+    char buffer[4096];
+    while (1) {
+        ssize_t n = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) break;
+        buffer[n] = '\0';
+        send(client_fd, buffer, n, 0);
+    }
+    close(client_fd);
+}
+```
+
+### Step 2: Fork Implementation
+
+```c
+void run_fork_mode(int port) {
+    int server_fd = create_listening_socket(port);
+
+    while (1) {
+        int client_fd = accept_connection(server_fd);
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            close(server_fd);
+            handle_client(client_fd);
+            exit(0);
+        } else if (pid > 0) {
+            close(client_fd);
+            waitpid(-1, NULL, WNOHANG);
+        }
+    }
+}
+```
+
+### Step 3: Thread Implementation
+
+```c
+void *client_thread(void *arg) {
+    int client_fd = *(int*)arg;
+    free(arg);
+    handle_client(client_fd);
+    return NULL;
+}
+
+void run_thread_mode(int port) {
+    int server_fd = create_listening_socket(port);
+
+    while (1) {
+        int client_fd = accept_connection(server_fd);
+
+        int *fd_copy = malloc(sizeof(int));
+        *fd_copy = client_fd;
+
+        pthread_t thread;
+        pthread_create(&thread, NULL, client_thread, fd_copy);
+        pthread_detach(thread);
+    }
+}
+```
+
+### Step 4: Select Implementation
+
+```c
+void run_select_mode(int port) {
+    int server_fd = create_listening_socket(port);
+    int client_fds[MAX_CLIENTS] = {0};
+
+    fd_set read_fds;
+    int max_fd = server_fd;
+
+    while (1) {
+        FD_ZERO(&read_fds);
+        FD_SET(server_fd, &read_fds);
+
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (client_fds[i] > 0) {
+                FD_SET(client_fds[i], &read_fds);
+                max_fd = MAX(max_fd, client_fds[i]);
+            }
+        }
+
+        select(max_fd + 1, &read_fds, NULL, NULL, NULL);
+
+        if (FD_ISSET(server_fd, &read_fds)) {
+            int client_fd = accept_connection(server_fd);
+            add_client(client_fds, client_fd);
+        }
+
+        handle_client_fds(client_fds, &read_fds);
+    }
+}
+```
+
+### Step 5: Command-Line Parsing
+
+```c
+int main(int argc, char *argv[]) {
+    char *mode = "thread";
+    int port = 8080;
+
+    int opt;
+    while ((opt = getopt(argc, argv, "m:p:")) != -1) {
+        switch (opt) {
+            case 'm': mode = optarg; break;
+            case 'p': port = atoi(optarg); break;
+        }
+    }
+
+    if (strcmp(mode, "fork") == 0) run_fork_mode(port);
+    else if (strcmp(mode, "thread") == 0) run_thread_mode(port);
+    else if (strcmp(mode, "select") == 0) run_select_mode(port);
+    else {
+        fprintf(stderr, "Unknown mode: %s\n", mode);
+        return 1;
+    }
+
+    return 0;
+}
+```
+
+## Testing
+
+```bash
+# Build
+gcc -o echo_server echo_server.c -pthread
+
+# Run in different modes
+./echo_server -m fork -p 8080 &
+./echo_server -m thread -p 8081 &
+./echo_server -m select -p 8082 &
+
+# Test with multiple clients
+for i in {1..10}; do (nc localhost 808$i < /dev/null &); done
+
+# Compare behavior and performance
+```
+
+## Bonus: Performance Comparison
+
+Measure which model performs best:
+
+```bash
+# Time how long to handle 1000 connections
+time ./echo_server -m fork &
+echo "dummy data" | nc localhost 8080
+# ... 1000 times
+```
+
+## Evaluation Criteria
+
+Your project will be evaluated on:
+
+- [ ] Correctness: Does it echo correctly?
+- [ ] Completeness: All three models implemented?
+- [ ] Error handling: Graceful cleanup on signals?
+- [ ] Code quality: Clean, readable, well-organized?
+- [ ] Optional: Performance statistics
+
+## Submission
+
+Submit a single source file `echo_server.c` with:
+
+- All three concurrency models
+- Command-line argument parsing
+- Clear comments explaining each model
+- Signal handling for clean shutdown

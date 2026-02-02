@@ -3,7 +3,7 @@
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
+import oneDark from "react-syntax-highlighter/dist/esm/styles/prism/one-dark"
 import { cn } from "@/lib/utils"
 
 interface MarkdownContentProps {
@@ -48,7 +48,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           li: ({ children }) => (
             <li className="text-foreground/90">{children}</li>
           ),
-          code: ({ className, children, ...props }) => {
+          code: ({ className, children, ref, ...props }) => {
             const match = /language-(\w+)/.exec(className || "")
             const language = match ? match[1] : ""
             const isInline = !className
@@ -66,7 +66,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
 
             return (
               <SyntaxHighlighter
-                style={oneDark}
+                style={oneDark as any}
                 language={language}
                 PreTag="div"
                 className="!rounded-lg !mb-4 !text-sm !border !border-border !bg-sidebar"
@@ -81,7 +81,6 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                   }
                 }}
-                {...props}
               >
                 {String(children).replace(/\n$/, "")}
               </SyntaxHighlighter>

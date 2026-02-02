@@ -42,7 +42,7 @@ function StepPage() {
       />
 
       <main className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-10">
           <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
             {/* Header with breadcrumb and completion toggle */}
             <div className="flex items-start justify-between gap-4 mb-6">
@@ -56,6 +56,7 @@ function StepPage() {
                 courseId={courseId}
                 itemId={itemId}
                 stepId={stepId}
+                key={`${courseId}-${itemId}-${stepId}`}
               />
             </div>
 

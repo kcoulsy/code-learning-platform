@@ -1,0 +1,157 @@
+---
+id: 02-bind-listen
+title: 'Bind and Listen'
+description: Learn to attach your socket to a specific address and port, and prepare it to accept incoming connections.
+type: lesson
+order: 2
+---
+
+# Bind and Listen
+
+Now that we can create sockets, we need to bind them to a specific address and port, then configure them to accept incoming connections.
+
+## The bind() Function
+
+The `bind()` function associates a socket with a specific address (IP and port). This is how the operating system knows which application should receive incoming data for a given port.
+
+```c
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+int main() {
+    // Create socket
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    // Prepare address structure
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;                    // IPv4
+    address.sin_addr.s_addr = inet_addr("127.0.0.1"); // localhost
+    address.sin_port = htons(8080);                  // Port 8080
+
+    // Bind socket to address
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) == -1) {
+        perror("bind failed");
+        return 1;
+    }
+
+    printf("Bound to 127.0.0.1:8080\n");
+
+    close(server_fd);
+    return 0;
+}
+```
+
+## Address Reuse
+
+If you try to bind to a port that's already in use, you'll get an "Address already in use" error. To allow reusing the address (useful for servers that restart quickly), set the `SO_REUSEADDR` option:
+
+```c
+#include <sys/socket.h>
+
+int opt = 1;
+if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+    perror("setsockopt");
+    return 1;
+}
+```
+
+**Note:** This should be called after `socket()` but before `bind()`.
+
+## Special Addresses
+
+You can bind to different addresses:
+
+| Address     | Meaning                                            |
+| ----------- | -------------------------------------------------- |
+| `127.0.0.1` | Only localhost (not accessible from network)       |
+| `0.0.0.0`   | All available interfaces (0.0.0.0 or `INADDR_ANY`) |
+| Specific IP | Only that specific interface                       |
+
+```c
+// Bind to all interfaces
+address.sin_addr.s_addr = INADDR_ANY;  // or htonl(INADDR_ANY)
+
+// This is the most common choice for servers
+```
+
+## The listen() Function
+
+After binding, a server must call `listen()` to start accepting connections:
+
+```c
+int backlog = 5;  // Maximum pending connections queue
+if (listen(server_fd, backlog) == -1) {
+    perror("listen failed");
+    return 1;
+}
+
+printf("Server is listening...\n");
+```
+
+The **backlog** parameter specifies the maximum number of pending connections. Pending connections are those that have completed the three-way handshake but haven't been accepted yet.
+
+## Complete Server Setup
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#define PORT 8080
+#define BACKLOG 10
+
+int main() {
+    // Create socket
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
+        perror("socket");
+        return 1;
+    }
+
+    // Set SO_REUSEADDR
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+        perror("setsockopt");
+        return 1;
+    }
+
+    // Prepare address
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    // Bind
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) == -1) {
+        perror("bind");
+        return 1;
+    }
+
+    // Listen
+    if (listen(server_fd, BACKLOG) == -1) {
+        perror("listen");
+        return 1;
+    }
+
+    printf("Server listening on port %d\n", PORT);
+
+    close(server_fd);
+    return 0;
+}
+```
+
+## Summary
+
+In this lesson, you learned:
+
+- How to use `bind()` to attach a socket to an address:port
+- Why `SO_REUSEADDR` is important for servers
+- How `listen()` prepares the socket for incoming connections
+- What the backlog parameter controls
+
+## Next Steps
+
+In the next lesson, we'll accept our first client connection and learn about the three-way handshake.

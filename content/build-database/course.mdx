@@ -1,0 +1,61 @@
+---
+id: build-database
+title: Build Your Own Database
+description: From in-memory key-value store to persistent storage with WAL and B-tree indexes. Learn database internals by building one from scratch.
+---
+
+# Build Your Own Database
+
+**Understand the internals of databases by building one**
+
+Databases seem magical—until you build one yourself. This course takes you through the journey of creating a functional database: starting with a simple in-memory key-value store and ending with a persistent database that supports basic SQL queries.
+
+## What You'll Learn
+
+- **Phase 1**: Data structures — choosing between hash tables and B-trees
+- **Phase 2**: In-memory KV store — CRUD operations on hash tables
+- **Phase 3**: Persistence — append-only logs and recovery
+- **Phase 4**: Indexes — implementing B-tree indexes for fast lookups
+- **Phase 5**: SQL subset — tokenizer, parser, and query execution
+
+## Final Project
+
+You'll build a **database** that supports:
+
+**Key-Value Operations:**
+
+- `SET key value` — store a key-value pair
+- `GET key` — retrieve a value
+- `DELETE key` — remove a key
+- `LIST` — enumerate all keys
+
+**SQL Subset:**
+
+- `CREATE TABLE name (column type, ...)` — create tables
+- `INSERT INTO table VALUES (...)` — insert rows
+- `SELECT * FROM table WHERE column = value` — query data
+- `UPDATE table SET column = value WHERE column = value` — update rows
+- `DELETE FROM table WHERE column = value` — delete rows
+
+**Persistence:**
+
+- Automatically saves to `data.bin`
+- Recovers state on restart
+- Append-only log for crash recovery
+
+## Prerequisites
+
+- Completion of [HTTP Server](/course/http-server) or equivalent networking knowledge
+- Strong grasp of pointers and memory management
+- Understanding of file I/O and binary formats
+
+## Why This Matters
+
+Building a database teaches you:
+
+- How databases optimize data storage and retrieval
+- The trade-offs between different data structures
+- How ACID properties and recovery actually work
+- The foundation for understanding any database system
+
+This is one of the most rewarding projects you can complete as a systems programmer.

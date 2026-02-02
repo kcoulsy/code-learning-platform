@@ -2,8 +2,6 @@ import { HeadContent, Scripts, createRootRoute, Outlet } from '@tanstack/react-r
 // import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 // import { TanStackDevtools } from '@tanstack/react-devtools'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { initializeCollections } from '../lib/progress-collections'
-import { initializeAIConfigCollection } from '../lib/ai-config-collection'
 
 import appCss from '../styles.css?url'
 
@@ -15,10 +13,6 @@ const queryClient = new QueryClient({
     },
   },
 })
-
-// Initialize collections with QueryClient
-initializeCollections(queryClient)
-initializeAIConfigCollection(queryClient)
 
 export const Route = createRootRoute({
   head: () => ({

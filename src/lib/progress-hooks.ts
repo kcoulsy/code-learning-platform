@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
-import { and, eq } from '@tanstack/react-db'
+import { and, eq } from '@tanstack/db'
 import {
   stepProgressCollection,
   lessonProgressCollection,
@@ -21,6 +21,7 @@ export function useStepCompletion(courseId: string, itemId: string, stepId: stri
     q
       .from({ step: stepProgressCollection })
       .where(({ step }) => eq(step.id, compositeId))
+      .orderBy(({ step }) => step.id, 'desc')
       .limit(1)
   )
 
@@ -67,6 +68,7 @@ export function useLessonCompletion(courseId: string, itemId: string) {
     q
       .from({ lesson: lessonProgressCollection })
       .where(({ lesson }) => eq(lesson.id, compositeId))
+      .orderBy(({ lesson }) => lesson.id, 'desc')
       .limit(1)
   )
 
@@ -173,6 +175,7 @@ export function useLastVisit(courseId: string) {
     q
       .from({ visit: courseVisitCollection })
       .where(({ visit }) => eq(visit.courseId, courseId))
+      .orderBy(({ visit }) => visit.lastVisitedAt, 'desc')
       .limit(1)
   )
 
@@ -224,6 +227,7 @@ export function useAutoLessonComplete(courseId: string, itemId: string, totalSte
     q
       .from({ lesson: lessonProgressCollection })
       .where(({ lesson }) => eq(lesson.id, `${courseId}:${itemId}`))
+      .orderBy(({ lesson }) => lesson.id, 'desc')
       .limit(1)
   )
 

@@ -51,6 +51,16 @@ export function initializeCollections(queryClient: QueryClient) {
         storage: 'indexeddb',
         storageKey: 'learncode-step-progress',
       },
+      // Local-only handlers (persistence handled by IndexedDB)
+      onInsert: async () => {
+        // No server sync needed
+      },
+      onUpdate: async () => {
+        // No server sync needed
+      },
+      onDelete: async () => {
+        // No server sync needed
+      },
     })
   )
 
@@ -67,6 +77,16 @@ export function initializeCollections(queryClient: QueryClient) {
         storage: 'indexeddb',
         storageKey: 'learncode-lesson-progress',
       },
+      // Local-only handlers (persistence handled by IndexedDB)
+      onInsert: async () => {
+        // No server sync needed
+      },
+      onUpdate: async () => {
+        // No server sync needed
+      },
+      onDelete: async () => {
+        // No server sync needed
+      },
     })
   )
 
@@ -82,6 +102,16 @@ export function initializeCollections(queryClient: QueryClient) {
       persistenceOptions: {
         storage: 'indexeddb',
         storageKey: 'learncode-course-visit',
+      },
+      // Local-only handlers (persistence handled by IndexedDB)
+      onInsert: async () => {
+        // No server sync needed
+      },
+      onUpdate: async () => {
+        // No server sync needed
+      },
+      onDelete: async () => {
+        // No server sync needed
       },
     })
   )

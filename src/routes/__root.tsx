@@ -15,13 +15,22 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'LearnCode - Programming Course Platform',
+      },
+      {
+        name: 'description',
+        content: 'A focused learning platform for programming with AI-powered Q&A',
       },
     ],
     links: [
       {
         rel: 'stylesheet',
         href: appCss,
+      },
+      {
+        rel: 'icon',
+        href: '/icon.svg',
+        type: 'image/svg+xml',
       },
     ],
   }),
@@ -35,7 +44,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="font-sans antialiased">
         {children}
         <TanStackDevtools
           config={{

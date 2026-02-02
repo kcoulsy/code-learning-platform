@@ -1,0 +1,111 @@
+---
+id: bfs-algorithm
+title: Breadth-First Search
+order: 1
+---
+
+# Breadth-First Search (BFS)
+
+BFS explores vertices level by level, using a queue. It finds the **shortest path** in unweighted graphs.
+
+## BFS Implementation
+
+```c
+void bfs(AdjListGraph *g, int start) {
+    int visited[MAX_VERTICES] = {0};
+    Queue q;
+    initQueue(&q);
+
+    visited[start] = 1;
+    enqueue(&q, start);
+
+    printf("BFS: ");
+    while (!isEmpty(&q)) {
+        int current = dequeue(&q);
+        printf("%d ", current);
+
+        GNode *currentNode = g->adjList[current];
+        while (currentNode != NULL) {
+            int neighbor = currentNode->vertex;
+            if (!visited[neighbor]) {
+                visited[neighbor] = 1;
+                enqueue(&q, neighbor);
+            }
+            currentNode = currentNode->next;
+        }
+    }
+    printf("\n");
+}
+```
+
+## BFS for Shortest Path
+
+```c
+int bfsShortestPath(AdjListGraph *g, int start, int end) {
+    if (start == end) return 0;
+
+    int visited[MAX_VERTICES] = {0};
+    int distance[MAX_VERTICES];
+    for (int i = 0; i < g->vertices; i++) {
+        distance[i] = -1;
+    }
+
+    Queue q;
+    initQueue(&q);
+    visited[start] = 1;
+    distance[start] = 0;
+    enqueue(&q, start);
+
+    while (!isEmpty(&q)) {
+        int current = dequeue(&q);
+
+        if (current == end) {
+            return distance[end];
+        }
+
+        GNode *node = g->adjList[current];
+        while (node != NULL) {
+            int neighbor = node->vertex;
+            if (!visited[neighbor]) {
+                visited[neighbor] = 1;
+                distance[neighbor] = distance[current] + 1;
+                enqueue(&q, neighbor);
+            }
+            node = node->next;
+        }
+    }
+    return -1;  // No path
+}
+```
+
+## BFS for Connected Components
+
+```c
+int countComponents(AdjListGraph *g) {
+    int visited[MAX_VERTICES] = {0};
+    int count = 0;
+    Queue q;
+    initQueue(&q);
+
+    for (int i = 0; i < g->vertices; i++) {
+        if (!visited[i]) {
+            count++;
+            visited[i] = 1;
+            enqueue(&q, i);
+
+            while (!isEmpty(&q)) {
+                int current = dequeue(&q);
+                GNode *node = g->adjList[current];
+                while (node != NULL) {
+                    if (!visited[node->vertex]) {
+                        visited[node->vertex] = 1;
+                        enqueue(&q, node->vertex);
+                    }
+                    node = node->next;
+                }
+            }
+        }
+    }
+    return count;
+}
+```

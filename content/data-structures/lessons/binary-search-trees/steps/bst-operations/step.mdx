@@ -1,0 +1,129 @@
+---
+id: bst-operations
+title: BST Operations
+order: 1
+---
+
+# BST Operations
+
+BSTs enable efficient O(log n) search, insert, and delete operations.
+
+## Search
+
+```c
+TreeNode *bstSearch(TreeNode *root, int value) {
+    if (root == NULL || root->data == value) {
+        return root;
+    }
+
+    if (value < root->data) {
+        return bstSearch(root->left, value);
+    }
+    return bstSearch(root->right, value);
+}
+
+// Iterative search
+TreeNode *bstSearchIter(TreeNode *root, int value) {
+    while (root != NULL && root->data != value) {
+        if (value < root->data) {
+            root = root->left;
+        } else {
+            root = root->right;
+        }
+    }
+    return root;
+}
+```
+
+## Insert
+
+```c
+TreeNode *bstInsert(TreeNode *root, int value) {
+    if (root == NULL) {
+        return createTreeNode(value);
+    }
+
+    if (value < root->data) {
+        root->left = bstInsert(root->left, value);
+    } else if (value > root->data) {
+        root->right = bstInsert(root->right, value);
+    }
+    // Duplicate: ignore or handle as needed
+
+    return root;
+}
+
+// Iterative insert
+TreeNode *bstInsertIter(TreeNode *root, int value) {
+    if (root == NULL) {
+        return createTreeNode(value);
+    }
+
+    TreeNode *current = root;
+    TreeNode *parent = NULL;
+
+    while (current != NULL) {
+        parent = current;
+        if (value < current->data) {
+            current = current->left;
+        } else if (value > current->data) {
+            current = current->right;
+        } else {
+            return root;  // Duplicate
+        }
+    }
+
+    if (value < parent->data) {
+        parent->left = createTreeNode(value);
+    } else {
+        parent->right = createTreeNode(value);
+    }
+    return root;
+}
+```
+
+## Delete
+
+```c
+TreeNode *findMin(TreeNode *root) {
+    while (root->left != NULL) {
+        root = root->left;
+    }
+    return root;
+}
+
+TreeNode *bstDelete(TreeNode *root, int value) {
+    if (root == NULL) return NULL;
+
+    if (value < root->data) {
+        root->left = bstDelete(root->left, value);
+    } else if (value > root->data) {
+        root->right = bstDelete(root->right, value);
+    } else {
+        // Node found
+        if (root->left == NULL) {
+            TreeNode *temp = root->right;
+            free(root);
+            return temp;
+        } else if (root->right == NULL) {
+            TreeNode *temp = root->left;
+            free(root);
+            return temp;
+        }
+
+        // Two children: replace with inorder successor
+        TreeNode *temp = findMin(root->right);
+        root->data = temp->data;
+        root->right = bstDelete(root->right, temp->data);
+    }
+    return root;
+}
+```
+
+## Complexity
+
+| Operation | Average Case | Worst Case |
+| --------- | ------------ | ---------- |
+| Search    | O(log n)     | O(n)       |
+| Insert    | O(log n)     | O(n)       |
+| Delete    | O(log n)     | O(n)       |

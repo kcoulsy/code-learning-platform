@@ -1,0 +1,114 @@
+---
+id: hash-table-basics
+title: Hash Table Basics
+order: 1
+---
+
+# Hash Table Basics
+
+Hash tables store key-value pairs and use hash functions to compute indices.
+
+## Hash Function
+
+```c
+#define TABLE_SIZE 100
+
+// Simple hash function
+int hash(int key) {
+    return key % TABLE_SIZE;
+}
+
+// String hash function
+unsigned int hashString(char *str) {
+    unsigned int hash = 0;
+    for (int i = 0; str[i]; i++) {
+        hash = hash * 31 + str[i];
+    }
+    return hash % TABLE_SIZE;
+}
+```
+
+## Basic Hash Table (Open Addressing)
+
+```c
+typedef struct {
+    int key;
+    int value;
+    int occupied;
+} Entry;
+
+typedef struct {
+    Entry entries[TABLE_SIZE];
+} HashTable;
+
+void initHashTable(HashTable *ht) {
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        ht->entries[i].occupied = 0;
+    }
+}
+
+int hashFunction(int key) {
+    return key % TABLE_SIZE;
+}
+```
+
+## Insert
+
+```c
+int htInsert(HashTable *ht, int key, int value) {
+    int index = hashFunction(key);
+
+    // Linear probing
+    int start = index;
+    while (ht->entries[index].occupied) {
+        if (ht->entries[index].key == key) {
+            ht->entries[index].value = value;  // Update
+            return 1;
+        }
+        index = (index + 1) % TABLE_SIZE;
+        if (index == start) return 0;  // Table full
+    }
+
+    ht->entries[index].key = key;
+    ht->entries[index].value = value;
+    ht->entries[index].occupied = 1;
+    return 1;
+}
+```
+
+## Search
+
+```c
+int htSearch(HashTable *ht, int key) {
+    int index = hashFunction(key);
+    int start = index;
+
+    while (ht->entries[index].occupied) {
+        if (ht->entries[index].key == key) {
+            return ht->entries[index].value;
+        }
+        index = (index + 1) % TABLE_SIZE;
+        if (index == start) break;  // Full cycle
+    }
+    return -1;  // Not found
+}
+```
+
+## Delete
+
+```c
+int htDelete(HashTable *ht, int key) {
+    int index = hashFunction(key);
+    int start = index;
+
+    while (ht->entries[index].occupied) {
+        if (ht->entries[index].key == key) {
+            ht->entries[index].occupied = 0;
+            return 1;
+        }
+        index = (index + 1) % TABLE_SIZE;
+        if (index == start) break;
+    }
+    return 0;
+}
+```

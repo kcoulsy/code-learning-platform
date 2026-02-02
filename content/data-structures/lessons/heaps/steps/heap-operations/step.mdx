@@ -1,0 +1,117 @@
+---
+id: heap-operations
+title: Heap Operations
+order: 2
+---
+
+# Heap Operations
+
+Insert and extract operations maintain the heap property.
+
+## Bubble Up (Heapify Up)
+
+```c
+void bubbleUp(MaxHeap *h, int index) {
+    while (index > 0) {
+        int parentIndex = parent(index);
+        if (h->items[index] > h->items[parentIndex]) {
+            swap(h, index, parentIndex);
+            index = parentIndex;
+        } else {
+            break;
+        }
+    }
+}
+
+void heapInsert(MaxHeap *h, int value) {
+    if (isHeapFull(h)) {
+        printf("Heap full\n");
+        return;
+    }
+
+    h->items[h->size] = value;
+    bubbleUp(h, h->size);
+    h->size++;
+}
+```
+
+## Bubble Down (Heapify Down)
+
+```c
+void bubbleDown(MaxHeap *h, int index) {
+    int largest = index;
+    int left = leftChild(index);
+    int right = rightChild(index);
+
+    if (left < h->size && h->items[left] > h->items[largest]) {
+        largest = left;
+    }
+    if (right < h->size && h->items[right] > h->items[largest]) {
+        largest = right;
+    }
+
+    if (largest != index) {
+        swap(h, index, largest);
+        bubbleDown(h, largest);
+    }
+}
+
+int heapExtractMax(MaxHeap *h) {
+    if (isHeapEmpty(h)) {
+        printf("Heap empty\n");
+        return -1;
+    }
+
+    int max = h->items[0];
+    h->items[0] = h->items[--h->size];
+    bubbleDown(h, 0);
+
+    return max;
+}
+```
+
+## Build Heap from Array
+
+```c
+void buildHeap(MaxHeap *h, int arr[], int n) {
+    h->size = n;
+    for (int i = 0; i < n; i++) {
+        h->items[i] = arr[i];
+    }
+
+    // Start from last parent and heapify down
+    for (int i = parent(n - 1); i >= 0; i--) {
+        bubbleDown(h, i);
+    }
+}
+```
+
+## Priority Queue using Heap
+
+```c
+typedef struct {
+    MaxHeap heap;
+} PriorityQueue;
+
+void pqEnqueue(PriorityQueue *pq, int value) {
+    heapInsert(&pq->heap, value);
+}
+
+int pqDequeue(PriorityQueue *pq) {
+    return heapExtractMax(&pq->heap);
+}
+
+int pqPeek(PriorityQueue *pq) {
+    if (isHeapEmpty(&pq->heap)) return -1;
+    return pq->heap.items[0];
+}
+```
+
+## Complexity
+
+| Operation  | Time Complexity |
+| ---------- | --------------- |
+| Insert     | O(log n)        |
+| Extract    | O(log n)        |
+| Peek       | O(1)            |
+| Build Heap | O(n)            |

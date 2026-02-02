@@ -1,0 +1,73 @@
+---
+id: string-basics
+title: String Basics in C
+order: 3
+---
+
+# String Basics in C
+
+In C, strings are **arrays of characters** ending with a null terminator (`\0`). Understanding this is crucial for proper string handling.
+
+## String Declaration
+
+```c
+// Different ways to declare strings
+char greeting1[] = "Hello";        // Auto-sized
+char greeting2[6] = "Hello";       // Explicit size (including \0)
+char greeting3[] = {'H', 'e', 'l', 'l', 'o', '\0'};  // Manual
+```
+
+## String Storage
+
+```
+Index:    0     1     2     3     4     5
+        +-----+-----+-----+-----+-----+-----+
+String: |  H  |  e  |  l  |  l  |  o  | \0  |
+        +-----+-----+-----+-----+-----+-----+
+```
+
+## Common String Functions
+
+```c
+#include <string.h>
+
+// Get length
+size_t len = strlen(str);  // Excludes \0
+
+// Copy string
+strcpy(dest, src);  // Copies src to dest
+
+// Concatenate
+strcat(dest, src);  // Appends src to dest
+
+// Compare
+int result = strcmp(str1, str2);  // 0 if equal
+
+// Find character
+char *pos = strchr(str, 'a');  // First occurrence
+
+// Find substring
+char *pos = strstr(str, "hello");  // First occurrence
+```
+
+## String Input
+
+```c
+char name[100];
+
+// Unsafe - can overflow buffer
+scanf("%s", name);
+
+// Safe - limits input
+fgets(name, sizeof(name), stdin);
+
+// Remove newline
+name[strcspn(name, "\n")] = 0;
+```
+
+## Key Points
+
+1. Always reserve space for null terminator
+2. Use `fgets()` instead of `scanf()` for safety
+3. Strings are mutable in C (unlike some languages)
+4. Always check for NULL pointers

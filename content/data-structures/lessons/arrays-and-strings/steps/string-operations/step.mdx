@@ -1,0 +1,79 @@
+---
+id: string-operations
+title: String Operations and Patterns
+order: 4
+---
+
+# String Operations and Patterns
+
+Common string manipulation patterns in C include reversal, searching, and tokenization.
+
+## String Reversal
+
+```c
+void reverseString(char str[]) {
+    int length = strlen(str);
+    for (int i = 0; i < length / 2; i++) {
+        char temp = str[i];
+        str[i] = str[length - i - 1];
+        str[length - i - 1] = temp;
+    }
+}
+```
+
+## Palindrome Check
+
+```c
+int isPalindrome(char str[]) {
+    int left = 0;
+    int right = strlen(str) - 1;
+
+    while (left < right) {
+        if (str[left] != str[right]) {
+            return 0;  // Not a palindrome
+        }
+        left++;
+        right--;
+    }
+    return 1;  // Is a palindrome
+}
+```
+
+## String Tokenization
+
+```c
+char sentence[] = "Hello world in C";
+char *token = strtok(sentence, " ");
+
+while (token != NULL) {
+    printf("Token: %s\n", token);
+    token = strtok(NULL, " ");
+}
+```
+
+## Anagram Check
+
+```c
+int areAnagrams(char str1[], char str2[]) {
+    if (strlen(str1) != strlen(str2)) return 0;
+
+    int count[256] = {0};
+
+    for (int i = 0; str1[i]; i++) {
+        count[(unsigned char)str1[i]]++;
+        count[(unsigned char)str2[i]]--;
+    }
+
+    for (int i = 0; i < 256; i++) {
+        if (count[i] != 0) return 0;
+    }
+    return 1;
+}
+```
+
+## Common Patterns
+
+1. **Two Pointers**: Palindrome, anagram, reverse
+2. **Frequency Array**: Character counting, anagrams
+3. **Tokenization**: Splitting on delimiters
+4. **Sliding Window**: Substring searches

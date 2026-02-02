@@ -1,0 +1,128 @@
+---
+id: doubly-linked-lists
+title: Doubly Linked Lists
+order: 3
+---
+
+# Doubly Linked Lists
+
+A **doubly linked list** has nodes with pointers to both the next and previous nodes, enabling bidirectional traversal.
+
+## Node Structure
+
+```c
+typedef struct DNode {
+    int data;
+    struct DNode *prev;  // Pointer to previous node
+    struct DNode *next;  // Pointer to next node
+} DNode;
+```
+
+## Create Node
+
+```c
+DNode *createDNode(int value) {
+    DNode *newNode = (DNode *)malloc(sizeof(DNode));
+    if (newNode == NULL) {
+        printf("Memory allocation failed\n");
+        exit(1);
+    }
+    newNode->data = value;
+    newNode->prev = NULL;
+    newNode->next = NULL;
+    return newNode;
+}
+```
+
+## Insert at Beginning
+
+```c
+DNode *insertAtBeginning(DNode *head, int value) {
+    DNode *newNode = createDNode(value);
+
+    if (head != NULL) {
+        head->prev = newNode;
+    }
+    newNode->next = head;
+    return newNode;
+}
+```
+
+## Insert at End
+
+```c
+DNode *insertAtEnd(DNode *head, int value) {
+    DNode *newNode = createDNode(value);
+
+    if (head == NULL) {
+        return newNode;
+    }
+
+    DNode *current = head;
+    while (current->next != NULL) {
+        current = current->next;
+    }
+
+    current->next = newNode;
+    newNode->prev = current;
+    return head;
+}
+```
+
+## Delete Node
+
+```c
+DNode *deleteNode(DNode *head, int value) {
+    DNode *current = head;
+
+    while (current != NULL && current->data != value) {
+        current = current->next;
+    }
+
+    if (current == NULL) {
+        return head;  // Not found
+    }
+
+    if (current->prev != NULL) {
+        current->prev->next = current->next;
+    } else {
+        head = current->next;  // Deleting head
+    }
+
+    if (current->next != NULL) {
+        current->next->prev = current->prev;
+    }
+
+    free(current);
+    return head;
+}
+```
+
+## Traverse Backward
+
+```c
+void printListBackward(DNode *head) {
+    if (head == NULL) {
+        printf("NULL\n");
+        return;
+    }
+
+    DNode *current = head;
+    while (current->next != NULL) {
+        current = current->next;
+    }
+
+    while (current != NULL) {
+        printf("%d <- ", current->data);
+        current = current->prev;
+    }
+    printf("NULL\n");
+}
+```
+
+## Advantages of Doubly Linked Lists
+
+1. **Bidirectional Traversal**: Can go forward and backward
+2. **Easy Deletion**: Previous pointer makes deletion simpler
+3. **Double Navigation**: Useful for undo/redo operations
+4. **Symmetric Operations**: Similar code for front and back operations

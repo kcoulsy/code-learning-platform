@@ -1,0 +1,112 @@
+---
+id: collision-handling
+title: Collision Handling
+order: 2
+---
+
+# Collision Handling
+
+Collisions occur when two keys hash to the same index. There are several strategies to handle them.
+
+## Chaining (Separate Linked Lists)
+
+```c
+typedef struct HNode {
+    int key;
+    int value;
+    struct HNode *next;
+} HNode;
+
+typedef struct {
+    HNode *buckets[TABLE_SIZE];
+} ChainedHashTable;
+
+void chtInit(ChainedHashTable *ht) {
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        ht->buckets[i] = NULL;
+    }
+}
+
+void chtInsert(ChainedHashTable *ht, int key, int value) {
+    int index = hashFunction(key);
+
+    HNode *current = ht->buckets[index];
+    while (current != NULL) {
+        if (current->key == key) {
+            current->value = value;
+            return;
+        }
+        current = current->next;
+    }
+
+    HNode *newNode = (HNode *)malloc(sizeof(HNode));
+    newNode->key = key;
+    newNode->value = value;
+    newNode->next = ht->buckets[index];
+    ht->buckets[index] = newNode;
+}
+
+int chtSearch(ChainedHashTable *ht, int key) {
+    int index = hashFunction(key);
+    HNode *current = ht->buckets[index];
+
+    while (current != NULL) {
+        if (current->key == key) {
+            return current->value;
+        }
+        current = current->next;
+    }
+    return -1;
+}
+```
+
+## Double Hashing
+
+```c
+int hash2(int key) {
+    return 7 - (key % 7);  // Secondary hash function
+}
+
+void htInsertDouble(HashTable *ht, int key, int value) {
+    int index = hashFunction(key);
+    int step = hash2(key);
+    int start = index;
+
+    while (ht->entries[index].occupied) {
+        if (ht->entries[index].key == key) {
+            ht->entries[index].value = value;
+            return;
+        }
+        index = (index + step) % TABLE_SIZE;
+        if (index == start) return;  // Full
+    }
+
+    ht->entries[index].key = key;
+    ht->entries[index].value = value;
+    ht->entries[index].occupied = 1;
+}
+```
+
+## Comparison of Methods
+
+| Method    | Advantages                      | Disadvantages                 |
+| --------- | ------------------------------- | ----------------------------- |
+| Chaining  | Simple, handles many collisions | Extra memory for linked lists |
+| Linear    | Simple, good locality           | Clustering issues             |
+| Quadratic | Reduces primary clustering      | Secondary clustering          |
+| Double    | Best distribution               | More complex, extra hash func |
+
+## Load Factor
+
+```c
+// Load factor = n / TABLE_SIZE
+// Recommended: < 0.7 for good performance
+// If > 0.7, resize the table
+
+void checkAndRehash(HashTable *ht, float loadFactor) {
+    if (loadFactor > 0.7) {
+        // Create larger table and rehash all entries
+        // This is called rehashing
+    }
+}
+```

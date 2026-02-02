@@ -1,0 +1,107 @@
+---
+id: list-operations
+title: Linked List Operations
+order: 4
+---
+
+# Linked List Operations
+
+Essential operations for linked list maintenance including deletion, reversal, and memory management.
+
+## Delete from Beginning
+
+```c
+Node *deleteFromBeginning(Node *head) {
+    if (head == NULL) {
+        return NULL;
+    }
+
+    Node *temp = head;
+    head = head->next;
+    free(temp);
+    return head;
+}
+```
+
+## Delete from End
+
+```c
+Node *deleteFromEnd(Node *head) {
+    if (head == NULL) {
+        return NULL;
+    }
+
+    if (head->next == NULL) {
+        free(head);
+        return NULL;
+    }
+
+    Node *current = head;
+    while (current->next->next != NULL) {
+        current = current->next;
+    }
+
+    free(current->next);
+    current->next = NULL;
+    return head;
+}
+```
+
+## Reverse Linked List
+
+```c
+Node *reverseList(Node *head) {
+    Node *prev = NULL;
+    Node *current = head;
+    Node *next = NULL;
+
+    while (current != NULL) {
+        next = current->next;  // Save next
+        current->next = prev;  // Reverse pointer
+        prev = current;        // Move prev forward
+        current = next;        // Move current forward
+    }
+
+    return prev;  // New head
+}
+```
+
+## Find Middle Element
+
+```c
+Node *findMiddle(Node *head) {
+    if (head == NULL) return NULL;
+
+    Node *slow = head;
+    Node *fast = head;
+
+    while (fast != NULL && fast->next != NULL) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+
+    return slow;
+}
+```
+
+## Free List (Memory Cleanup)
+
+```c
+void freeList(Node *head) {
+    Node *current = head;
+    Node *next;
+
+    while (current != NULL) {
+        next = current->next;
+        free(current);
+        current = next;
+    }
+}
+```
+
+## Common Patterns
+
+1. **Two Pointer Technique**: Find middle, detect cycles
+2. **Dummy Head Node**: Simplifies edge cases
+3. **Pointer Rearrangement**: Reversal, swapping nodes
+4. **Recursive Operations**: Traversal, reversal (with stack)

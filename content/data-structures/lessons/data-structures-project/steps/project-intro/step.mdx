@@ -1,0 +1,40 @@
+---
+id: project-intro
+title: Project Introduction
+order: 1
+---
+
+# Project Introduction
+
+We'll implement a file system with directories, files, and caching using:
+
+- **Trees**: Directory structure
+- **Linked Lists**: File allocation tables
+- **Hash Tables**: Directory entry caching
+- **Heaps**: File size tracking
+
+## Project Structure
+
+```
+file_system/
+├── file_system.c          # Main implementation
+├── file_system.h          # Header file
+├── tests.c               # Test cases
+└── Makefile              # Build configuration
+```
+
+## Key Components
+
+1. **Directory Entry**: Tree node representing files/directories
+2. **File Allocation**: Linked list for disk blocks
+3. **Cache**: Hash table for fast lookups
+4. **Open Files**: Priority queue by access time
+
+## Implementation Steps
+
+1. Define data structures
+2. Implement directory tree operations
+3. Create file allocation system
+4. Add hash table cache
+5. Implement file operations (create, read, write, delete)
+6. Write tests and verify correctness

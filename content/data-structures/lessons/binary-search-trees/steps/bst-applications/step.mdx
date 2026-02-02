@@ -1,0 +1,105 @@
+---
+id: bst-applications
+title: BST Applications
+order: 2
+---
+
+# BST Applications
+
+BSTs are used in many scenarios requiring ordered data.
+
+## Range Queries
+
+```c
+// Count nodes in range [low, high]
+int countRange(TreeNode *root, int low, int high) {
+    if (root == NULL) return 0;
+
+    if (root->data < low) {
+        return countRange(root->right, low, high);
+    }
+    if (root->data > high) {
+        return countRange(root->left, low, high);
+    }
+    return 1 + countRange(root->left, low, high) +
+               countRange(root->right, low, high);
+}
+```
+
+## Find Floor and Ceiling
+
+```c
+int findFloor(TreeNode *root, int value) {
+    int floor = -1;
+    while (root != NULL) {
+        if (root->data == value) {
+            return root->data;
+        }
+        if (value < root->data) {
+            root = root->left;
+        } else {
+            floor = root->data;
+            root = root->right;
+        }
+    }
+    return floor;
+}
+
+int findCeiling(TreeNode *root, int value) {
+    int ceiling = -1;
+    while (root != NULL) {
+        if (root->data == value) {
+            return root->data;
+        }
+        if (value > root->data) {
+            root = root->right;
+        } else {
+            ceiling = root->data;
+            root = root->left;
+        }
+    }
+    return ceiling;
+}
+```
+
+## Validate BST
+
+```c
+int isValidBST(TreeNode *root) {
+    return validateBSTHelper(root, INT_MIN, INT_MAX);
+}
+
+int validateBSTHelper(TreeNode *node, int min, int max) {
+    if (node == NULL) return 1;
+
+    if (node->data <= min || node->data >= max) return 0;
+
+    return validateBSTHelper(node->left, min, node->data) &&
+           validateBSTHelper(node->right, node->data, max);
+}
+```
+
+## Build BST from Sorted Array
+
+```c
+TreeNode *sortedArrayToBST(int arr[], int start, int end) {
+    if (start > end) return NULL;
+
+    int mid = (start + end) / 2;
+    TreeNode *root = createTreeNode(arr[mid]);
+
+    root->left = sortedArrayToBST(arr, start, mid - 1);
+    root->right = sortedArrayToBST(arr, mid + 1, end);
+
+    return root;
+}
+```
+
+## BST vs Other Structures
+
+| Operation        | Array (sorted) | Linked List | BST      |
+| ---------------- | -------------- | ----------- | -------- |
+| Search           | O(log n)       | O(n)        | O(log n) |
+| Insert           | O(n)           | O(1)        | O(log n) |
+| Delete           | O(n)           | O(n)        | O(log n) |
+| Sorted Traversal | O(n)           | O(n)        | O(n)     |

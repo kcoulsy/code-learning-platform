@@ -1,0 +1,86 @@
+---
+id: common-patterns
+title: Common Complexity Patterns
+order: 4
+---
+
+# Common Complexity Patterns
+
+Recognizing patterns helps quickly determine algorithm complexity.
+
+## Loop Patterns
+
+```c
+// O(n) - Single loop
+for (int i = 0; i < n; i++) { ... }
+
+// O(n²) - Nested loops
+for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) { ... }
+}
+
+// O(n³) - Triple nested loops
+for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+        for (int k = 0; k < n; k++) { ... }
+    }
+}
+```
+
+## Divide and Conquer Patterns
+
+```c
+// O(log n) - Halving each iteration
+for (int i = 1; i < n; i *= 2) { ... }
+
+// O(n log n) - Linear with logarithmic inner loop
+for (int i = 0; i < n; i++) {
+    for (int j = 1; j < n; j *= 2) { ... }
+}
+```
+
+## Two Pointer Patterns
+
+```c
+// O(n) - Left and right pointers
+int twoSumSorted(int arr[], int n, int target) {
+    int left = 0, right = n - 1;
+    while (left < right) {
+        int sum = arr[left] + arr[right];
+        if (sum == target) return 1;
+        if (sum < target) left++;
+        else right--;
+    }
+    return 0;
+}
+```
+
+## Sliding Window Patterns
+
+```c
+// O(n) - Fixed window sliding
+int maxSumSubarray(int arr[], int n, int k) {
+    if (n < k) return -1;
+    int windowSum = 0;
+    for (int i = 0; i < k; i++) {
+        windowSum += arr[i];
+    }
+    int maxSum = windowSum;
+    for (int i = k; i < n; i++) {
+        windowSum += arr[i] - arr[i - k];
+        if (windowSum > maxSum) maxSum = windowSum;
+    }
+    return maxSum;
+}
+```
+
+## Quick Reference Chart
+
+| Pattern               | Complexity | Example         |
+| --------------------- | ---------- | --------------- |
+| Single loop           | O(n)       | Linear search   |
+| Nested loops          | O(n²)      | Bubble sort     |
+| Halving               | O(log n)   | Binary search   |
+| Linear + Halving      | O(n log n) | Merge sort      |
+| Recursive (halving)   | O(log n)   | BST traversal   |
+| Recursive (branching) | O(2ⁿ)      | Naive Fibonacci |

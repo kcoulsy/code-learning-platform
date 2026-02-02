@@ -1,0 +1,105 @@
+---
+id: base-cases
+title: Base Cases and Stack Overflow
+order: 3
+---
+
+# Base Cases and Stack Overflow
+
+Understanding base cases is critical for preventing **stack overflow** errors and writing correct recursive algorithms.
+
+## Stack Overflow
+
+Each recursive call adds a frame to the **call stack**. Too many calls can overflow the stack.
+
+```c
+// Stack overflow for large n
+void stackOverflow(int n) {
+    printf("%d\n", n);
+    stackOverflow(n + 1);  // Infinite recursion
+}
+```
+
+## Identifying Correct Base Cases
+
+```c
+// Fibonacci - Multiple base cases
+int fibonacci(int n) {
+    if (n <= 0) return 0;      // Base case 0
+    if (n == 1) return 1;      // Base case 1
+    return fibonacci(n - 1) + fibonacci(n - 2);  // Recursive
+}
+```
+
+## Multiple Base Cases
+
+```c
+// Greatest Common Divisor - Euclidean algorithm
+int gcd(int a, int b) {
+    if (b == 0) return a;      // Base case
+    return gcd(b, a % b);      // Recursive case
+}
+
+// Ackermann function (extreme recursion)
+int ackermann(int m, int n) {
+    if (m == 0) return n + 1;
+    if (n == 0) return ackermann(m - 1, 1);
+    return ackermann(m - 1, ackermann(m, n - 1));
+}
+```
+
+## Tail Recursion
+
+**Tail recursion** occurs when the recursive call is the last operation. Some compilers optimize this to avoid stack growth.
+
+```c
+// Tail recursive - optimizable
+int factorialTail(int n, int acc) {
+    if (n <= 1) return acc;
+    return factorialTail(n - 1, n * acc);
+}
+
+int factorial(int n) {
+    return factorialTail(n, 1);
+}
+
+// Not tail recursive - multiplication after recursive call
+int factorialNonTail(int n) {
+    if (n <= 1) return 1;
+    return n * factorialNonTail(n - 1);  // Not last operation
+}
+```
+
+## Stack Size Considerations
+
+```c
+// On most systems, default stack is ~8MB
+// Each recursion frame ~32-64 bytes
+// Maximum recursion depth: ~100,000-250,000 calls
+
+// For deep recursion, consider:
+// 1. Tail call optimization (if compiler supports)
+// 2. Iterative implementation
+// 3. Increasing stack size (platform-dependent)
+```
+
+## Debugging Recursion
+
+```c
+// Add trace to understand call stack
+void traceRecursion(int n, int depth) {
+    for (int i = 0; i < depth; i++) printf("  ");
+    printf("Entering n=%d\n", n);
+
+    if (n <= 0) {
+        for (int i = 0; i < depth; i++) printf("  ");
+        printf("Base case reached\n");
+        return;
+    }
+
+    traceRecursion(n - 1, depth + 1);
+
+    for (int i = 0; i < depth; i++) printf("  ");
+    printf("Returning from n=%d\n", n);
+}
+```

@@ -1,0 +1,154 @@
+---
+id: project-data-structures
+title: Define Data Structures
+order: 2
+---
+
+# Define Data Structures
+
+Create the core data structures for the file system.
+
+## Header File (file_system.h)
+
+```c
+#ifndef FILE_SYSTEM_H
+#define FILE_SYSTEM_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_NAME_LEN 256
+#define MAX_FILES 1000
+
+// Directory tree node
+typedef struct DirNode {
+    char name[MAX_NAME_LEN];
+    int is_directory;
+    struct DirNode *parent;
+    struct DirNode *left;      // First child
+    struct DirNode *right;     // Next sibling
+    struct DirNode *children;  // Child directory
+    void *data;                // File data or metadata
+} DirNode;
+
+// File allocation block (linked list node)
+typedef struct Block {
+    int block_number;
+    char data[512];
+    struct Block *next;
+} Block;
+
+typedef struct {
+    Block *head;
+    Block *tail;
+    int total_blocks;
+    int file_size;
+} FileAllocation;
+
+// Cache entry (hash table)
+typedef struct CacheEntry {
+    char path[MAX_NAME_LEN];
+    DirNode *node;
+    struct CacheEntry *next;
+} CacheEntry;
+
+typedef struct {
+    CacheEntry *buckets[100];
+    int size;
+    int hits;
+    int misses;
+} DirCache;
+
+// Directory tree functions
+DirNode *createDirNode(const char *name, int is_directory);
+DirNode *findChild(DirNode *parent, const char *name);
+DirNode *addChild(DirNode *parent, const char *name, int is_directory);
+void freeDirTree(DirNode *root);
+
+// File allocation functions
+FileAllocation *createFileAllocation();
+void addBlock(FileAllocation *fa, const char *data, int size);
+void freeFileAllocation(FileAllocation *fa);
+
+// Cache functions
+void cacheInit(DirCache *cache);
+void cacheInsert(DirCache *cache, const char *path, DirNode *node);
+DirNode *cacheLookup(DirCache *cache, const char *path);
+void cachePrintStats(DirCache *cache);
+
+#endif
+```
+
+## Implementation (file_system.c - Part 1)
+
+```c
+#include "file_system.h"
+
+// Directory Tree Operations
+DirNode *createDirNode(const char *name, int is_directory) {
+    DirNode *node = (DirNode *)malloc(sizeof(DirNode));
+    strncpy(node->name, name, MAX_NAME_LEN - 1);
+    node->name[MAX_NAME_LEN - 1] = '\0';
+    node->is_directory = is_directory;
+    node->parent = NULL;
+    node->left = NULL;
+    node->right = NULL;
+    node->children = NULL;
+    node->data = NULL;
+    return node;
+}
+
+DirNode *findChild(DirNode *parent, const char *name) {
+    if (parent == NULL || parent->children == NULL) return NULL;
+
+    DirNode *current = parent->children;
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current;
+        }
+        current = current->right;
+    }
+    return NULL;
+}
+
+DirNode *addChild(DirNode *parent, const char *name, int is_directory) {
+    DirNode *newNode = createDirNode(name, is_directory);
+    newNode->parent = parent;
+
+    if (parent->children == NULL) {
+        parent->children = newNode;
+    } else {
+        DirNode *current = parent->children;
+        while (current->right != NULL) {
+            current = current->right;
+        }
+        current->right = newNode;
+    }
+
+    return newNode;
+}
+
+void freeDirTree(DirNode *root) {
+    if (root == NULL) return;
+
+    if (root->is_directory && root->children) {
+        DirNode *child = root->children;
+        while (child != NULL) {
+            DirNode *next = child->right;
+            freeDirTree(child);
+            child = next;
+        }
+    }
+
+    if (root->data) {
+        if (root->is_directory) {
+            freeFileAllocation((FileAllocation *)root->data);
+        } else {
+            free(root->data);
+        }
+    }
+
+    free(root);
+}
+```

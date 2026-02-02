@@ -1,0 +1,121 @@
+---
+id: recursion-vs-iteration
+title: Recursion vs Iteration
+order: 4
+---
+
+# Recursion vs Iteration
+
+Both approaches can solve the same problems. Understanding when to use each is key to writing efficient code.
+
+## Comparing Approaches
+
+| Aspect      | Recursion                          | Iteration                |
+| ----------- | ---------------------------------- | ------------------------ |
+| Readability | Often cleaner for complex problems | More straightforward     |
+| Stack Usage | Uses call stack                    | No stack overhead        |
+| Performance | Function call overhead             | Usually faster           |
+| Memory      | O(log n) to O(n) stack space       | O(1) auxiliary space     |
+| Use Case    | Tree problems, divide-conquer      | Simple linear processing |
+
+## Same Problem, Different Approach
+
+```c
+// RECURSIVE: Factorial
+int factorial(int n) {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+}
+
+// ITERATIVE: Factorial
+int factorial(int n) {
+    int result = 1;
+    for (int i = 2; i <= n; i++) {
+        result *= i;
+    }
+    return result;
+}
+```
+
+## When to Choose Recursion
+
+```c
+// Tree traversal - natural fit for recursion
+void inorderTraversal(Node *root) {
+    if (root == NULL) return;
+    inorderTraversal(root->left);
+    printf("%d ", root->data);
+    inorderTraversal(root->right);
+}
+
+// Divide and conquer - elegant solution
+int binarySearch(int arr[], int low, int high, int target) {
+    if (low > high) return -1;
+    int mid = low + (high - low) / 2;
+    if (arr[mid] == target) return mid;
+    if (arr[mid] < target)
+        return binarySearch(arr, mid + 1, high, target);
+    return binarySearch(arr, low, mid - 1, target);
+}
+```
+
+## When to Choose Iteration
+
+```c
+// Simple array processing
+int findMax(int arr[], int n) {
+    int max = arr[0];
+    for (int i = 1; i < n; i++) {
+        if (arr[i] > max) max = arr[i];
+    }
+    return max;
+}
+
+// Sequential processing
+int sumList(Node *head) {
+    int sum = 0;
+    Node *current = head;
+    while (current != NULL) {
+        sum += current->data;
+        current = current->next;
+    }
+    return sum;
+}
+```
+
+## Converting Recursion to Iteration
+
+```c
+// Recursive - may cause stack overflow
+int fibonacci(int n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// Iterative - uses O(1) space
+int fibonacciIter(int n) {
+    if (n <= 1) return n;
+    int prev2 = 0, prev1 = 1, current;
+    for (int i = 2; i <= n; i++) {
+        current = prev1 + prev2;
+        prev2 = prev1;
+        prev1 = current;
+    }
+    return current;
+}
+```
+
+## Hybrid Approach
+
+```c
+// Tail recursion with accumulator (often optimizable)
+int fibonacciTail(int n, int a, int b) {
+    if (n == 0) return a;
+    if (n == 1) return b;
+    return fibonacciTail(n - 1, b, a + b);
+}
+
+int fibonacci(int n) {
+    return fibonacciTail(n, 0, 1);
+}
+```

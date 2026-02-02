@@ -1,0 +1,123 @@
+---
+id: graph-representations
+title: Graph Representations
+order: 1
+---
+
+# Graph Representations
+
+There are several ways to represent graphs in code.
+
+## Adjacency Matrix
+
+```c
+#define MAX_VERTICES 100
+
+typedef struct {
+    int adj[MAX_VERTICES][MAX_VERTICES];
+    int vertices;
+} Graph;
+
+void initGraph(Graph *g, int v) {
+    g->vertices = v;
+    for (int i = 0; i < v; i++) {
+        for (int j = 0; j < v; j++) {
+            g->adj[i][j] = 0;
+        }
+    }
+}
+
+void addEdge(Graph *g, int src, int dest) {
+    g->adj[src][dest] = 1;
+    g->adj[dest][src] = 1;  // Undirected
+}
+
+void printGraph(Graph *g) {
+    printf("Adjacency Matrix:\n");
+    for (int i = 0; i < g->vertices; i++) {
+        for (int j = 0; j < g->vertices; j++) {
+            printf("%d ", g->adj[i][j]);
+        }
+        printf("\n");
+    }
+}
+```
+
+## Adjacency List
+
+```c
+typedef struct GNode {
+    int vertex;
+    struct GNode *next;
+} GNode;
+
+typedef struct {
+    GNode *adjList[MAX_VERTICES];
+    int vertices;
+} AdjListGraph;
+
+void initAdjList(AdjListGraph *g, int v) {
+    g->vertices = v;
+    for (int i = 0; i < v; i++) {
+        g->adjList[i] = NULL;
+    }
+}
+
+void addEdgeList(AdjListGraph *g, int src, int dest) {
+    GNode *newNode = (GNode *)malloc(sizeof(GNode));
+    newNode->vertex = dest;
+    newNode->next = g->adjList[src];
+    g->adjList[src] = newNode;
+
+    // For undirected graph
+    newNode = (GNode *)malloc(sizeof(GNode));
+    newNode->vertex = src;
+    newNode->next = g->adjList[dest];
+    g->adjList[dest] = newNode;
+}
+
+void printAdjList(AdjListGraph *g) {
+    for (int i = 0; i < g->vertices; i++) {
+        printf("%d: ", i);
+        GNode *current = g->adjList[i];
+        while (current != NULL) {
+            printf("%d ", current->vertex);
+            current = current->next;
+        }
+        printf("\n");
+    }
+}
+```
+
+## Weighted Graph
+
+```c
+typedef struct {
+    int adj[MAX_VERTICES][MAX_VERTICES];
+    int vertices;
+} WeightedGraph;
+
+void initWeightedGraph(WeightedGraph *g, int v) {
+    g->vertices = v;
+    for (int i = 0; i < v; i++) {
+        for (int j = 0; j < v; j++) {
+            g->adj[i][j] = INT_MAX;  // No edge
+        }
+    }
+    for (int i = 0; i < v; i++) {
+        g->adj[i][i] = 0;  // Self-loop is 0
+    }
+}
+
+void addWeightedEdge(WeightedGraph *g, int src, int dest, int weight) {
+    g->adj[src][dest] = weight;
+    g->adj[dest][src] = weight;  // Undirected
+}
+```
+
+## Comparison
+
+| Representation | Space    | Add Edge | Remove Edge | Check Edge | Get Neighbors |
+| -------------- | -------- | -------- | ----------- | ---------- | ------------- |
+| Matrix         | O(V²)    | O(1)     | O(1)        | O(1)       | O(V)          |
+| List           | O(V + E) | O(1)     | O(1)\*      | O(V)       | O(degree)     |

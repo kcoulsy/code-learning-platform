@@ -1,0 +1,93 @@
+---
+id: tree-traversal
+title: Tree Traversal
+order: 2
+---
+
+# Tree Traversal
+
+Traversal visits all nodes in a specific order. There are four main traversal methods.
+
+## Preorder (Root, Left, Right)
+
+```c
+void preorder(TreeNode *root) {
+    if (root == NULL) return;
+
+    printf("%d ", root->data);      // Visit root
+    preorder(root->left);           // Traverse left
+    preorder(root->right);          // Traverse right
+}
+
+// Result for sample tree: 1 2 4 5 3 6 7
+```
+
+## Inorder (Left, Root, Right)
+
+```c
+void inorder(TreeNode *root) {
+    if (root == NULL) return;
+
+    inorder(root->left);            // Traverse left
+    printf("%d ", root->data);      // Visit root
+    inorder(root->right);           // Traverse right
+}
+
+// Result for sample tree: 4 2 5 1 6 3 7
+```
+
+## Postorder (Left, Right, Root)
+
+```c
+void postorder(TreeNode *root) {
+    if (root == NULL) return;
+
+    postorder(root->left);          // Traverse left
+    postorder(root->right);         // Traverse right
+    printf("%d ", root->data);      // Visit root
+}
+
+// Result for sample tree: 4 5 2 6 7 3 1
+```
+
+## Level Order (Breadth-First)
+
+```c
+void levelOrder(TreeNode *root) {
+    if (root == NULL) return;
+
+    Queue q;
+    initQueue(&q);
+    enqueue(&q, root);
+
+    while (!isEmpty(&q)) {
+        TreeNode *current = dequeue(&q);
+        printf("%d ", current->data);
+
+        if (current->left) enqueue(&q, current->left);
+        if (current->right) enqueue(&q, current->right);
+    }
+}
+
+// Result for sample tree: 1 2 3 4 5 6 7
+```
+
+## Iterative Traversal (Stack-based)
+
+```c
+void iterativeInorder(TreeNode *root) {
+    Stack s;
+    initStack(&s);
+    TreeNode *current = root;
+
+    while (current != NULL || !isEmpty(&s)) {
+        while (current != NULL) {
+            push(&s, (int)current);
+            current = current->left;
+        }
+        current = (TreeNode *)pop(&s);
+        printf("%d ", current->data);
+        current = current->right;
+    }
+}
+```

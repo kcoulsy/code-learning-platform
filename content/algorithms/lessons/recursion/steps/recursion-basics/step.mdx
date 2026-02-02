@@ -1,0 +1,81 @@
+---
+id: recursion-basics
+title: Recursion Basics
+order: 1
+---
+
+# Recursion Basics
+
+A **recursive function** is a function that calls itself to solve a problem by breaking it into smaller, similar subproblems.
+
+## Anatomy of Recursion
+
+```c
+int factorial(int n) {
+    // BASE CASE: Stop condition
+    if (n <= 1) {
+        return 1;  // Base case returns directly
+    }
+
+    // RECURSIVE CASE: Self-reference
+    return n * factorial(n - 1);  // Call with smaller problem
+}
+```
+
+## How Recursion Works
+
+```
+factorial(4)
+     |
+     +-- 4 * factorial(3)
+                |
+                +-- 3 * factorial(2)
+                           |
+                           +-- 2 * factorial(1)
+                                      |
+                                      +-- 1 (base case)
+
+Result: 4 * 3 * 2 * 1 = 24
+```
+
+## Key Components
+
+1. **Base Case**: The condition that stops recursion
+2. **Recursive Case**: The part that calls the function again
+3. **Progress**: Each call must make progress toward the base case
+
+## Simple Examples
+
+```c
+// Count down from n to 1
+void countdown(int n) {
+    if (n <= 0) {
+        printf("Blastoff!\n");
+        return;
+    }
+    printf("%d\n", n);
+    countdown(n - 1);
+}
+
+// Sum first n natural numbers
+int sumToN(int n) {
+    if (n <= 0) return 0;
+    return n + sumToN(n - 1);
+}
+```
+
+## Common Mistakes
+
+```c
+// BAD: Infinite recursion (no base case)
+void infiniteRecursion(int n) {
+    printf("%d\n", n);
+    infiniteRecursion(n);  // Never stops!
+}
+
+// BAD: No progress toward base case
+int badRecursion(int n) {
+    if (n == 0) return 0;
+    return n + badRecursion(n + 1);  // n increases forever!
+}
+```

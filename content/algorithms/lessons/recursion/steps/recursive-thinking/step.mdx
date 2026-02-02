@@ -1,0 +1,96 @@
+---
+id: recursive-thinking
+title: Recursive Thinking
+order: 2
+---
+
+# Recursive Thinking
+
+Learning to think recursively involves identifying patterns and breaking problems into smaller, similar subproblems.
+
+## Think Recursively
+
+**Three Questions:**
+
+1. What is the simplest case? (Base case)
+2. How do I reduce the problem? (Recursive step)
+3. How do I combine results? (Combine step)
+
+## Examples of Recursive Thinking
+
+### String Reversal
+
+```c
+// Base: Empty or 1-char string is reversed
+// Reduce: Reverse substring without first char
+// Combine: First char + reversed rest
+
+void reverseString(char str[]) {
+    int len = strlen(str);
+    if (len <= 1) return;
+
+    char first = str[0];
+    // Shift characters left
+    for (int i = 0; i < len - 1; i++) {
+        str[i] = str[i + 1];
+    }
+    str[len - 1] = first;
+
+    reverseString(str);  // Recurse on smaller string
+}
+```
+
+### Digit Sum
+
+```c
+// Base: Single digit returns itself
+// Reduce: Sum all but last digit + last digit
+// Combine: Sum of recursive call + last digit
+
+int digitSum(int n) {
+    if (n < 10) return n;  // Base case
+    return (n % 10) + digitSum(n / 10);  // Recursive case
+}
+```
+
+### Checking Palindrome
+
+```c
+// Base: 0 or 1 chars = true
+// Reduce: Check first and last, then check substring
+// Combine: AND of edge checks and inner check
+
+int isPalindrome(char str[], int start, int end) {
+    if (start >= end) return 1;  // Base case
+
+    if (str[start] != str[end]) return 0;
+
+    return isPalindrome(str, start + 1, end - 1);
+}
+```
+
+## Recursion vs Iteration
+
+```c
+// Iterative factorial
+int factorialIter(int n) {
+    int result = 1;
+    for (int i = 2; i <= n; i++) {
+        result *= i;
+    }
+    return result;
+}
+
+// Recursive factorial
+int factorialRec(int n) {
+    if (n <= 1) return 1;
+    return n * factorialRec(n - 1);
+}
+```
+
+## When to Use Recursion
+
+- **Tree operations**: Traversal, search
+- **Divide and conquer**: Merge sort, quicksort
+- **Backtracking**: Solving puzzles, generating combinations
+- **Natural recursion**: Mathematical definitions

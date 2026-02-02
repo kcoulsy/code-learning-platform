@@ -1,0 +1,48 @@
+---
+id: intro-arrays
+title: Introduction to Arrays
+order: 1
+---
+
+# Introduction to Arrays
+
+An **array** is a collection of elements of the same type stored in contiguous memory locations. Arrays provide O(1) random access to elements by their index.
+
+## Why Arrays Matter
+
+```c
+// Arrays enable efficient random access
+int scores[5] = {95, 87, 92, 78, 90};
+
+// Access any element in constant time
+printf("First score: %d\n", scores[0]);  // O(1)
+printf("Third score: %d\n", scores[2]);  // O(1)
+```
+
+## Array Characteristics
+
+- **Contiguous Memory**: All elements stored one after another
+- **Fixed Size**: Size determined at compile time (or dynamic allocation)
+- **Zero-Indexed**: First element at index 0
+- **Homogeneous**: All elements same type
+
+## Static vs Dynamic Arrays
+
+**Static Arrays:**
+
+```c
+int numbers[100];  // Fixed size, stack allocated
+```
+
+**Dynamic Arrays:**
+
+```c
+int *numbers = malloc(100 * sizeof(int));  // Heap allocated, resizeable
+```
+
+## Key Concepts
+
+1. **Indexing**: Direct access via index (0-based)
+2. **Contiguity**: Elements stored sequentially in memory
+3. **Type Safety**: All elements must be same type
+4. **Bounds Checking**: C doesn't check array bounds - be careful!

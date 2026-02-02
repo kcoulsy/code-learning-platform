@@ -9,10 +9,10 @@ interface ChatMessageContentProps {
 
 export function ChatMessageContent({ content }: ChatMessageContentProps) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      className="prose prose-sm dark:prose-invert max-w-none"
-      components={{
+    <div className="prose prose-sm dark:prose-invert max-w-none">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
         // Code blocks with syntax highlighting
         code({ node, inline, className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || "")
@@ -94,8 +94,9 @@ export function ChatMessageContent({ content }: ChatMessageContentProps) {
           <td className="px-2 py-1 border-t border-border" {...props} />
         ),
       }}
-    >
-      {content}
-    </ReactMarkdown>
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
   )
 }

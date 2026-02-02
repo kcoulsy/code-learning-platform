@@ -1,0 +1,84 @@
+---
+id: tree-basics
+title: Tree Basics
+order: 1
+---
+
+# Tree Basics
+
+Trees organize data hierarchically with parent-child relationships.
+
+## Tree Terminology
+
+```
+        A              Root: The topmost node
+       / \
+      B   C            Parent: Node with children
+     / \   \
+    D   E   F          Child: Direct descendant
+                        Leaf: Node with no children
+    Depth of D: 2       Path: Sequence of edges
+    Height of A: 2      Subtree: Tree rooted at a node
+```
+
+## Basic Tree Node
+
+```c
+typedef struct TreeNode {
+    int data;
+    struct TreeNode *left;
+    struct TreeNode *right;
+} TreeNode;
+
+TreeNode *createTreeNode(int value) {
+    TreeNode *node = (TreeNode *)malloc(sizeof(TreeNode));
+    node->data = value;
+    node->left = NULL;
+    node->right = NULL;
+    return node;
+}
+
+// Create sample tree
+TreeNode *createSampleTree() {
+    TreeNode *root = createTreeNode(1);
+    root->left = createTreeNode(2);
+    root->right = createTreeNode(3);
+    root->left->left = createTreeNode(4);
+    root->left->right = createTreeNode(5);
+    root->right->left = createTreeNode(6);
+    root->right->right = createTreeNode(7);
+    return root;
+}
+```
+
+## Tree Properties
+
+| Property | Description                              |
+| -------- | ---------------------------------------- |
+| Nodes    | Total number of nodes                    |
+| Edges    | Connections between nodes (n-1 for tree) |
+| Height   | Longest path from root to leaf           |
+| Depth    | Distance from root to node               |
+| Degree   | Number of children of a node             |
+
+## Calculate Height
+
+```c
+int treeHeight(TreeNode *root) {
+    if (root == NULL) return 0;
+
+    int leftHeight = treeHeight(root->left);
+    int rightHeight = treeHeight(root->right);
+
+    return 1 + (leftHeight > rightHeight ? leftHeight : rightHeight);
+}
+```
+
+## Count Nodes
+
+```c
+int countNodes(TreeNode *root) {
+    if (root == NULL) return 0;
+    return 1 + countNodes(root->left) + countNodes(root->right);
+}
+```

@@ -1,0 +1,56 @@
+---
+id: what-are-linked-lists
+title: What are Linked Lists?
+order: 1
+---
+
+# What are Linked Lists?
+
+A **linked list** is a collection of nodes where each node contains data and a reference (pointer) to the next node in the sequence.
+
+## Linked List Structure
+
+```
+Head -> [Data|Next] -> [Data|Next] -> [Data|Next] -> NULL
+```
+
+## Node Definition
+
+```c
+typedef struct Node {
+    int data;           // Data stored in the node
+    struct Node *next;  // Pointer to next node
+} Node;
+```
+
+## Creating a Node
+
+```c
+Node *createNode(int value) {
+    Node *newNode = (Node *)malloc(sizeof(Node));
+    if (newNode == NULL) {
+        printf("Memory allocation failed\n");
+        exit(1);
+    }
+    newNode->data = value;
+    newNode->next = NULL;
+    return newNode;
+}
+```
+
+## Linked List vs Array
+
+| Feature         | Array                    | Linked List           |
+| --------------- | ------------------------ | --------------------- |
+| Memory          | Contiguous               | Non-contiguous        |
+| Size            | Fixed (or costly resize) | Dynamic               |
+| Access          | O(1) random access       | O(n) sequential       |
+| Insert/Delete   | O(n) (shift required)    | O(1) with pointer     |
+| Memory Overhead | None                     | Next pointer per node |
+
+## Advantages of Linked Lists
+
+1. **Dynamic Size**: Grow or shrink as needed
+2. **Efficient Insertion/Deletion**: No shifting elements
+3. **Memory Efficiency**: No pre-allocation needed
+4. **Easy Implementation**: Simple pointer manipulation

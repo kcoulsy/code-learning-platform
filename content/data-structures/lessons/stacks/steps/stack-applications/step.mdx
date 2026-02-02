@@ -1,0 +1,94 @@
+---
+id: stack-applications
+title: Stack Applications
+order: 2
+---
+
+# Stack Applications
+
+Stacks are used in many important applications.
+
+## Balanced Parentheses
+
+```c
+int isBalanced(char expr[]) {
+    Stack s;
+    initStack(&s);
+
+    for (int i = 0; expr[i]; i++) {
+        if (expr[i] == '(' || expr[i] == '[' || expr[i] == '{') {
+            push(&s, expr[i]);
+        } else if (expr[i] == ')' || expr[i] == ']' || expr[i] == '}') {
+            if (isEmpty(&s)) return 0;
+            char top = pop(&s);
+            if ((expr[i] == ')' && top != '(') ||
+                (expr[i] == ']' && top != '[') ||
+                (expr[i] == '}' && top != '{')) {
+                return 0;
+            }
+        }
+    }
+    return isEmpty(&s);
+}
+```
+
+## String Reversal
+
+```c
+void reverseString(char str[]) {
+    Stack s;
+    initStack(&s);
+
+    // Push all characters
+    for (int i = 0; str[i]; i++) {
+        push(&s, str[i]);
+    }
+
+    // Pop to reverse
+    int i = 0;
+    while (!isEmpty(&s)) {
+        str[i++] = pop(&s);
+    }
+}
+```
+
+## Expression Evaluation
+
+```c
+// Check operator precedence
+int precedence(char op) {
+    if (op == '+' || op == '-') return 1;
+    if (op == '*' || op == '/') return 2;
+    return 0;
+}
+
+// Infix to Postfix conversion
+void infixToPostfix(char infix[], char postfix[]) {
+    Stack s;
+    initStack(&s);
+    int j = 0;
+
+    for (int i = 0; infix[i]; i++) {
+        if (isalnum(infix[i])) {
+            postfix[j++] = infix[i];
+        } else if (infix[i] == '(') {
+            push(&s, infix[i]);
+        } else if (infix[i] == ')') {
+            while (!isEmpty(&s) && peek(&s) != '(') {
+                postfix[j++] = pop(&s);
+            }
+            if (!isEmpty(&s)) pop(&s);  // Remove '('
+        } else {
+            while (!isEmpty(&s) && precedence(peek(&s)) >= precedence(infix[i])) {
+                postfix[j++] = pop(&s);
+            }
+            push(&s, infix[i]);
+        }
+    }
+
+    while (!isEmpty(&s)) {
+        postfix[j++] = pop(&s);
+    }
+    postfix[j] = '\0';
+}
+```

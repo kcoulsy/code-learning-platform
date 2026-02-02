@@ -1,0 +1,111 @@
+---
+id: project-file-allocation
+title: Implement File Allocation
+order: 3
+---
+
+# Implement File Allocation
+
+Create linked list-based file allocation system.
+
+## File Allocation Implementation
+
+```c
+#include "file_system.h"
+
+// File Allocation Operations
+FileAllocation *createFileAllocation() {
+    FileAllocation *fa = (FileAllocation *)malloc(sizeof(FileAllocation));
+    fa->head = fa->tail = NULL;
+    fa->total_blocks = 0;
+    fa->file_size = 0;
+    return fa;
+}
+
+void addBlock(FileAllocation *fa, const char *data, int size) {
+    Block *newBlock = (Block *)malloc(sizeof(Block));
+    newBlock->block_number = fa->total_blocks;
+    memcpy(newBlock->data, data, size);
+    newBlock->next = NULL;
+
+    if (fa->head == NULL) {
+        fa->head = fa->tail = newBlock;
+    } else {
+        fa->tail->next = newBlock;
+        fa->tail = newBlock;
+    }
+
+    fa->total_blocks++;
+    fa->file_size += size;
+}
+
+void freeFileAllocation(FileAllocation *fa) {
+    Block *current = fa->head;
+    while (current != NULL) {
+        Block *next = current->next;
+        free(current);
+        current = next;
+    }
+    free(fa);
+}
+
+// Read entire file
+char *readFile(FileAllocation *fa, int *out_size) {
+    if (fa->head == NULL) {
+        *out_size = 0;
+        return NULL;
+    }
+
+    char *buffer = (char *)malloc(fa->file_size);
+    char *ptr = buffer;
+
+    Block *current = fa->head;
+    while (current != NULL) {
+        int blockSize = (current->next) ? 512 : fa->file_size % 512;
+        if (blockSize == 0) blockSize = 512;
+        memcpy(ptr, current->data, blockSize);
+        ptr += blockSize;
+        current = current->next;
+    }
+
+    *out_size = fa->file_size;
+    return buffer;
+}
+
+// Write to file (replaces content)
+int writeFile(FileAllocation *fa, const char *data, int size) {
+    freeFileAllocation(fa);
+    fa = createFileAllocation();
+
+    int offset = 0;
+    while (offset < size) {
+        int blockSize = (size - offset >= 512) ? 512 : size - offset;
+        addBlock(fa, data + offset, blockSize);
+        offset += blockSize;
+    }
+
+    return fa->file_size;
+}
+```
+
+## Append to File
+
+```c
+void appendToFile(FileAllocation *fa, const char *data, int size) {
+    int offset = 0;
+    while (offset < size) {
+        int blockSize = (size - offset >= 512) ? 512 : size - offset;
+        addBlock(fa, data + offset, blockSize);
+        offset += blockSize;
+    }
+}
+
+// Get file statistics
+void printFileStats(FileAllocation *fa) {
+    printf("File Statistics:\n");
+    printf("  Total blocks: %d\n", fa->total_blocks);
+    printf("  File size: %d bytes\n", fa->file_size);
+    printf("  Last block: %d bytes\n",
+           (fa->total_blocks > 0) ? fa->file_size % 512 : 0);
+}
+```

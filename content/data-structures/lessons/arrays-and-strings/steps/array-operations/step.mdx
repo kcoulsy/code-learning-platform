@@ -1,0 +1,93 @@
+---
+id: array-operations
+title: Array Operations
+order: 2
+---
+
+# Array Operations
+
+Common operations on arrays include traversal, search, insert, and delete. Each has different time complexities.
+
+## Traversal
+
+```c
+// Iterate through array
+void printArray(int arr[], int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+```
+
+## Search Operations
+
+**Linear Search - O(n):**
+
+```c
+int linearSearch(int arr[], int size, int target) {
+    for (int i = 0; i < size; i++) {
+        if (arr[i] == target) {
+            return i;  // Found at index i
+        }
+    }
+    return -1;  // Not found
+}
+```
+
+## Insert Operation
+
+**Insert at end - O(1):**
+
+```c
+int insertEnd(int arr[], int size, int capacity, int value) {
+    if (size >= capacity) return size;  // Full
+    arr[size] = value;
+    return size + 1;
+}
+```
+
+**Insert at position - O(n):**
+
+```c
+void insertAt(int arr[], int size, int pos, int value) {
+    for (int i = size; i > pos; i--) {
+        arr[i] = arr[i - 1];  // Shift right
+    }
+    arr[pos] = value;
+}
+```
+
+## Delete Operation
+
+**Delete from end - O(1):**
+
+```c
+int deleteEnd(int arr[], int size) {
+    if (size > 0) {
+        size--;
+    }
+    return size;
+}
+```
+
+**Delete at position - O(n):**
+
+```c
+void deleteAt(int arr[], int size, int pos) {
+    for (int i = pos; i < size - 1; i++) {
+        arr[i] = arr[i + 1];  // Shift left
+    }
+}
+```
+
+## Time Complexity Summary
+
+| Operation | Array | Linked List |
+| --------- | ----- | ----------- |
+| Access    | O(1)  | O(n)        |
+| Search    | O(n)  | O(n)        |
+| Insert    | O(n)  | O(1)\*      |
+| Delete    | O(n)  | O(1)\*      |
+
+\*With pointer to position

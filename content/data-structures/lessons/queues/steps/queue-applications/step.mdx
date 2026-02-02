@@ -1,0 +1,111 @@
+---
+id: queue-applications
+title: Queue Applications
+order: 2
+---
+
+# Queue Applications
+
+Queues are essential for many algorithms and systems.
+
+## Priority Queue
+
+```c
+typedef struct {
+    int data;
+    int priority;
+} PQNode;
+
+typedef struct {
+    PQNode items[MAX_SIZE];
+    int size;
+} PriorityQueue;
+
+void pqEnqueue(PriorityQueue *pq, int data, int priority) {
+    if (pq->size == MAX_SIZE) return;
+    pq->items[pq->size].data = data;
+    pq->items[pq->size].priority = priority;
+    pq->size++;
+
+    // Bubble up
+    int i = pq->size - 1;
+    while (i > 0 && pq->items[(i - 1) / 2].priority > pq->items[i].priority) {
+        PQNode temp = pq->items[i];
+        pq->items[i] = pq->items[(i - 1) / 2];
+        pq->items[(i - 1) / 2] = temp;
+        i = (i - 1) / 2;
+    }
+}
+
+int pqDequeue(PriorityQueue *pq) {
+    if (pq->size == 0) return -1;
+    int data = pq->items[0].data;
+    pq->items[0] = pq->items[--pq->size];
+
+    // Bubble down
+    int i = 0;
+    while (2 * i + 1 < pq->size) {
+        int smaller = 2 * i + 1;
+        if (smaller + 1 < pq->size &&
+            pq->items[smaller + 1].priority < pq->items[smaller].priority) {
+            smaller++;
+        }
+        if (pq->items[i].priority <= pq->items[smaller].priority) break;
+        PQNode temp = pq->items[i];
+        pq->items[i] = pq->items[smaller];
+        pq->items[smaller] = temp;
+        i = smaller;
+    }
+    return data;
+}
+```
+
+## BFS Traversal (uses Queue)
+
+```c
+void bfs(Graph *g, int start) {
+    int visited[MAX_VERTICES] = {0};
+    Queue q;
+    initQueue(&q);
+
+    visited[start] = 1;
+    enqueue(&q, start);
+
+    while (!isEmpty(&q)) {
+        int current = dequeue(&q);
+        printf("%d ", current);
+
+        for (int i = 0; i < g->vertices; i++) {
+            if (g->adj[current][i] && !visited[i]) {
+                visited[i] = 1;
+                enqueue(&q, i);
+            }
+        }
+    }
+}
+```
+
+## Task Scheduling
+
+```c
+typedef struct {
+    int taskId;
+    char taskName[50];
+    int priority;
+} Task;
+
+void scheduleTasks(Task tasks[], int n) {
+    PriorityQueue pq;
+    pq.size = 0;
+
+    for (int i = 0; i < n; i++) {
+        pqEnqueue(&pq, tasks[i].taskId, tasks[i].priority);
+    }
+
+    printf("Task execution order:\n");
+    while (pq.size > 0) {
+        int taskId = pqDequeue(&pq);
+        printf("Task %d\n", taskId);
+    }
+}
+```

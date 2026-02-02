@@ -1,0 +1,73 @@
+---
+id: time-complexity
+title: Time Complexity
+order: 2
+---
+
+# Time Complexity
+
+**Time complexity** measures how an algorithm's execution time grows with input size. We use Big-O notation to express this growth.
+
+## Common Time Complexities
+
+| Complexity | Name         | Example Operations        |
+| ---------- | ------------ | ------------------------- |
+| O(1)       | Constant     | Array access, arithmetic  |
+| O(log n)   | Logarithmic  | Binary search, BST ops    |
+| O(n)       | Linear       | Linear search, traversal  |
+| O(n log n) | Linearithmic | Merge sort, heap sort     |
+| O(n²)      | Quadratic    | Bubble sort, nested loops |
+| O(2ⁿ)      | Exponential  | Fibonacci (naive)         |
+
+## Counting Operations
+
+```c
+// O(1) - 3 operations regardless of n
+int sum = a + b + c;
+
+// O(n) - n operations
+int sumArray(int arr[], int n) {
+    int sum = 0;              // 1 operation
+    for (int i = 0; i < n; i++) {  // n+1 comparisons
+        sum += arr[i];        // n additions
+    }
+    return sum;              // 1 operation
+    // Total: 2n + 3 ≈ O(n)
+}
+```
+
+## Nested Loops
+
+```c
+// O(n²) - n * n = n² operations
+void printPairs(int arr[], int n) {
+    for (int i = 0; i < n; i++) {           // n iterations
+        for (int j = 0; j < n; j++) {       // n iterations
+            printf("%d, %d\n", arr[i], arr[j]);  // O(1)
+        }
+    }
+}
+
+// O(n log n) - n iterations, each O(log n)
+void printLogPairs(int arr[], int n) {
+    for (int i = 0; i < n; i++) {           // n iterations
+        for (int j = 1; j < n; j *= 2) {    // log₂(n) iterations
+            printf("%d, %d\n", arr[i], arr[j]);
+        }
+    }
+}
+```
+
+## Best, Average, Worst Cases
+
+```c
+// Linear search in unsorted array
+int linearSearch(int arr[], int n, int target) {
+    for (int i = 0; i < n; i++) {
+        if (arr[i] == target) {
+            return i;  // Best: O(1), Worst: O(n), Average: O(n/2)
+        }
+    }
+    return -1;
+}
+```

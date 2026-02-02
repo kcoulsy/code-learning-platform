@@ -6,6 +6,15 @@ import { useState } from "react"
 import { ThemeToggle } from "./theme-toggle"
 import { CourseProgressBar } from "./course-progress-bar"
 import { useStepCompletion } from "@/lib/progress-hooks"
+import {
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar"
 
 interface CourseSidebarProps {
   course: Course
@@ -107,13 +116,14 @@ function CourseItemEntry({
   )
 }
 
-export function CourseSidebar({
+// Sidebar content component (can be used with or without Sidebar wrapper)
+function CourseSidebarContent({
   course,
   currentItemId,
   currentStepId,
 }: CourseSidebarProps) {
   return (
-    <aside className="w-72 border-r border-border bg-sidebar h-screen overflow-y-auto flex-shrink-0 flex flex-col">
+    <>
       <div className="p-4 border-b border-border space-y-3">
         <div>
           <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -129,24 +139,87 @@ export function CourseSidebar({
         <CourseProgressBar courseId={course.id} course={course} variant="compact" />
       </div>
 
-      <nav className="p-3 flex-1">
+      <div className="p-3 flex-1 overflow-y-auto">
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">
           Course Outline
         </div>
-        {course.items.map((item) => (
-          <CourseItemEntry
-            key={item.id}
-            item={item}
-            courseId={course.id}
-            isActive={item.id === currentItemId}
-            currentStepId={currentStepId}
-          />
-        ))}
-      </nav>
+        <div className="space-y-1">
+          {course.items.map((item) => (
+            <CourseItemEntry
+              key={item.id}
+              item={item}
+              courseId={course.id}
+              isActive={item.id === currentItemId}
+              currentStepId={currentStepId}
+            />
+          ))}
+        </div>
+      </div>
 
       <div className="p-3 border-t border-border">
         <ThemeToggle />
       </div>
+    </>
+  )
+}
+
+// Main component with two modes: wrapped in Sidebar (mobile) or plain (desktop with ResizablePanel)
+export function CourseSidebar({
+  course,
+  currentItemId,
+  currentStepId,
+  useSidebarWrapper = false,
+}: CourseSidebarProps & { useSidebarWrapper?: boolean }) {
+  if (useSidebarWrapper) {
+    return (
+      <Sidebar collapsible="offcanvas" variant="sidebar">
+        <SidebarHeader className="p-4 border-b border-border space-y-3">
+          <div>
+            <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              All Courses
+            </Link>
+            <h2 className="font-semibold text-lg text-sidebar-foreground mt-1">
+              {course.title}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {course.description}
+            </p>
+          </div>
+          <CourseProgressBar courseId={course.id} course={course} variant="compact" />
+        </SidebarHeader>
+
+        <SidebarContent className="p-3">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">
+            Course Outline
+          </div>
+          <SidebarMenu>
+            {course.items.map((item) => (
+              <SidebarMenuItem key={item.id}>
+                <CourseItemEntry
+                  item={item}
+                  courseId={course.id}
+                  isActive={item.id === currentItemId}
+                  currentStepId={currentStepId}
+                />
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarContent>
+
+        <SidebarFooter className="p-3 border-t border-border">
+          <ThemeToggle />
+        </SidebarFooter>
+      </Sidebar>
+    )
+  }
+
+  return (
+    <aside className="w-full border-r border-border bg-sidebar h-full flex-shrink-0 flex flex-col">
+      <CourseSidebarContent
+        course={course}
+        currentItemId={currentItemId}
+        currentStepId={currentStepId}
+      />
     </aside>
   )
 }

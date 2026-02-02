@@ -1,0 +1,129 @@
+---
+id: project-cache
+title: Implement Directory Cache
+order: 4
+---
+
+# Implement Directory Cache
+
+Create a hash table for fast directory lookups.
+
+## Hash Table Implementation
+
+```c
+#include "file_system.h"
+
+// Hash function for paths
+unsigned int hashPath(const char *path) {
+    unsigned int hash = 0;
+    for (int i = 0; path[i]; i++) {
+        hash = hash * 31 + path[i];
+    }
+    return hash % 100;
+}
+
+void cacheInit(DirCache *cache) {
+    for (int i = 0; i < 100; i++) {
+        cache->buckets[i] = NULL;
+    }
+    cache->size = 0;
+    cache->hits = 0;
+    cache->misses = 0;
+}
+
+void cacheInsert(DirCache *cache, const char *path, DirNode *node) {
+    unsigned int index = hashPath(path);
+
+    CacheEntry *newEntry = (CacheEntry *)malloc(sizeof(CacheEntry));
+    strncpy(newEntry->path, path, MAX_NAME_LEN - 1);
+    newEntry->path[MAX_NAME_LEN - 1] = '\0';
+    newEntry->node = node;
+    newEntry->next = cache->buckets[index];
+
+    cache->buckets[index] = newEntry;
+    cache->size++;
+}
+
+DirNode *cacheLookup(DirCache *cache, const char *path) {
+    unsigned int index = hashPath(path);
+    CacheEntry *current = cache->buckets[index];
+
+    while (current != NULL) {
+        if (strcmp(current->path, path) == 0) {
+            cache->hits++;
+            return current->node;
+        }
+        current = current->next;
+    }
+
+    cache->misses++;
+    return NULL;
+}
+
+// Build path from node
+void buildPath(DirNode *node, char *path) {
+    if (node == NULL) {
+        strcpy(path, "/");
+        return;
+    }
+
+    char temp[MAX_NAME_LEN * 10] = "";
+    DirNode *current = node;
+
+    while (current != NULL) {
+        char segment[MAX_NAME_LEN];
+        strcpy(segment, "/");
+        strcat(segment, current->name);
+
+        char newTemp[MAX_NAME_LEN * 10];
+        strcpy(newTemp, segment);
+        strcat(newTemp, temp);
+        strcpy(temp, newTemp);
+
+        current = current->parent;
+    }
+
+    strcpy(path, temp);
+}
+
+// Resolve path with cache
+DirNode *resolvePath(DirCache *cache, DirNode *root, const char *path) {
+    char cachePath[MAX_NAME_LEN * 10];
+    buildPath(root, cachePath);
+
+    // Try cache first
+    DirNode *cached = cacheLookup(cache, cachePath);
+    if (cached != NULL) {
+        return cached;
+    }
+
+    // Parse path and traverse
+    char pathCopy[MAX_NAME_LEN * 10];
+    strcpy(pathCopy, path);
+
+    DirNode *current = root;
+    char *token = strtok(pathCopy, "/");
+
+    while (token != NULL) {
+        current = findChild(current, token);
+        if (current == NULL) return NULL;
+
+        // Cache each directory
+        buildPath(current, cachePath);
+        cacheInsert(cache, cachePath, current);
+
+        token = strtok(NULL, "/");
+    }
+
+    return current;
+}
+
+void cachePrintStats(DirCache *cache) {
+    printf("Cache Statistics:\n");
+    printf("  Total entries: %d\n", cache->size);
+    printf("  Hits: %d\n", cache->hits);
+    printf("  Misses: %d\n", cache->misses);
+    printf("  Hit rate: %.2f%%\n",
+           (double)cache->hits / (cache->hits + cache->misses) * 100);
+}
+```

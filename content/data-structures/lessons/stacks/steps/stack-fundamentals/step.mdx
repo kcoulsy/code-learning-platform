@@ -1,0 +1,96 @@
+---
+id: stack-fundamentals
+title: Stack Fundamentals
+order: 1
+---
+
+# Stack Fundamentals
+
+A stack is a collection where elements are added and removed from the same end, called the **top**.
+
+## Stack Operations
+
+```c
+// Stack as array
+#define MAX_SIZE 100
+
+typedef struct {
+    int items[MAX_SIZE];
+    int top;
+} Stack;
+
+// Initialize stack
+void initStack(Stack *s) {
+    s->top = -1;
+}
+
+// Check if empty
+int isEmpty(Stack *s) {
+    return s->top == -1;
+}
+
+// Check if full
+int isFull(Stack *s) {
+    return s->top == MAX_SIZE - 1;
+}
+
+// Push - add element to top
+void push(Stack *s, int value) {
+    if (isFull(s)) {
+        printf("Stack overflow\n");
+        return;
+    }
+    s->items[++s->top] = value;
+}
+
+// Pop - remove and return top element
+int pop(Stack *s) {
+    if (isEmpty(s)) {
+        printf("Stack underflow\n");
+        return -1;
+    }
+    return s->items[s->top--];
+}
+
+// Peek - view top element without removing
+int peek(Stack *s) {
+    if (isEmpty(s)) {
+        return -1;
+    }
+    return s->items[s->top];
+}
+```
+
+## Stack as Linked List
+
+```c
+typedef struct SNode {
+    int data;
+    struct SNode *next;
+} SNode;
+
+void pushLinked(SNode **top, int value) {
+    SNode *newNode = (SNode *)malloc(sizeof(SNode));
+    newNode->data = value;
+    newNode->next = *top;
+    *top = newNode;
+}
+
+int popLinked(SNode **top) {
+    if (*top == NULL) return -1;
+    SNode *temp = *top;
+    int value = temp->data;
+    *top = (*top)->next;
+    free(temp);
+    return value;
+}
+```
+
+## Time Complexity
+
+| Operation | Array Stack | Linked List Stack |
+| --------- | ----------- | ----------------- |
+| Push      | O(1)        | O(1)              |
+| Pop       | O(1)        | O(1)              |
+| Peek      | O(1)        | O(1)              |
+| Space     | O(n)        | O(n)              |

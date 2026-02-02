@@ -1,0 +1,203 @@
+---
+id: project-tests
+title: Test the File System
+order: 5
+---
+
+# Test the File System
+
+Create comprehensive tests for all file system operations.
+
+## Test File (tests.c)
+
+```c
+#include "file_system.h"
+
+void testDirectoryTree() {
+    printf("=== Testing Directory Tree ===\n");
+
+    DirNode *root = createDirNode("root", 1);
+    DirNode *home = addChild(root, "home", 1);
+    DirNode *bin = addChild(root, "bin", 1);
+    DirNode *user = addChild(home, "user", 1);
+
+    // Add files
+    DirNode *file1 = addChild(user, "test.txt", 0);
+    file1->data = createFileAllocation();
+    addBlock((FileAllocation *)file1->data, "Hello, World!", 13);
+
+    // Test find
+    DirNode *found = findChild(home, "user");
+    printf("Found user: %s\n", found ? "YES" : "NO");
+
+    // Traverse
+    printf("Root children: ");
+    DirNode *child = root->children;
+    while (child != NULL) {
+        printf("%s ", child->name);
+        child = child->right;
+    }
+    printf("\n");
+
+    freeDirTree(root);
+    printf("Directory tree test passed!\n\n");
+}
+
+void testFileAllocation() {
+    printf("=== Testing File Allocation ===\n");
+
+    FileAllocation *fa = createFileAllocation();
+
+    addBlock(fa, "Block 1 data", 13);
+    addBlock(fa, "Block 2 data is longer", 20);
+    addBlock(fa, "B3", 2);
+
+    int size;
+    char *content = readFile(fa, &size);
+    printf("File content: %s\n", content);
+    printf("File size: %d\n", size);
+
+    printFileStats(fa);
+
+    free(content);
+    freeFileAllocation(fa);
+    printf("File allocation test passed!\n\n");
+}
+
+void testCache() {
+    printf("=== Testing Cache ===\n");
+
+    DirCache cache;
+    cacheInit(&cache);
+
+    DirNode *root = createDirNode("root", 1);
+    addChild(root, "home", 1);
+    addChild(root, "bin", 1);
+
+    char path[MAX_NAME_LEN * 10];
+    buildPath(root->children, path);
+    printf("Home path: %s\n", path);
+
+    cacheInsert(&cache, path, root->children);
+    DirNode *found = cacheLookup(&cache, path);
+    printf("Cache lookup: %s\n", found ? "HIT" : "MISS");
+
+    cachePrintStats(&cache);
+
+    freeDirTree(root);
+    printf("Cache test passed!\n\n");
+}
+
+void testIntegration() {
+    printf("=== Integration Test ===\n");
+
+    DirCache cache;
+    cacheInit(&cache);
+
+    // Create file system
+    DirNode *root = createDirNode("/", 1);
+    DirNode *home = addChild(root, "home", 1);
+    DirNode *docs = addChild(home, "documents", 1);
+    DirNode *file = addChild(docs, "report.txt", 0);
+
+    // Write file
+    FileAllocation *fa = createFileAllocation();
+    addBlock(fa, "This is a test report.\n", 23);
+    addBlock(fa, "With multiple blocks.", 22);
+    file->data = fa;
+
+    // Resolve path
+    DirNode *resolved = resolvePath(&cache, root, "/home/documents");
+    printf("Resolved path: %s\n", resolved ? "SUCCESS" : "FAILED");
+
+    // Read file
+    int size;
+    char *content = readFile((FileAllocation *)file->data, &size);
+    printf("File content: %s", content);
+
+    cachePrintStats(&cache);
+
+    free(content);
+    freeDirTree(root);
+    printf("Integration test passed!\n\n");
+}
+
+int main() {
+    testDirectoryTree();
+    testFileAllocation();
+    testCache();
+    testIntegration();
+
+    printf("All tests passed!\n");
+    return 0;
+}
+```
+
+## Build and Run
+
+```makefile
+# Makefile
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c99
+LDFLAGS = -lm
+
+all: file_system tests
+
+file_system: file_system.c file_system.h
+	$(CC) $(CFLAGS) -c file_system.c -o file_system.o
+
+tests: tests.c file_system.o
+	$(CC) $(CFLAGS) tests.c file_system.o -o tests $(LDFLAGS)
+	./tests
+
+clean:
+	rm -f *.o tests
+```
+
+## Run Tests
+
+```bash
+make
+./tests
+```
+
+Expected output:
+
+```
+=== Testing Directory Tree ===
+Found user: YES
+Root children: home bin
+Directory tree test passed!
+
+=== Testing File Allocation ===
+File content: Block 1 dataBlock 2 data is longerB3
+File size: 35
+File Statistics:
+  Total blocks: 3
+  File size: 35 bytes
+  Last block: 35 bytes
+File allocation test passed!
+
+=== Testing Cache ===
+Home path: /root/home
+Cache lookup: HIT
+Cache Statistics:
+  Total entries: 1
+  Hits: 1
+  Misses: 0
+  Hit rate: 100.00%
+Cache test passed!
+
+=== Integration Test ===
+Resolved path: SUCCESS
+File content: This is a test report.
+With multiple blocks.
+Cache Statistics:
+  Total entries: 4
+  Hits: 3
+  Misses: 1
+  Hit rate: 75.00%
+Integration test passed!
+
+All tests passed!
+```

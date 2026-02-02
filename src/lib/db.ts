@@ -1,7 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
-import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
 
-// for some reason not exported from the library
+const OPENAI_MODELS = ["gpt-5.2", "gpt-5.2-pro", "gpt-5.2-chat-latest", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro", "gpt-5-codex", "o3", "o3-pro", "o3-mini", "o4-mini", "o3-deep-research", "o4-mini-deep-research", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo", "gpt-audio", "gpt-audio-mini", "gpt-4o-audio", "gpt-4o-mini-audio", "gpt-5.1-chat-latest", "gpt-5-chat-latest", "chatgpt-4o-latest", "gpt-5.1-codex-mini", "codex-mini-latest", "gpt-4o-search-preview", "gpt-4o-mini-search-preview", "computer-use-preview", "o1", "o1-pro"] as const;
 const ANTHROPIC_MODELS = ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-opus-4-1', 'claude-sonnet-4', 'claude-3-7-sonnet', 'claude-opus-4', 'claude-3-5-haiku', 'claude-3-haiku'] as const
 
 // Step progress data model
@@ -66,7 +65,7 @@ function formatModelName(modelId: string): string {
 
 // Provider-specific model lists
 export const PROVIDER_MODELS = {
-  openai: OPENAI_CHAT_MODELS.map((model) => ({
+  openai: OPENAI_MODELS.map((model) => ({
     value: model,
     label: formatModelName(model),
   })),

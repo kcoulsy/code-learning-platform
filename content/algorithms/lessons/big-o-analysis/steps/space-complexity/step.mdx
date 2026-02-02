@@ -1,0 +1,86 @@
+---
+id: space-complexity
+title: Space Complexity
+order: 3
+---
+
+# Space Complexity
+
+**Space complexity** measures how much memory an algorithm uses relative to input size, including both auxiliary space and input storage.
+
+## Space vs Auxiliary Space
+
+- **Space Complexity**: Total memory used (input + auxiliary)
+- **Auxiliary Space**: Extra space used by the algorithm
+
+```c
+// O(1) auxiliary space
+void reverseArray(int arr[], int n) {
+    for (int i = 0; i < n / 2; i++) {  // O(1) extra space
+        int temp = arr[i];
+        arr[i] = arr[n - i - 1];
+        arr[n - i - 1] = temp;
+    }
+}
+
+// O(n) auxiliary space
+int *copyArray(int arr[], int n) {
+    int *copy = malloc(n * sizeof(int));  // O(n) extra space
+    for (int i = 0; i < n; i++) {
+        copy[i] = arr[i];
+    }
+    return copy;
+}
+```
+
+## Common Space Complexities
+
+| Complexity | Description             | Example                     |
+| ---------- | ----------------------- | --------------------------- |
+| O(1)       | Constant extra space    | Simple calculations         |
+| O(n)       | Linear extra space      | Arrays, recursion stack     |
+| O(n²)      | Quadratic extra space   | Matrices, nested structures |
+| O(log n)   | Logarithmic extra space | Recursive algorithms        |
+
+## Recursion and Stack Space
+
+```c
+// Each call uses O(1) stack space
+// Total: O(n) stack space
+int factorial(int n) {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);  // n recursive calls
+}
+
+// Each call uses O(1) stack space
+// Total: O(log n) stack space
+int binarySearch(int arr[], int low, int high, int target) {
+    if (low > high) return -1;
+    int mid = low + (high - low) / 2;
+    if (arr[mid] == target) return mid;
+    if (arr[mid] < target)
+        return binarySearch(arr, mid + 1, high, target);
+    return binarySearch(arr, low, mid - 1, target);
+}
+```
+
+## Trade-offs
+
+```c
+// Time: O(n), Space: O(1)
+int findMax(int arr[], int n) {
+    int max = arr[0];
+    for (int i = 1; i < n; i++) {
+        if (arr[i] > max) max = arr[i];
+    }
+    return max;
+}
+
+// Time: O(n log n), Space: O(n)
+int *mergeSort(int arr[], int n) {
+    if (n <= 1) return arr;
+    int mid = n / 2;
+    // Recursively sort halves, then merge
+    // Uses O(n) auxiliary space for merge
+}
+```

@@ -1,7 +1,7 @@
 import React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
   getStepChat,
@@ -44,7 +44,7 @@ export function StepChat({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const { config, hasValidConfig } = useAIConfig()
 
@@ -65,7 +65,9 @@ export function StepChat({
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    })
   }, [messages])
 
   // Focus input when chat opens
@@ -324,18 +326,25 @@ The student has a question about this specific content. Answer clearly and conci
           onSubmit={handleSubmit}
           className="p-3 border-t border-border bg-secondary/30 rounded-b-xl"
         >
-          <div className="flex gap-2">
-            <Input
+          <div className="flex gap-2 items-end">
+            <Textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSubmit(e)
+                }
+              }}
               placeholder={
                 hasValidConfig
-                  ? "Ask about this step..."
+                  ? "Ask about this step... (Enter to send, Shift+Enter for new line)"
                   : "Configure AI settings first..."
               }
               disabled={isLoading || !hasValidConfig}
-              className="flex-1 bg-background"
+              className="flex-1 bg-background min-h-[40px] max-h-[120px] resize-none"
+              rows={1}
             />
             <Button
               type="submit"

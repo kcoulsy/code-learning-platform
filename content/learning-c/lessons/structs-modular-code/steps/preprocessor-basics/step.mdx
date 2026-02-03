@@ -1,0 +1,365 @@
+---
+title: "The C Preprocessor Basics"
+description: "Understand how the C preprocessor works, including #define, #include, and header guards."
+order: 6
+---
+
+# The C Preprocessor Basics
+
+Before your C code is compiled, it goes through the **preprocessor**, a text-processing tool that transforms your source code according to directives that start with `#`. Understanding the preprocessor helps you write better code and debug confusing errors.
+
+Think of the preprocessor as a smart copy-paste tool that runs before compilation, performing text substitution and file inclusion.
+
+## What is the Preprocessor?
+
+The preprocessor is a separate step that happens **before** compilation:
+
+1. **Preprocessing**: Text substitution, file inclusion, conditional compilation
+2. **Compilation**: Converting C code to assembly
+3. **Assembly**: Converting assembly to machine code
+4. **Linking**: Combining object files into executable
+
+You can see the preprocessor output with:
+```bash
+gcc -E file.c
+```
+
+This shows exactly what the compiler sees after preprocessing.
+
+## The #include Directive
+
+The `#include` directive performs **literal text inclusion** - it copies the entire contents of a file into your source code.
+
+**Example:**
+
+**math_constants.h**:
+```c
+#define PI 3.14159
+#define E 2.71828
+```
+
+**main.c** (before preprocessing):
+```c
+#include <stdio.h>
+#include "math_constants.h"
+
+int main(void) {
+    printf("PI = %f\n", PI);
+    return 0;
+}
+```
+
+**After preprocessing** (what the compiler sees):
+```c
+// ... entire contents of stdio.h pasted here (thousands of lines) ...
+
+#define PI 3.14159
+#define E 2.71828
+
+int main(void) {
+    printf("PI = %f\n", 3.14159);
+    return 0;
+}
+```
+
+**Two forms of #include:**
+- `#include <file.h>` - Search system include directories (for standard library)
+- `#include "file.h"` - Search current directory first, then system directories (for your headers)
+
+## The #define Directive (Object-like Macros)
+
+The `#define` directive creates **macros** - simple text substitutions. Every occurrence of the macro name is replaced with its value.
+
+### Example 1: Simple Constants
+
+```c
+#define MAX_BUFFER_SIZE 1024
+#define TIMEOUT_SECONDS 30
+#define APP_NAME "MyApp"
+
+char buffer[MAX_BUFFER_SIZE];  // Becomes: char buffer[1024];
+int timeout = TIMEOUT_SECONDS; // Becomes: int timeout = 30;
+printf("%s\n", APP_NAME);      // Becomes: printf("%s\n", "MyApp");
+```
+
+### Example 2: Seeing the Preprocessor in Action
+
+**test.c**:
+```c
+#include <stdio.h>
+
+#define MAX 100
+#define MIN 1
+#define RANGE (MAX - MIN)
+
+int main(void) {
+    int value = MAX;
+    int range = RANGE;
+    printf("Value: %d, Range: %d\n", value, range);
+    return 0;
+}
+```
+
+**After preprocessing** (`gcc -E test.c`):
+```c
+// ... stdio.h contents ...
+
+int main(void) {
+    int value = 100;
+    int range = (100 - 1);
+    printf("Value: %d, Range: %d\n", value, range);
+    return 0;
+}
+```
+
+**Key Points:**
+- The preprocessor performs **textual substitution**, not evaluation
+- `RANGE` becomes `(100 - 1)`, not `99`
+- The compiler evaluates the expression later
+
+### Example 3: Why Parentheses Matter
+
+```c
+#define BAD_SQUARE(x) x * x
+#define GOOD_SQUARE(x) ((x) * (x))
+
+int result1 = BAD_SQUARE(2 + 1);   // Expands to: 2 + 1 * 2 + 1 = 5 (WRONG!)
+int result2 = GOOD_SQUARE(2 + 1);  // Expands to: ((2 + 1) * (2 + 1)) = 9 (CORRECT!)
+```
+
+**Rule**: Always use parentheses around macro parameters and the entire expression.
+
+## How Header Guards Work
+
+Now that you understand the preprocessor, let's see exactly how header guards prevent multiple inclusion.
+
+**geometry.h**:
+```c
+#ifndef GEOMETRY_H  // If GEOMETRY_H is not defined...
+#define GEOMETRY_H  // Define it now
+
+typedef struct {
+    double x;
+    double y;
+} Point;
+
+#endif  // End of conditional
+```
+
+**What happens when included twice:**
+
+**main.c**:
+```c
+#include "geometry.h"
+#include "geometry.h"  // Included again!
+
+int main(void) {
+    Point p = {1, 2};
+    return 0;
+}
+```
+
+**After preprocessing:**
+
+**First inclusion:**
+- `#ifndef GEOMETRY_H` - GEOMETRY_H is not defined, so continue
+- `#define GEOMETRY_H` - Now GEOMETRY_H is defined
+- Point struct is included
+
+**Second inclusion:**
+- `#ifndef GEOMETRY_H` - GEOMETRY_H IS defined, so **skip everything** until `#endif`
+- Nothing is included
+
+**Result:** The Point struct is only defined once, preventing redefinition errors.
+
+### Why This Matters
+
+Without header guards:
+```c
+// First inclusion
+typedef struct { double x; double y; } Point;
+
+// Second inclusion
+typedef struct { double x; double y; } Point;  // ERROR: redefinition!
+```
+
+With header guards:
+```c
+// First inclusion
+typedef struct { double x; double y; } Point;
+
+// Second inclusion: skipped entirely
+```
+
+## Conditional Compilation
+
+The preprocessor can include or exclude code based on conditions:
+
+### #ifdef and #ifndef
+
+```c
+#define DEBUG
+
+int main(void) {
+    int x = 42;
+
+#ifdef DEBUG
+    printf("Debug: x = %d\n", x);  // Only included if DEBUG is defined
+#endif
+
+    return 0;
+}
+```
+
+**With DEBUG defined**: printf is included
+**Without DEBUG defined**: printf is excluded entirely (not even compiled)
+
+### Practical Example: Debug Logging
+
+**logger.h**:
+```c
+#ifndef LOGGER_H
+#define LOGGER_H
+
+#include <stdio.h>
+
+#ifdef DEBUG_MODE
+    #define LOG(msg) printf("[DEBUG] %s\n", msg)
+    #define LOG_INT(name, value) printf("[DEBUG] %s = %d\n", name, value)
+#else
+    #define LOG(msg)              // Empty - does nothing
+    #define LOG_INT(name, value)  // Empty - does nothing
+#endif
+
+#endif
+```
+
+**main.c**:
+```c
+#define DEBUG_MODE  // Comment this out to disable logging
+
+#include "logger.h"
+
+int main(void) {
+    int count = 0;
+
+    LOG("Starting program");
+
+    for (int i = 0; i < 5; i++) {
+        count++;
+        LOG_INT("count", count);
+    }
+
+    LOG("Program finished");
+    return 0;
+}
+```
+
+**With DEBUG_MODE defined:**
+```
+[DEBUG] Starting program
+[DEBUG] count = 1
+[DEBUG] count = 2
+[DEBUG] count = 3
+[DEBUG] count = 4
+[DEBUG] count = 5
+[DEBUG] Program finished
+```
+
+**Without DEBUG_MODE**: No output, and the LOG calls compile to nothing (zero overhead).
+
+### Platform-Specific Code
+
+```c
+#ifdef _WIN32
+    #define CLEAR_SCREEN "cls"
+#else
+    #define CLEAR_SCREEN "clear"
+#endif
+
+int main(void) {
+    system(CLEAR_SCREEN);  // "cls" on Windows, "clear" on Unix
+    return 0;
+}
+```
+
+## Common Preprocessor Directives
+
+| Directive | Purpose | Example |
+|-----------|---------|---------|
+| `#include` | Include file contents | `#include "myheader.h"` |
+| `#define` | Define macro | `#define MAX 100` |
+| `#undef` | Undefine macro | `#undef MAX` |
+| `#ifdef` | If macro is defined | `#ifdef DEBUG` |
+| `#ifndef` | If macro is not defined | `#ifndef HEADER_H` |
+| `#endif` | End conditional | `#endif` |
+| `#if` | If expression is true | `#if MAX > 50` |
+| `#else` | Else clause | `#else` |
+| `#elif` | Else if | `#elif MIN < 10` |
+
+## Best Practices
+
+1. **Use UPPERCASE for macros** to distinguish them from variables
+   ```c
+   #define BUFFER_SIZE 1024  // Macro
+   int buffer_size = 1024;   // Variable
+   ```
+
+2. **Always use header guards** in every header file
+   ```c
+   #ifndef FILENAME_H
+   #define FILENAME_H
+   // ...
+   #endif
+   ```
+
+3. **Use const instead of #define for typed constants** (when possible)
+   ```c
+   #define PI 3.14159         // Untyped, no scope
+   const double PI = 3.14159; // Typed, scoped, debuggable
+   ```
+
+4. **Parenthesize macro arguments**
+   ```c
+   #define SQUARE(x) ((x) * (x))  // Safe
+   #define SQUARE(x) x * x        // Dangerous
+   ```
+
+5. **Don't put semicolons in macro definitions**
+   ```c
+   #define MAX 100;  // BAD - semicolon becomes part of the macro
+   #define MAX 100   // GOOD
+   ```
+
+## Common Pitfalls
+
+1. **Forgetting header guards** → Multiple definition errors
+2. **Not using parentheses in macros** → Unexpected precedence issues
+3. **Debugging macros** → They don't appear in debugger, hard to step through
+4. **Macro side effects** → `SQUARE(x++)` expands to `((x++) * (x++))` - increments x twice!
+
+## Exercises
+
+1. **Preprocessor Exploration**: Create a file with several #define macros. Use `gcc -E` to see the preprocessed output. Understand what the compiler actually sees.
+
+2. **Conditional Compilation**: Write a program that uses #ifdef to enable/disable debug messages. Test both modes.
+
+3. **Configuration Header**: Create a config.h with macros for application settings (version number, max users, buffer sizes). Use them in main.c.
+
+4. **Cross-Platform Code**: Write code that uses #ifdef to detect the operating system and print different messages on Windows vs Linux.
+
+5. **Header Guard Practice**: Create two headers that both define a Point struct. Include both in main.c. Observe the error. Add header guards and verify it works.
+
+## Key Takeaways
+
+- The **preprocessor runs before compilation**, performing text substitution
+- **#include** literally pastes file contents into your code
+- **#define** creates macros that substitute text
+- **Header guards** use #ifndef/#define/#endif to prevent multiple inclusion
+- **Conditional compilation** with #ifdef lets you include/exclude code
+- The preprocessor is **dumb** - it only does text substitution, no semantic understanding
+- Use `gcc -E` to see preprocessor output and debug issues
+- Always use **parentheses** in macro definitions
+- Prefer **const** over #define for constants when type safety matters
+
+In the next step, you'll learn about separate compilation and how to build programs from multiple source files efficiently.

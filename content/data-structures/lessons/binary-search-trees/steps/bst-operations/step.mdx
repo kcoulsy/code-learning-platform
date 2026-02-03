@@ -1,129 +1,417 @@
 ---
 id: bst-operations
-title: BST Operations
+title: BST Operations - Search, Insert, Delete
 order: 1
 ---
 
 # BST Operations
 
-BSTs enable efficient O(log n) search, insert, and delete operations.
+A **Binary Search Tree (BST)** is a binary tree where:
 
-## Search
+- Left subtree values < Node value
+- Right subtree values > Node value
+- Both subtrees are also BSTs
 
-```c
-TreeNode *bstSearch(TreeNode *root, int value) {
-    if (root == NULL || root->data == value) {
-        return root;
-    }
+This ordering enables **O(log n)** operations.
 
-    if (value < root->data) {
-        return bstSearch(root->left, value);
-    }
-    return bstSearch(root->right, value);
-}
+## WHY BSTs Exist
 
-// Iterative search
-TreeNode *bstSearchIter(TreeNode *root, int value) {
-    while (root != NULL && root->data != value) {
-        if (value < root->data) {
-            root = root->left;
-        } else {
-            root = root->right;
-        }
-    }
-    return root;
-}
+Arrays have O(log n) search via binary search, but O(n) insertion/deletion (need to shift elements).
+
+Linked lists have O(1) insertion/deletion, but O(n) search.
+
+**BSTs give you the best of both:**
+
+- O(log n) search (like sorted array)
+- O(log n) insertion (like linked list)
+- O(log n) deletion (like linked list)
+
+## HOW BST Search Works
+
+### The Binary Search Principle
+
+Given a sorted array, binary search works by comparing with middle element and searching half:
+
+```
+Find 23 in [1, 5, 10, 15, 20, 25, 30]
+
+[1, 5, 10, 15, 20, 25, 30]
+             ↑
+           15 < 23? Yes, search right half
+
+[20, 25, 30]
+     ↑
+   20 < 23? Yes, search right half
+
+[25, 30]
+   ↑
+ 25 < 23? No, 25 > 23, search left
+
+[25] = 23? No, not found
 ```
 
-## Insert
+**BST does the same thing, but with a tree:**
 
-```c
-TreeNode *bstInsert(TreeNode *root, int value) {
-    if (root == NULL) {
-        return createTreeNode(value);
-    }
+```
+        15
+       /  \
+     10    25
+     /     / \
+    5     20  30
 
-    if (value < root->data) {
-        root->left = bstInsert(root->left, value);
-    } else if (value > root->data) {
-        root->right = bstInsert(root->right, value);
-    }
-    // Duplicate: ignore or handle as needed
-
-    return root;
-}
-
-// Iterative insert
-TreeNode *bstInsertIter(TreeNode *root, int value) {
-    if (root == NULL) {
-        return createTreeNode(value);
-    }
-
-    TreeNode *current = root;
-    TreeNode *parent = NULL;
-
-    while (current != NULL) {
-        parent = current;
-        if (value < current->data) {
-            current = current->left;
-        } else if (value > current->data) {
-            current = current->right;
-        } else {
-            return root;  // Duplicate
-        }
-    }
-
-    if (value < parent->data) {
-        parent->left = createTreeNode(value);
-    } else {
-        parent->right = createTreeNode(value);
-    }
-    return root;
-}
+Find 23:
+- 23 < 15? Yes, go right
+- 23 < 25? Yes, go left
+- 23 < 20? No, 20 is leaf, not found
 ```
 
-## Delete
+### Pseudo Code: Search
 
-```c
-TreeNode *findMin(TreeNode *root) {
-    while (root->left != NULL) {
-        root = root->left;
-    }
-    return root;
-}
+```
+FUNCTION bst_search(root, value):
+    IF root == NULL OR root.data == value:
+        RETURN root
 
-TreeNode *bstDelete(TreeNode *root, int value) {
-    if (root == NULL) return NULL;
+    IF value < root.data:
+        RETURN bst_search(root.left, value)
+    ELSE:
+        RETURN bst_search(root.right, value)
 
-    if (value < root->data) {
-        root->left = bstDelete(root->left, value);
-    } else if (value > root->data) {
-        root->right = bstDelete(root->right, value);
-    } else {
-        // Node found
-        if (root->left == NULL) {
-            TreeNode *temp = root->right;
-            free(root);
-            return temp;
-        } else if (root->right == NULL) {
-            TreeNode *temp = root->left;
-            free(root);
-            return temp;
-        }
-
-        // Two children: replace with inorder successor
-        TreeNode *temp = findMin(root->right);
-        root->data = temp->data;
-        root->right = bstDelete(root->right, temp->data);
-    }
-    return root;
-}
+FUNCTION bst_search_iterative(root, value):
+    current = root
+    WHILE current != NULL AND current.data != value:
+        IF value < current.data:
+            current = current.left
+        ELSE:
+            current = current.right
+    RETURN current
 ```
 
-## Complexity
+**WHY O(log n)?** Each comparison eliminates half the tree. After k comparisons, we're left with n/2^k nodes. When 2^k >= n, k >= log₂(n).
 
-| Operation | Average Case | Worst Case |
-| --------- | ------------ | ---------- |
-| Search    | O(log n)     | O(n)       |
-| Insert    | O(log n)     | O(n)       |
-| Delete    | O(log n)     | O(n)       |
+**Visualization:**
+
+```
+Level 0:  1 node    (root)
+Level 1:  2 nodes   (half remaining)
+Level 2:  4 nodes   (quarter remaining)
+Level 3:  8 nodes   (eighth remaining)
+...
+After log₂(n) levels: 1 node left
+```
+
+## HOW BST Insertion Works
+
+### Insertion Process
+
+Insertion follows the search path until we find an empty spot.
+
+```
+Insert 8 into:
+        10
+       /  \
+      5    15
+     / \
+    3    7
+
+1. 8 < 10? Yes, go left to 5
+2. 8 > 5? Yes, go right to 7
+3. 8 > 7? Yes, 7 has no right child, insert here
+
+Result:
+        10
+       /  \
+      5    15
+     / \
+    3    7
+         \
+          8
+```
+
+### Pseudo Code: Insertion
+
+```
+FUNCTION bst_insert(root, value):
+    IF root == NULL:
+        RETURN create_node(value)
+
+    IF value < root.data:
+        root.left = bst_insert(root.left, value)
+    ELSE IF value > root.data:
+        root.right = bst_insert(root.right, value)
+    ELSE:
+        // Duplicate, ignore or handle as needed
+        RETURN root
+
+    RETURN root  // Return unchanged node
+
+FUNCTION bst_insert_iterative(root, value):
+    IF root == NULL:
+        RETURN create_node(value)
+
+    current = root
+    WHILE true:
+        IF value < current.data:
+            IF current.left == NULL:
+                current.left = create_node(value)
+                BREAK
+            current = current.left
+        ELSE IF value > current.data:
+            IF current.right == NULL:
+                current.right = create_node(value)
+                BREAK
+            current = current.right
+        ELSE:
+            BREAK  // Duplicate
+
+    RETURN root
+```
+
+**WHY we return the node:** In recursive version, parent needs to know which node to point to.
+
+## HOW BST Deletion Works
+
+Deletion has three cases:
+
+### Case 1: Leaf Node (No Children)
+
+```
+Delete 3 from:
+        10
+       /  \
+      5    15
+     / \
+    3    7
+
+Simply remove the node:
+        10
+       /  \
+      5    15
+       \
+        7
+```
+
+### Case 2: One Child
+
+```
+Delete 5 from:
+        10
+       /  \
+      5    15
+     / \
+    3    7
+
+Replace 5 with its child (7):
+        10
+       /  \
+      7    15
+     /
+    3
+```
+
+### Case 3: Two Children (Most Complex)
+
+```
+Delete 10 from:
+        10
+       /  \
+      5    15
+     / \
+    3    7
+
+1. Find inorder successor (smallest in right subtree): 15
+   Actually, find minimum in right subtree: 15's minimum is 12
+
+        10
+       /  \
+      5    15
+     / \   /
+    3   7 12
+
+2. Replace 10's data with successor's data (12):
+        12
+       /  \
+      5    15
+     / \   /
+    3   7 10  ← Note: 12's old position still has 12
+
+3. Delete the successor node (which now has duplicate data):
+        12
+       /  \
+      5    15
+     / \   /
+    3   7 10
+```
+
+**WHY inorder successor?**
+
+- Inorder successor = smallest value in right subtree
+- It guarantees all left subtree values < successor < right subtree values
+- This maintains the BST property
+
+### Pseudo Code: Delete
+
+```
+FUNCTION bst_delete(root, value):
+    IF root == NULL:
+        RETURN NULL
+
+    IF value < root.data:
+        root.left = bst_delete(root.left, value)
+    ELSE IF value > root.data:
+        root.right = bst_delete(root.right, value)
+    ELSE:
+        // Found the node to delete
+
+        // Case 1: No left child
+        IF root.left == NULL:
+            temp = root.right
+            free(root)
+            RETURN temp
+
+        // Case 2: No right child
+        IF root.right == NULL:
+            temp = root.left
+            free(root)
+            RETURN temp
+
+        // Case 3: Two children
+        temp = find_min(root.right)  // Inorder successor
+        root.data = temp.data
+        root.right = bst_delete(root.right, temp.data)
+
+    RETURN root
+
+FUNCTION find_min(node):
+    WHILE node.left != NULL:
+        node = node.left
+    RETURN node
+```
+
+## Time Complexity Analysis
+
+| Operation | Average Case | Worst Case | WHY                                |
+| --------- | ------------ | ---------- | ---------------------------------- |
+| Search    | O(log n)     | O(n)       | Best: balanced; worst: skewed tree |
+| Insert    | O(log n)     | O(n)       | Same as search                     |
+| Delete    | O(log n)     | O(n)       | Same as search + deletion logic    |
+| Traversal | O(n)         | O(n)       | Must visit every node once         |
+
+### Worst Case: Skewed Tree
+
+```
+Insert 1, 2, 3, 4, 5 in order:
+
+1
+ \
+  2
+   \
+    3
+     \
+      4
+       \
+        5
+
+This is just a linked list! Search = O(n)
+```
+
+**Solution:** Self-balancing trees (AVL, Red-Black)
+
+## Pros and Cons
+
+### Pros
+
+| Advantage               | Explanation                               |
+| ----------------------- | ----------------------------------------- |
+| **O(log n) Operations** | Search, insert, delete all logarithmic    |
+| **Ordered Data**        | Inorder traversal gives sorted sequence   |
+| **Flexible**            | Can be augmented for range queries, etc.  |
+| **No Resizing**         | Unlike dynamic arrays                     |
+| **Memory Efficient**    | Only stores what's needed, no extra space |
+
+### Cons
+
+| Disadvantage           | Explanation                            |
+| ---------------------- | -------------------------------------- |
+| **No Random Access**   | Cannot access by index                 |
+| **Balancing Required** | Unbalanced = O(n) performance          |
+| **Extra Memory**       | Each node stores 2 pointers            |
+| **Cache Poor**         | Nodes scattered in memory              |
+| **No Duplicate Keys**  | Standard BST doesn't handle duplicates |
+
+## When to Use BSTs
+
+### Use BSTs When:
+
+✓ You need ordered data  
+✓ You need fast search (O(log n))  
+✓ You need insert and delete with search complexity  
+✓ You're building an in-memory database/index  
+✓ You need range queries (with augmentation)
+
+### Don't Use BSTs When:
+
+✗ You need O(1) access by index (use array)  
+✗ Data arrives sorted (will create skewed tree)  
+✗ You need guaranteed O(log n) (use AVL/Red-Black)  
+✗ Cache performance is critical (use array)
+
+## Common BST Patterns
+
+### 1. Find Minimum/Maximum
+
+```
+FUNCTION find_min(root):
+    IF root == NULL: RETURN NULL
+    WHILE root.left != NULL:
+        root = root.left
+    RETURN root
+
+FUNCTION find_max(root):
+    IF root == NULL: RETURN NULL
+    WHILE root.right != NULL:
+        root = root.right
+    RETURN root
+```
+
+### 2. Check if BST
+
+```
+FUNCTION is_bst(node, min_value, max_value):
+    IF node == NULL: RETURN true
+
+    IF node.data <= min_value OR node.data >= max_value:
+        RETURN false
+
+    RETURN is_bst(node.left, min_value, node.data) AND
+           is_bst(node.right, node.data, max_value)
+
+// Call: is_bst(root, INT_MIN, INT_MAX)
+```
+
+### 3. Floor and Ceiling
+
+```
+FUNCTION floor(node, value):
+    IF node == NULL: RETURN NULL
+
+    IF node.data == value: RETURN node.data
+
+    IF value < node.data:
+        RETURN floor(node.left, value)
+
+    floor_value = floor(node.right, value)
+    IF floor_value != NULL AND floor_value <= value:
+        RETURN floor_value
+    RETURN NULL
+```
+
+## Key Takeaways
+
+1. **BST property enables O(log n)** - Left < Root < Right
+2. **Search follows tree structure** - Eliminate half at each step
+3. **Insertion follows search path** - Find empty spot at leaf level
+4. **Deletion has three cases** - Leaf, one child, two children
+5. **Two children = inorder successor** - Smallest in right subtree
+6. **Balancing is essential** - Skewed tree = O(n) performance
+7. **Inorder gives sorted order** - Unique property of BSTs

@@ -97,29 +97,28 @@ function DesktopLayout({
       {/* Main content panel */}
       <ResizablePanel defaultSize={layout.mainSize} minSize={50}>
         <main className="flex-1 flex flex-col h-full">
-          <div className="flex items-center gap-2 p-2 border-b border-border">
-            <SidebarTrigger />
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Icon className="h-4 w-4" />
-              <span>{item.title}</span>
-              <span>/</span>
-              <span className="text-foreground font-medium">{step.title}</span>
+          <div className="flex items-center justify-between gap-2 p-2 border-b border-border">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Icon className="h-4 w-4" />
+                <span>{item.title}</span>
+                <span>/</span>
+                <span className="text-foreground font-medium">{step.title}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <CopyContentButton content={step.content} />
+              <StepCompletionToggle
+                courseId={courseId}
+                itemId={itemId}
+                stepId={stepId}
+                key={`${courseId}-${itemId}-${stepId}`}
+              />
             </div>
           </div>
           <div className="flex-1 overflow-y-auto pb-10">
             <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div className="flex-1" />
-                <div className="flex items-center gap-2">
-                  <CopyContentButton content={step.content} />
-                  <StepCompletionToggle
-                    courseId={courseId}
-                    itemId={itemId}
-                    stepId={stepId}
-                    key={`${courseId}-${itemId}-${stepId}`}
-                  />
-                </div>
-              </div>
               <MarkdownContent content={step.content} />
             </div>
           </div>
@@ -151,7 +150,7 @@ function StepPage() {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-background w-full">
         {isMobile ? (
           // Simple layout for mobile
           <>
@@ -163,29 +162,28 @@ function StepPage() {
             />
 
             <main className="flex-1 flex flex-col">
-              <div className="flex items-center gap-2 p-2 border-b border-border">
-                <SidebarTrigger />
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Icon className="h-4 w-4" />
-                  <span>{item.title}</span>
-                  <span>/</span>
-                  <span className="text-foreground font-medium">{step.title}</span>
+              <div className="flex items-center justify-between gap-2 p-2 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <SidebarTrigger />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                    <span>/</span>
+                    <span className="text-foreground font-medium">{step.title}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CopyContentButton content={step.content} />
+                  <StepCompletionToggle
+                    courseId={courseId}
+                    itemId={itemId}
+                    stepId={stepId}
+                    key={`${courseId}-${itemId}-${stepId}`}
+                  />
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto pb-10">
                 <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
-                  <div className="flex items-start justify-between gap-4 mb-6">
-                    <div className="flex-1" />
-                    <div className="flex items-center gap-2">
-                      <CopyContentButton content={step.content} />
-                      <StepCompletionToggle
-                        courseId={courseId}
-                        itemId={itemId}
-                        stepId={stepId}
-                        key={`${courseId}-${itemId}-${stepId}`}
-                      />
-                    </div>
-                  </div>
                   <MarkdownContent content={step.content} />
                 </div>
               </div>

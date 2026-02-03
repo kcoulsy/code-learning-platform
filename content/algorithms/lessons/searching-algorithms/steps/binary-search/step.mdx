@@ -8,129 +8,308 @@ order: 2
 
 Binary search efficiently finds elements in **sorted arrays** by repeatedly dividing the search space in half.
 
-## Implementation
+## WHY Binary Search Works
 
-```c
-// Iterative binary search
-int binarySearch(int arr[], int n, int target) {
-    int left = 0;
-    int right = n - 1;
+### The Problem with Linear Search
 
-    while (left <= right) {
-        int mid = left + (right - left) / 2;  // Avoid overflow
+```
+Find 42 in: [3, 7, 12, 15, 23, 37, 42, 51, 63, 89]
 
-        if (arr[mid] == target) {
-            return mid;  // Found
-        } else if (arr[mid] < target) {
-            left = mid + 1;  // Search right half
-        } else {
-            right = mid - 1;  // Search left half
-        }
-    }
-    return -1;  // Not found
-}
+Linear search: Check each element until found
+              = 7 comparisons (worst case: 10)
 
-// Recursive binary search
-int binarySearchRecursive(int arr[], int left, int right, int target) {
-    if (left > right) return -1;
-
-    int mid = left + (right - left) / 2;
-
-    if (arr[mid] == target) {
-        return mid;
-    }
-    if (arr[mid] < target) {
-        return binarySearchRecursive(arr, mid + 1, right, target);
-    }
-    return binarySearchRecursive(arr, left, mid - 1, target);
-}
+If array has 1 million elements:
+- Linear search worst case: 1,000,000 comparisons
+- Binary search: ~20 comparisons
+- Speedup: 50,000x!
 ```
 
-## Time Complexity
+### The Binary Search Insight
 
-| Metric       | Value    |
-| ------------ | -------- |
-| Best         | O(1)     |
-| Average      | O(log n) |
-| Worst        | O(log n) |
-| Space (iter) | O(1)     |
-| Space (rec)  | O(log n) |
+**Key observation:** If array is sorted, we know which half contains the target!
+
+```
+Find 42 in sorted array [3, 7, 12, 15, 23, 37, 42, 51, 63, 89]
+
+Check middle: 37
+42 > 37, so target is in RIGHT half
+[42, 51, 63, 89]
+
+Check middle: 51
+42 < 51, so target is in LEFT half
+[42]
+
+Found! 42 = 42
+```
+
+**Each comparison eliminates half the remaining elements!**
+
+### Mathematical Proof of O(log n)
+
+After k comparisons, remaining elements ≤ n / 2^k
+
+We stop when n / 2^k < 1
+So 2^k > n
+k > log₂(n)
+
+Therefore: **Time = O(log n)**
+
+## HOW Binary Search Works
+
+### Visual Step-by-Step
+
+```
+Array: [3, 7, 12, 15, 23, 37, 42, 51, 63, 89]
+Find: 42
+
+Step 1: left=0, right=9, mid=4 (value=23)
+        42 > 23 → left=5
+        [37, 42, 51, 63, 89]
+
+Step 2: left=5, right=9, mid=7 (value=51)
+        42 < 51 → right=6
+        [37, 42]
+
+Step 3: left=5, right=6, mid=5 (value=37)
+        42 > 37 → left=6
+        [42]
+
+Step 4: left=6, right=6, mid=6 (value=42)
+        42 = 42 → FOUND at index 6!
+
+Total: 4 comparisons for n=10 elements
+log₂(10) ≈ 3.32, so 4 is expected
+```
+
+### Pseudo Code: Binary Search
+
+```
+FUNCTION binary_search(arr, target):
+    left = 0
+    right = length(arr) - 1
+
+    WHILE left <= right:
+        mid = left + (right - left) / 2  // Avoid overflow
+
+        IF arr[mid] == target:
+            RETURN mid  // Found!
+
+        IF arr[mid] < target:
+            left = mid + 1  // Search right half
+        ELSE:
+            right = mid - 1  // Search left half
+
+    RETURN -1  // Not found
+
+FUNCTION binary_search_recursive(arr, target, left, right):
+    IF left > right:
+        RETURN -1  // Not found
+
+    mid = left + (right - left) / 2
+
+    IF arr[mid] == target:
+        RETURN mid
+
+    IF arr[mid] < target:
+        RETURN binary_search_recursive(arr, target, mid + 1, right)
+    ELSE:
+        RETURN binary_search_recursive(arr, target, left, mid - 1)
+```
+
+### Why `left + (right - left) / 2`?
+
+**Problem with `(left + right) / 2`:**
+
+```
+left = 2,000,000,000
+right = 2,000,000,010
+left + right = 4,000,000,010
+
+On 32-bit int: overflow! 4,000,000,010 → negative number
+
+mid = negative number → CRASH!
+```
+
+**Solution: `left + (right - left) / 2`**
+
+```
+right - left = 10
+mid = 2,000,000,000 + 10/2 = 2,000,000,005
+No overflow!
+```
 
 ## Binary Search Variants
 
-```c
-// Find first occurrence
-int findFirst(int arr[], int n, int target) {
-    int result = -1;
-    int left = 0, right = n - 1;
+### Find First Occurrence
 
-    while (left <= right) {
-        int mid = left + (right - left) / 2;
+```
+Goal: Find first index where arr[i] >= target
 
-        if (arr[mid] >= target) {
-            result = mid;
-            right = mid - 1;
-        } else {
-            left = mid + 1;
-        }
-    }
-    return result;
-}
+FUNCTION find_first(arr, target):
+    result = -1
+    left = 0
+    right = length(arr) - 1
 
-// Find last occurrence
-int findLast(int arr[], int n, int target) {
-    int result = -1;
-    int left = 0, right = n - 1;
+    WHILE left <= right:
+        mid = left + (right - left) / 2
 
-    while (left <= right) {
-        int mid = left + (right - left) / 2;
+        IF arr[mid] >= target:
+            result = mid
+            right = mid - 1  // Keep searching left
+        ELSE:
+            left = mid + 1
 
-        if (arr[mid] <= target) {
-            result = mid;
-            left = mid + 1;
-        } else {
-            right = mid - 1;
-        }
-    }
-    return result;
-}
-
-// Count occurrences
-int countOccurrences(int arr[], int n, int target) {
-    int first = findFirst(arr, n, target);
-    int last = findLast(arr, n, target);
-
-    if (first == -1) return 0;
-    return last - first + 1;
-}
+    RETURN result
 ```
 
-## Find in Rotated Array
+**Trace:** [2, 4, 4, 4, 8], find 4 → returns 1 (first 4)
 
-```c
-int searchRotated(int arr[], int n, int target) {
-    int left = 0, right = n - 1;
+### Find Last Occurrence
 
-    while (left <= right) {
-        int mid = left + (right - left) / 2;
-
-        if (arr[mid] == target) return mid;
-
-        // Determine which half is sorted
-        if (arr[left] <= arr[mid]) {  // Left half sorted
-            if (arr[left] <= target && target < arr[mid]) {
-                right = mid - 1;
-            } else {
-                left = mid + 1;
-            }
-        } else {  // Right half sorted
-            if (arr[mid] < target && target <= arr[right]) {
-                left = mid + 1;
-            } else {
-                right = mid - 1;
-            }
-        }
-    }
-    return -1;
-}
 ```
+Goal: Find last index where arr[i] <= target
+
+FUNCTION find_last(arr, target):
+    result = -1
+    left = 0
+    right = length(arr) - 1
+
+    WHILE left <= right:
+        mid = left + (right - left) / 2
+
+        IF arr[mid] <= target:
+            result = mid
+            left = mid + 1  // Keep searching right
+        ELSE:
+            right = mid - 1
+
+    RETURN result
+```
+
+**Trace:** [2, 4, 4, 4, 8], find 4 → returns 3 (last 4)
+
+### Count Occurrences
+
+```
+FUNCTION count_occurrences(arr, target):
+    first = find_first(arr, target)
+    IF first == -1:
+        RETURN 0
+    last = find_last(arr, target)
+    RETURN last - first + 1
+```
+
+## Search in Rotated Array
+
+### The Problem
+
+```
+Array [4, 5, 6, 7, 0, 1, 2, 3] is rotated
+Standard binary search fails because array is not sorted
+```
+
+### The Solution
+
+**Key insight:** One half is always sorted!
+
+```
+FUNCTION search_rotated(arr, target):
+    left = 0
+    right = length(arr) - 1
+
+    WHILE left <= right:
+        mid = left + (right - left) / 2
+
+        IF arr[mid] == target:
+            RETURN mid
+
+        // Check which half is sorted
+        IF arr[left] <= arr[mid]:  // Left half sorted
+            IF arr[left] <= target < arr[mid]:
+                right = mid - 1
+            ELSE:
+                left = mid + 1
+        ELSE:  // Right half sorted
+            IF arr[mid] < target <= arr[right]:
+                left = mid + 1
+            ELSE:
+                right = mid - 1
+
+    RETURN -1
+```
+
+**Trace:** [4, 5, 6, 7, 0, 1, 2, 3], find 0
+
+```
+Step 1: mid=3 (value=7), left half sorted [4,5,6,7]
+        0 < 4, so not in left half
+        Search right half [0,1,2,3]
+
+Step 2: mid=5 (value=1), right half sorted [0,1,2,3] (partially)
+        0 is at position 4
+```
+
+## Time Complexity Analysis
+
+| Metric       | Value    | Explanation                   |
+| ------------ | -------- | ----------------------------- |
+| Best Case    | O(1)     | Target at middle              |
+| Average Case | O(log n) | Halve search space each step  |
+| Worst Case   | O(log n) | Target not present or at edge |
+| Space (iter) | O(1)     | Only variables                |
+| Space (rec)  | O(log n) | Recursion depth               |
+
+## Pros and Cons
+
+### Pros
+
+| Advantage               | Explanation                      |
+| ----------------------- | -------------------------------- |
+| **O(log n) search**     | Extremely fast for large arrays  |
+| **Simple to implement** | Few lines of code                |
+| **Memory efficient**    | O(1) space for iterative version |
+| **Predictable**         | Always same worst case           |
+
+### Cons
+
+| Disadvantage              | Explanation                         |
+| ------------------------- | ----------------------------------- |
+| **Requires sorted array** | Must sort first (O(n log n) cost)   |
+| **No insertion/deletion** | Sorted array has O(n) insert/delete |
+| **No random access**      | Can't access by index efficiently   |
+| **Rotated array problem** | Requires modified algorithm         |
+
+## When to Use Binary Search
+
+### Use Binary Search When:
+
+✓ Array is already sorted  
+✓ You need fast search (O(log n) vs O(n))  
+✓ Search operations far more frequent than insert/delete  
+✓ You can afford upfront sorting cost
+
+### Don't Use Binary Search When:
+
+✗ Array is unsorted (linear search may be faster)  
+✗ You need frequent insertions/deletions (use BST)  
+✗ Array is very small (overhead not worth it)  
+✗ You need to store different data types together
+
+## Binary Search vs Other Structures
+
+| Operation        | Sorted Array (Binary Search) | BST      | Hash Table |
+| ---------------- | ---------------------------- | -------- | ---------- |
+| Search           | O(log n)                     | O(log n) | O(1)       |
+| Insert           | O(n)                         | O(log n) | O(1)       |
+| Delete           | O(n)                         | O(log n) | O(1)       |
+| Sorted Traversal | O(n)                         | O(n)     | O(n log n) |
+| Space            | O(n)                         | O(n)     | O(n)       |
+
+## Key Takeaways
+
+1. **Binary search requires sorted array** - This is the fundamental requirement
+2. **Halves search space each step** - log₂(n) steps for n elements
+3. **Middle element determines direction** - Left or right half
+4. **Handles duplicates with variants** - First/last occurrence queries
+5. **Rotated arrays need modification** - One half is always sorted
+6. **Trade-off: fast search, slow insert** - Use based on access patterns

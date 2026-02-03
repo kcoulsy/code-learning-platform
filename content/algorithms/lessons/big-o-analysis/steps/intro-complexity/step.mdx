@@ -6,50 +6,275 @@ order: 1
 
 # Introduction to Complexity
 
-When we analyze algorithms, we care about how their resource usage grows as input size increases. This is called **algorithmic complexity**.
+When we analyze algorithms, we care about how their **resource usage grows as input size increases**. This is called **algorithmic complexity**.
 
-## Why Complexity Matters
+## WHY Complexity Analysis Matters
 
-```c
-// O(1) - Constant time
-int getFirst(int arr[]) {
-    return arr[0];
-}
+When choosing or designing algorithms, we need to predict performance:
 
-// O(n) - Linear time
-int findMax(int arr[], int n) {
-    int max = arr[0];
-    for (int i = 1; i < n; i++) {
-        if (arr[i] > max) {
-            max = arr[i];
-        }
-    }
-    return max;
-}
+**Real-world impact:**
 
-// O(n²) - Quadratic time
-void bubbleSort(int arr[], int n) {
-    for (int i = 0; i < n - 1; i++) {
-        for (int j = 0; n - i - 1; j++) {
-            if (arr[j] > arr[j + 1]) {
-                // Swap
-                int temp = arr[j];
-                arr[j] = arr[j + 1];
-                arr[j + 1] = temp;
-            }
-        }
-    }
-}
+```
+n = 1,000     O(n) = 1,000 operations
+              O(n²) = 1,000,000 operations
+
+n = 1,000,000 O(n) = 1,000,000 operations
+              O(n²) = 1,000,000,000,000 operations
+              (would take hours/days!)
+
+n = 1,000,000,000 O(n log n) = 30,000,000,000 operations
+                        O(n²) = 1,000,000,000,000,000,000 operations
+                        (would take years!)
 ```
 
-## Key Concepts
+**Key insight:** As n grows, the algorithm's complexity class dominates actual operations.
 
-1. **Input Size (n)**: The number of elements or size of the problem
-2. **Growth Rate**: How operations increase as n grows
-3. **Worst Case**: Maximum resources needed
-4. **Asymptotic Behavior**: Performance as n approaches infinity
+## HOW Complexity is Measured
 
-## Types of Complexity
+### Input Size (n)
 
-- **Time Complexity**: How execution time grows
-- **Space Complexity**: How memory usage grows
+What is "n" for different problems?
+
+| Problem Type          | n is...                                      |
+| --------------------- | -------------------------------------------- |
+| Array/List processing | Number of elements                           |
+| String processing     | Length of string                             |
+| Matrix operations     | Dimension (n×n matrix) or number of elements |
+| Graph algorithms      | Number of vertices (V) and edges (E)         |
+| Tree algorithms       | Number of nodes                              |
+| Recursion             | Input value or problem size                  |
+
+### Counting Operations
+
+```
+FUNCTION count_operations(arr):
+    operations = 0              // 1 operation
+
+    for i = 1 to length(arr):  // n + 1 comparisons
+        operations = operations + 1
+        for j = 1 to length(arr):  // n * (n + 1) comparisons
+            operations = operations + 1
+            if arr[i] < arr[j]:     // n² comparisons
+                operations = operations + 1
+
+    return operations
+
+Total ≈ 2n² + 2n + 1 ≈ O(n²)
+```
+
+**WHY ignore constants and lower-order terms?**
+
+```
+2n² + 2n + 1
+
+As n → ∞:
+- 2n² dominates
+- 2n becomes negligible
+- 1 becomes negligible
+- Constant factor 2 doesn't change growth rate
+
+So: O(n²)
+```
+
+## Pseudo Code: Different Complexities
+
+### O(1) - Constant Time
+
+```
+FUNCTION get_first_element(arr):
+    RETURN arr[0]
+
+FUNCTION calculate_area(width, height):
+    RETURN width * height
+
+FUNCTION is_even(n):
+    RETURN n % 2 == 0
+```
+
+**WHY constant?** Operations don't depend on input size.
+
+### O(n) - Linear Time
+
+```
+FUNCTION find_max(arr):
+    max_value = arr[0]
+    FOR i FROM 1 TO length(arr) - 1:
+        IF arr[i] > max_value:
+            max_value = arr[i]
+    RETURN max_value
+
+FUNCTION linear_search(arr, target):
+    FOR i FROM 0 TO length(arr) - 1:
+        IF arr[i] == target:
+            RETURN i
+    RETURN -1
+
+FUNCTION sum_array(arr):
+    total = 0
+    FOR each element IN arr:
+        total = total + element
+    RETURN total
+```
+
+**WHY linear?** Must examine each element at least once.
+
+### O(log n) - Logarithmic Time
+
+```
+FUNCTION binary_search(arr, target):
+    left = 0
+    right = length(arr) - 1
+
+    WHILE left <= right:
+        mid = (left + right) / 2
+        IF arr[mid] == target:
+            RETURN mid
+        ELSE IF arr[mid] < target:
+            left = mid + 1
+        ELSE:
+            right = mid - 1
+
+    RETURN -1
+```
+
+**WHY log n?** Each step eliminates half the search space.
+
+### O(n log n) - Linearithmic Time
+
+```
+FUNCTION merge_sort(arr):
+    IF length(arr) <= 1:
+        RETURN arr
+
+    mid = length(arr) / 2
+    left_half = merge_sort(arr[0:mid])
+    right_half = merge_sort(arr[mid:length(arr)])
+
+    RETURN merge(left_half, right_half)
+
+FUNCTION merge(left, right):
+    result = EMPTY_LIST
+    i = 0, j = 0
+
+    WHILE i < length(left) AND j < length(right):
+        IF left[i] <= right[j]:
+            append left[i] to result
+            i = i + 1
+        ELSE:
+            append right[j] to result
+            j = j + 1
+
+    append remaining elements to result
+    RETURN result
+```
+
+**WHY n log n?** Divide (log n levels) and merge (O(n) per level).
+
+### O(n²) - Quadratic Time
+
+```
+FUNCTION bubble_sort(arr):
+    FOR i FROM 0 TO length(arr) - 1:
+        FOR j FROM 0 TO length(arr) - i - 2:
+            IF arr[j] > arr[j + 1]:
+                swap(arr[j], arr[j + 1])
+
+FUNCTION nested_sum(arr):
+    total = 0
+    FOR i FROM 0 TO length(arr) - 1:
+        FOR j FROM 0 TO length(arr) - 1:
+            total = total + arr[i] * arr[j]
+    RETURN total
+```
+
+**WHY n²?** Nested loops mean n × n operations.
+
+### O(2^n) - Exponential Time
+
+```
+FUNCTION fibonacci_recursive(n):
+    IF n <= 1:
+        RETURN n
+    RETURN fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2)
+
+FUNCTION subsets(arr):
+    IF length(arr) == 0:
+        RETURN [[]]
+
+    first = arr[0]
+    rest = arr[1:length(arr)]
+    rest_subsets = subsets(rest)
+
+    all_subsets = []
+    FOR each subset IN rest_subsets:
+        all_subsets.append(subset)
+        all_subsets.append([first] + subset)
+
+    RETURN all_subsets
+```
+
+**WHY 2^n?** Each element has 2 choices (include/exclude).
+
+## Complexity Growth Visualization
+
+```
+Operations
+1,000,000,000 |                              O(2^n)
+  100,000,000 |                    O(n³)
+   10,000,000 |          O(n²)
+    1,000,000 |    O(n log n)
+      100,000 |  O(log n)
+       10,000 | O(1)
+              +--------------------------------
+               10    100    1,000   10,000  n
+```
+
+## Types of Complexity Analysis
+
+### Worst Case
+
+```
+Maximum resources needed for any input of size n
+
+Linear search worst case: target not in array
+                        = n comparisons
+                        = O(n)
+```
+
+### Best Case
+
+```
+Minimum resources needed for any input of size n
+
+Linear search best case: target at first position
+                        = 1 comparison
+                        = O(1)
+```
+
+### Average Case
+
+```
+Expected resources for random input of size n
+
+Linear search average: (1 + 2 + ... + n) / n
+                     = n(n+1)/(2n)
+                     = O(n)
+```
+
+### Amortized Case
+
+```
+Average cost per operation over a sequence
+
+Dynamic array resizing:
+- n insertions cost O(n) total
+- Amortized per insertion: O(1)
+```
+
+## Key Takeaways
+
+1. **Complexity describes growth** - How resources scale with input size
+2. **Ignore constants and lower-order terms** - Only dominant term matters
+3. **Big-O is upper bound** - Describes worst-case behavior
+4. **Choose based on expected n** - Different complexities for different scales
+5. **Real-world matters** - Constants can matter for small n

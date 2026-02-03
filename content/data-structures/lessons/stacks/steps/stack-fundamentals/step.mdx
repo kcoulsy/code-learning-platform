@@ -6,91 +6,347 @@ order: 1
 
 # Stack Fundamentals
 
-A stack is a collection where elements are added and removed from the same end, called the **top**.
+A **stack** is a linear data structure where elements are added and removed from the **same end**, called the **top**. This is LIFO (Last In, First Out).
 
-## Stack Operations
+## WHY Stacks Exist
+
+Stacks model the natural way we work with information in real life:
+
+**Real-world analogies:**
+
+- **Stack of plates**: Last plate placed on top is first to be used
+- **Browser history**: "Back" button returns to the most recent page
+- **Function call stack**: Functions return in reverse order of calling
+- **Undo/Redo**: Last action is first to be undone
+
+**Why LIFO matters:**
+
+```
+Function A calls Function B calls Function C
+
+Call Stack:
++-------+
+|   C   |  ← Last called, first to return
++-------+
+|   B   |
++-------+
+|   A   |
++-------+
+
+When C returns, we're back in B, not A
+```
+
+## HOW Stacks Work
+
+### Visual Representation
+
+```
+Push(5)    Push(10)   Push(15)   Pop()      Peek()
++-------+  +-------+  +-------+  +-------+  +-------+
+|       |  |   15  |  |   15  |  |   10  |  |   10  |
++-------+  +-------+  +-------+  +-------+  +-------+
+|       |  |       |  |   10  |  |   10  |  |   10  |
++-------+  +-------+  +-------+  +-------+  +-------+
+|       |  |       |  |       |  |   5   |  |   5   |
++-------+  +-------+  +-------+  +-------+  +-------+
+ EMPTY     5          5,10       5,10       5,10
+```
+
+**WHY only one end?** By restricting operations to one end, we get predictable LIFO behavior. This simplicity enables powerful applications.
+
+## Pseudo Code: Stack Operations
+
+### Abstract Data Type
+
+```
+DEFINE CLASS Stack:
+    items: LIST OF ELEMENT
+    top: INTEGER
+
+    FUNCTION initialize():
+        items = EMPTY_LIST
+        top = -1
+
+    FUNCTION push(value):
+        items.append(value)
+        top = top + 1
+
+    FUNCTION pop():
+        IF is_empty():
+            RETURN ERROR "Stack underflow"
+        top = top - 1
+        RETURN items[top]
+
+    FUNCTION peek():
+        IF is_empty():
+            RETURN ERROR "Stack empty"
+        RETURN items[top]
+
+    FUNCTION is_empty():
+        RETURN top < 0
+
+    FUNCTION size():
+        RETURN top + 1
+```
+
+### Array-Based Implementation
+
+```
+FUNCTION create_stack_array(capacity):
+    stack = NEW Stack
+    stack.items = NEW ARRAY(capacity)
+    stack.top = -1
+    RETURN stack
+
+FUNCTION push_array(stack, value):
+    IF stack.top + 1 >= stack.capacity:
+        RETURN false  // Overflow
+    stack.top = stack.top + 1
+    stack.items[stack.top] = value
+    RETURN true
+
+FUNCTION pop_array(stack):
+    IF stack.top < 0:
+        RETURN ERROR  // Underflow
+    stack.top = stack.top - 1
+    RETURN stack.items[stack.top + 1]
+```
+
+### Linked List Implementation
+
+```
+FUNCTION create_stack_linked():
+    stack = NEW Stack
+    stack.head = NULL
+    stack.size = 0
+    RETURN stack
+
+FUNCTION push_linked(stack, value):
+    new_node = NEW Node(value)
+    new_node.next = stack.head
+    stack.head = new_node
+    stack.size = stack.size + 1
+
+FUNCTION pop_linked(stack):
+    IF stack.head == NULL:
+        RETURN ERROR  // Underflow
+    value = stack.head.data
+    stack.head = stack.head.next
+    stack.size = stack.size - 1
+    RETURN value
+```
+
+## Time Complexity Analysis
+
+| Operation | Array Stack | Linked List Stack | WHY                   |
+| --------- | ----------- | ----------------- | --------------------- |
+| Push      | O(1)        | O(1)              | Add at end/head       |
+| Pop       | O(1)        | O(1)              | Remove from end/head  |
+| Peek      | O(1)        | O(1)              | Read without removing |
+| Search    | O(n)        | O(n)              | Must traverse         |
+| Space     | O(n)        | O(n)              | Store n elements      |
+
+## Pros and Cons
+
+### Pros
+
+| Advantage                   | Explanation                              |
+| --------------------------- | ---------------------------------------- |
+| **O(1) Push and Pop**       | All operations at one end                |
+| **Simple Implementation**   | Very basic data structure                |
+| **Natural LIFO Behavior**   | Perfect for call stack, undo, etc.       |
+| **Memory Efficient**        | Array version: no overhead               |
+| **Predictable Performance** | Always constant time                     |
+| **Enforces Order**          | Last in, first out enforced by structure |
+
+### Cons
+
+| Disadvantage           | Explanation                         |
+| ---------------------- | ----------------------------------- |
+| **No Random Access**   | Cannot access elements in middle    |
+| **No Search by Value** | Must pop elements to find something |
+| **Fixed Size (array)** | Must pre-allocate capacity          |
+| **Stack Overflow**     | Can exceed available memory         |
+| **One-Way Access**     | Only top element accessible         |
+
+## When to Use Stacks
+
+### Use Stacks When:
+
+✓ You need LIFO behavior  
+✓ Function call/return tracking  
+✓ Undo/Redo functionality  
+✓ Expression evaluation  
+✓ Backtracking algorithms  
+✓ Parsing (syntax checking)  
+✓ Depth-first search (DFS)  
+✓ Matching parentheses/brackets
+
+### Don't Use Stacks When:
+
+✗ You need to access elements in middle  
+✗ You need random access  
+✗ You need to search by value  
+✗ FIFO behavior is needed (use queue instead)
+
+## Stack Applications in Detail
+
+### 1. Function Call Stack
+
+```pseudo
+FUNCTION main():
+    print_a()
+    print_b()
+
+FUNCTION print_a():
+    print("A")
+
+FUNCTION print_b():
+    print("B")
+
+// Execution:
+// main() called
+//   print_a() pushed
+//     print("A")
+//   print_a() popped
+//   print_b() pushed
+//     print("B")
+//   print_b() popped
+// main() popped
+```
+
+**WHY this matters:**
+
+- Each function gets its own stack frame
+- Local variables stored in frame
+- When function returns, frame is popped
+- Stack overflow = too many nested calls
+
+### 2. Expression Evaluation
+
+```
+Infix:     (3 + 4) * 5
+Postfix:   3 4 + 5 *    (easier to evaluate)
+
+Evaluation:
+1. Push 3
+2. Push 4
+3. See +, pop 4 and 3, push 7
+4. Push 5
+5. See *, pop 5 and 7, push 35
+Result: 35
+```
+
+**WHY postfix is better:**
+
+- No precedence rules needed
+- No parentheses needed
+- Single pass evaluation
+- Easy with stack
+
+### 3. Balancing Parentheses
+
+```
+Function is_balanced(expression):
+    stack = new Stack
+
+    FOR each character in expression:
+        IF character is opening bracket:
+            push(stack, character)
+        ELSE IF character is closing bracket:
+            IF stack is empty:
+                RETURN false
+            top = pop(stack)
+            IF top doesn't match closing bracket:
+                RETURN false
+
+    RETURN stack is empty
+```
+
+Test: `[(A+B) * (C-D)]` → Balanced
+Test: `[(A+B) * (C-D]` → Not balanced
+
+## Implementation Comparison
+
+### Array-Based Stack
 
 ```c
-// Stack as array
-#define MAX_SIZE 100
+#define MAX_SIZE 1000
 
 typedef struct {
-    int items[MAX_SIZE];
+    int data[MAX_SIZE];
     int top;
-} Stack;
+} ArrayStack;
 
-// Initialize stack
-void initStack(Stack *s) {
+// Initialize
+void init(ArrayStack *s) {
     s->top = -1;
 }
 
-// Check if empty
-int isEmpty(Stack *s) {
-    return s->top == -1;
-}
-
-// Check if full
-int isFull(Stack *s) {
-    return s->top == MAX_SIZE - 1;
-}
-
-// Push - add element to top
-void push(Stack *s, int value) {
-    if (isFull(s)) {
-        printf("Stack overflow\n");
+// Push
+void push(ArrayStack *s, int value) {
+    if (s->top >= MAX_SIZE - 1) {
+        // Stack overflow
         return;
     }
-    s->items[++s->top] = value;
+    s->data[++s->top] = value;
 }
 
-// Pop - remove and return top element
-int pop(Stack *s) {
-    if (isEmpty(s)) {
-        printf("Stack underflow\n");
+// Pop
+int pop(ArrayStack *s) {
+    if (s->top < 0) {
+        // Stack underflow
         return -1;
     }
-    return s->items[s->top--];
-}
-
-// Peek - view top element without removing
-int peek(Stack *s) {
-    if (isEmpty(s)) {
-        return -1;
-    }
-    return s->items[s->top];
+    return s->data[s->top--];
 }
 ```
 
-## Stack as Linked List
+**Best for:** Fixed size known, performance critical
+**Worst for:** Unknown size, memory constrained
+
+### Linked List Stack
 
 ```c
-typedef struct SNode {
+typedef struct Node {
     int data;
-    struct SNode *next;
-} SNode;
+    struct Node *next;
+} Node;
 
-void pushLinked(SNode **top, int value) {
-    SNode *newNode = (SNode *)malloc(sizeof(SNode));
-    newNode->data = value;
-    newNode->next = *top;
-    *top = newNode;
+typedef struct {
+    Node *top;
+    int size;
+} LinkedStack;
+
+// Push
+void push(LinkedStack *s, int value) {
+    Node *new = malloc(sizeof(Node));
+    new->data = value;
+    new->next = s->top;
+    s->top = new;
+    s->size++;
 }
 
-int popLinked(SNode **top) {
-    if (*top == NULL) return -1;
-    SNode *temp = *top;
+// Pop
+int pop(LinkedStack *s) {
+    if (s->top == NULL) return -1;
+    Node *temp = s->top;
     int value = temp->data;
-    *top = (*top)->next;
+    s->top = temp->next;
     free(temp);
+    s->size--;
     return value;
 }
 ```
 
-## Time Complexity
+**Best for:** Unknown size, dynamic growth
+**Worst for:** Performance-critical (malloc overhead)
 
-| Operation | Array Stack | Linked List Stack |
-| --------- | ----------- | ----------------- |
-| Push      | O(1)        | O(1)              |
-| Pop       | O(1)        | O(1)              |
-| Peek      | O(1)        | O(1)              |
-| Space     | O(n)        | O(n)              |
+## Key Takeaways
+
+1. **LIFO is the defining characteristic** - Last in, first out
+2. **All operations are O(1)** - Push, pop, peek all constant time
+3. **Perfect for function calls** - Natural match to how functions work
+4. **Essential for parsing** - Parentheses matching, expression evaluation
+5. **Two implementations** - Array (fixed, fast) vs Linked List (dynamic)
+6. **Stack overflow is real** - Recursion depth limited by stack size

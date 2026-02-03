@@ -14,13 +14,16 @@ This course takes you beyond the fundamentals into the advanced concepts that se
 
 ## What You'll Learn
 
-- **Phase 8**: The C Preprocessor & Build Model — macros, conditional compilation, header guards
-- **Phase 9**: Debugging, Tooling & Inspection — gdb, sanitizers, compiler warnings, optimization
-- **Phase 10**: The C Standard Library — internals of string.h, stdlib.h, stdio.h, errno patterns
-- **Phase 11**: Undefined Behavior & Memory Model — strict aliasing, sequence points, pointer lifetime
-- **Phase 12**: Reading & Writing Real C Code — style patterns, defensive idioms, API design
+- **Lesson 1**: Debugging, Tooling & Inspection — gdb, sanitizers, compiler warnings, optimization, profiling
+- **Lesson 2**: The C Preprocessor & Build Model — macros, conditional compilation, header guards, safe patterns
+- **Lesson 3**: Function Pointers and Callbacks — function pointers, callbacks, qsort, event handlers, state machines
+- **Lesson 4**: The C Standard Library — internals of string.h, stdlib.h, stdio.h, errno patterns
+- **Lesson 5**: Systems Programming — POSIX APIs, process management, fork/exec, pipes and IPC
+- **Lesson 6**: Undefined Behavior & Memory Model — strict aliasing, sequence points, pointer lifetime
 - **Project 1**: Custom Memory Allocator — implement malloc/free with alignment and debugging
+- **Lesson 8**: Reading & Writing Real C Code — style patterns, defensive idioms, API design
 - **Project 2**: Data Structure Library — generic containers with custom allocator support
+- **Project 3**: Unix Shell — build a shell with command parsing, process management, I/O redirection, pipelines
 
 ## Prerequisites
 
@@ -45,7 +48,7 @@ Most C programmers stop at the basics. This course covers the advanced concepts 
 
 ## Course Structure
 
-This course includes **5 phases** and **2 projects** with approximately **58 steps** of comprehensive content. Each step includes:
+This course includes **6 instructional lessons** and **3 comprehensive projects**. Each step includes:
 
 - Clear learning objectives
 - Code examples showing both good and bad patterns
@@ -53,11 +56,20 @@ This course includes **5 phases** and **2 projects** with approximately **58 ste
 - Common pitfalls and how to avoid them
 - Real-world context from major C projects
 
+The course is organized to build on the foundation from "Learning C":
+
+1. **Tooling First** — Start by mastering debugging tools (gdb, sanitizers) you'll use throughout the course
+2. **Language Mastery** — Deep dive into the preprocessor, function pointers, and standard library
+3. **Systems Programming** — Learn POSIX APIs, process management, and inter-process communication
+4. **Advanced Topics** — Understand undefined behavior and professional code patterns
+5. **Capstone Projects** — Build a memory allocator, data structure library, and Unix shell
+
 ## Projects
 
-You'll build two substantial projects:
+You'll build three substantial projects:
 
 1. **Memory Allocator** — Implement your own malloc/free with alignment tracking, debugging features, and performance benchmarking
 2. **Data Structure Library** — Create generic containers (vector, hash map) with type-safe APIs, custom allocator support, and comprehensive testing
+3. **Unix Shell** — Build a command-line shell with process management, I/O redirection, and pipelines
 
 Let's dive into professional C programming.

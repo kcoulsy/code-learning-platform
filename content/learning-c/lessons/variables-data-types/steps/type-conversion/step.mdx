@@ -8,6 +8,103 @@ order: 5
 
 In C, you often need to convert values from one data type to another. This conversion can happen automatically (implicit) or through explicit instructions (casting). Understanding when and how these conversions occur is crucial for writing correct and predictable code.
 
+## ⚠️ The Silent Killers: Implicit Conversions
+
+**Why "silent killers"?** Type conversions happen automatically without warning, and bugs from unexpected conversions are notoriously hard to debug because:
+- The code compiles without errors
+- Problems appear as wrong results, not crashes
+- The bug might only show up with certain input values
+- The behavior can differ across systems
+
+**The three most dangerous conversion bugs:**
+
+### 1. Integer Division Surprise
+```c
+int students = 7;
+int pizzas = 3;
+double slicesPerStudent = pizzas / students;  // Result: 0.000000 (NOT 0.428571!)
+// Why: pizzas/students calculated as int (=0), THEN converted to double (=0.0)
+```
+
+**The fix:**
+```c
+double slicesPerStudent = (double)pizzas / students;  // 0.428571
+```
+
+### 2. Overflow Before Conversion
+```c
+int a = 50000;
+int b = 50000;
+long long result = a * b;  // Result: -1794967296 (OVERFLOW!)
+// Why: a*b calculated as int (overflows to negative), THEN converted to long long
+```
+
+**The fix:**
+```c
+long long result = (long long)a * b;  // 2,500,000,000 (correct)
+```
+
+### 3. Signed/Unsigned Comparison Trap
+```c
+int count = -5;
+unsigned int size = 10;
+if (count < size) {  // FALSE! (unexpected)
+    // Never executes because count becomes huge unsigned value
+}
+// Why: count converted to unsigned (becomes 4,294,967,291), which is > 10
+```
+
+**The fix:**
+```c
+if (count < (int)size) {  // TRUE (expected)
+```
+
+**Key insight:** Conversions happen at the **wrong time** - during intermediate calculations before you assign the result. You must cast BEFORE the operation, not after.
+
+## Understanding Type Promotion: A Mental Model
+
+**Think of it like this:** C has a "promotion ladder" for types. When you mix types in an expression, C climbs the ladder to find a common type that can hold both values without loss.
+
+**The Type Promotion Ladder:**
+```
+    double     ← Top: largest, most precise
+      ↑
+    float
+      ↑
+  unsigned long
+      ↑
+    long
+      ↑
+  unsigned int
+      ↑
+    int        ← Bottom: smallest used in calculations
+   (char, short promote to int first)
+```
+
+**How it works:**
+1. **Integer promotion**: `char` and `short` automatically become `int`
+2. **Find common type**: Look at both operands, pick the higher one on the ladder
+3. **Convert lower to higher**: Smaller type converted to larger type
+4. **Perform operation**: Both operands now same type
+
+**Example:**
+```c
+int i = 10;        // Step on: int
+float f = 3.5;     // Step on: float
+double d = i + f;  // i promoted to float, then operation, then float→double
+
+Steps:
+1. i (int) promoted to float (10.0f)
+2. 10.0f + 3.5f = 13.5f (float)
+3. 13.5f assigned to d, promoted to double (13.5)
+```
+
+**This explains why:**
+- `5 / 2` = `2` (both int, no promotion needed, stays int)
+- `5.0 / 2` = `2.5` (2 promoted to float, result is float)
+- `char + char` gives `int` (both promoted before addition)
+- Mixing signed/unsigned converts to unsigned (unsigned is "higher")
+
 ## Implicit Type Conversion
 
 Implicit conversion (also called coercion) happens automatically when you mix different data types in expressions. C follows specific rules to determine how to convert values.
@@ -209,6 +306,104 @@ int main(void) {
 }
 ```
 
+## Debugging: Warnings and Errors You'll See
+
+### Warning: `conversion from 'double' to 'int' may alter its value`
+
+**What it means:** You're assigning a floating-point value to an integer, which will truncate the decimal part.
+
+**Example:**
+```c
+double price = 19.99;
+int dollars = price;  // Warning: loses .99
+```
+
+**When you'll see it:** Compile with `-Wconversion`:
+```bash
+gcc -Wconversion program.c
+```
+
+**How to fix:** If truncation is intentional, use explicit cast to show you meant it:
+```c
+int dollars = (int)price;  // Explicit: "I know I'm truncating"
+```
+
+### Warning: `comparison of integers of different signs`
+
+**What it means:** Comparing signed and unsigned values can give unexpected results.
+
+**Example:**
+```c
+int count = -5;
+unsigned int size = 10;
+if (count < size) {  // Warning!
+    // ...
+}
+```
+
+**What you'll see:**
+```
+warning: comparison of integers of different signs: 'int' and 'unsigned int'
+```
+
+**How to fix:** Cast to same sign:
+```c
+if (count < (int)size) {  // Both signed
+```
+
+### Warning: `integer overflow in expression`
+
+**What it means:** Calculation overflows before being assigned to larger type.
+
+**Example:**
+```c
+int a = 50000;
+long long result = a * a;  // Warning: overflow in 'a * a'
+```
+
+**How to fix:**
+```c
+long long result = (long long)a * a;  // Cast before multiplication
+```
+
+### Runtime: Unexpected Negative Numbers (Overflow)
+
+**What happens:** Integer overflow wraps around to negative numbers.
+
+**Example:**
+```c
+int big = 2147483647;  // Max int (32-bit)
+big = big + 1;          // Wraps to -2147483648!
+printf("%d\n", big);    // Prints: -2147483648
+```
+
+**What you'll see:** No error! Just wrong results.
+
+**How to detect:**
+- Use `-ftrapv` flag to catch at runtime: `gcc -ftrapv program.c`
+- Use unsigned types if you don't need negative values
+- Check before operation: `if (a > INT_MAX - b) /* overflow */`
+
+### Runtime: Wrong Division Results
+
+**What happens:** Integer division gives truncated result when you expected decimal.
+
+**Example:**
+```c
+printf("Average: %f\n", 7 / 3);  // Prints: 0.000000 (not 2.333333!)
+```
+
+**How to debug:**
+- Add debug prints: `printf("7/3 as int: %d\n", 7/3);  // Shows: 2`
+- Check operand types before division
+- Cast if both operands are integers
+
+**The fix:**
+```c
+printf("Average: %f\n", 7.0 / 3);     // 2.333333
+printf("Average: %f\n", (double)7 / 3);  // 2.333333
+```
+
 ## Common Pitfalls
 
 **Integer Division Surprise**
@@ -223,11 +418,32 @@ double result = a / b;           // Result is 2.0, not 2.5!
 **Overflow in Intermediate Results**
 Overflow can occur during calculation even if the final type is large enough.
 
+**Why it happens:** The operation is performed FIRST (as int), THEN the result is converted to the target type.
+
 ```c
 int a = 50000;
 int b = 50000;
 long long result = a * b;        // Overflow! a*b calculated as int first
-// Fix: long long result = (long long)a * b;
+                                 // 50000 * 50000 = 2,500,000,000
+                                 // Max int = 2,147,483,647
+                                 // Result wraps to: -1,794,967,296
+printf("%lld\n", result);        // Prints: -1794967296 (WRONG!)
+```
+
+**The fix - Cast BEFORE the operation:**
+```c
+long long result = (long long)a * b;  // One operand cast is enough
+printf("%lld\n", result);             // Prints: 2500000000 (correct!)
+```
+
+**Prevention:**
+- When multiplying large ints, cast first: `(long long)a * b`
+- Use compiler warnings: `gcc -Woverflow`
+- For critical code, check bounds before operation:
+```c
+if (a > LLONG_MAX / b) {
+    // Would overflow
+}
 ```
 
 **Truncation Instead of Rounding**

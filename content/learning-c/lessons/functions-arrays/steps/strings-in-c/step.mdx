@@ -18,6 +18,50 @@ Key concepts:
 - String literals are automatically null-terminated
 - You must manage string memory and bounds carefully
 
+## ⚠️ Critical: The #1 Beginner Mistake
+
+**Buffer overflows are the most dangerous bug in C programming.** They're responsible for countless security vulnerabilities, crashes, and unpredictable behavior.
+
+**What is a buffer overflow?**
+Writing more data into a string (buffer) than it can hold. This overwrites adjacent memory, causing:
+- **Program crashes** (segmentation faults)
+- **Data corruption** (other variables get overwritten)
+- **Security exploits** (attackers can inject malicious code)
+
+**Example of the problem:**
+```c
+char name[5];              // Only holds 4 chars + '\0'
+strcpy(name, "Alexander"); // 9 chars + '\0' = 10 bytes!
+                           // BUFFER OVERFLOW! Writes 5 extra bytes into unknown memory
+```
+
+**Why this happens:**
+- C doesn't check array bounds automatically
+- Functions like `strcpy()` don't know your array size
+- Writing past the end of an array doesn't give an immediate error
+- The bug might not show up until later, making it hard to debug
+
+**How to prevent:**
+1. **Always ensure buffers are large enough** for your data + null terminator
+2. **Use safe functions:** `strncpy()`, `snprintf()` (with size limits)
+3. **Use compiler warnings:** `gcc -Wall -Wextra`
+4. **Use sanitizers during development:** `gcc -fsanitize=address`
+5. **Never trust user input** - always validate length
+
+**Safe example:**
+```c
+char name[20];                          // Large enough for most names
+strncpy(name, user_input, sizeof(name) - 1); // Limit copy to buffer size
+name[sizeof(name) - 1] = '\0';          // Ensure null termination
+```
+
+**Security note:** Buffer overflows are used in many real-world attacks. Famous examples include:
+- Morris Worm (1988) - exploited buffer overflow in Unix
+- Code Red (2001) - exploited IIS web server
+- Heartbleed (2014) - OpenSSL vulnerability
+
+**Remember:** In C, string safety is YOUR responsibility. The language won't stop you from making dangerous mistakes.
+
 ## The Null Terminator
 
 The null terminator (`'\0'`) is a character with ASCII value 0. It tells C functions where the string ends.
@@ -29,6 +73,35 @@ Example: The string "Hello" is stored as:
 ```
 
 This requires 6 bytes: 5 for characters + 1 for `'\0'`.
+
+### Understanding the Null Terminator: A Mental Model
+
+**Think of it like this:** The null terminator is like the period at the end of a sentence. Just as a period tells you the sentence is complete, `'\0'` tells C functions "the string ends here."
+
+**Why this matters:**
+- Functions like `printf()`, `strlen()`, and `strcpy()` **depend** on finding `'\0'`
+- They loop through characters until they hit `'\0'`
+- Without `'\0'`, they'll keep reading memory until they randomly find a zero byte
+- This causes **undefined behavior** - could crash, print garbage, or corrupt data
+
+**Visual representation:**
+```
+With null terminator (correct):
+['H']['e']['l']['l']['o']['\0'] <- strlen() stops here, returns 5
+  0    1    2    3    4    5
+
+Without null terminator (bug):
+['H']['e']['l']['l']['o'][???][???][???]['\0'] <- strlen() keeps going!
+  0    1    2    3    4    5    6    7    8    <- returns who knows what!
+```
+
+**Key insight:** The null terminator isn't part of the string content (it's not printed), but it's **essential metadata** that marks the boundary. Without it, C has no idea where your string ends - there's no separate "length" field like in other languages.
+
+**This explains why:**
+- `"Hello"` needs 6 bytes of storage (not 5)
+- `char str[5] = "Hello";` is wrong (needs `char str[6]`)
+- Forgetting `'\0'` when manually building strings causes weird bugs
+- String functions must scan for `'\0'` (making them O(n), not O(1))
 
 ## Code Examples
 
@@ -378,6 +451,91 @@ Search for a fruit: Orange
 Found 'Orange' at position 3
 ```
 
+## Debugging: Error Messages You'll See
+
+### Error: `warning: initializer-string for char array is too long`
+
+**What it means:** Your string literal is too large for the array.
+
+**Example:**
+```c
+char str[5] = "Hello";  // "Hello" needs 6 bytes (5 chars + '\0')
+```
+
+**Error message:**
+```
+warning: initializer-string for char array is too long
+```
+
+**How to fix:** Make the array larger or use `char str[] = "Hello";` to auto-size.
+
+### Runtime Error: Segmentation Fault (from buffer overflow)
+
+**What it means:** Your program wrote past the end of an array and corrupted memory.
+
+**Example:**
+```c
+char name[10];
+gets(name);  // User enters more than 9 characters
+// CRASH! Buffer overflow
+```
+
+**What you'll see:**
+```
+Segmentation fault (core dumped)
+```
+
+**How to debug:**
+- Run with AddressSanitizer: `gcc -fsanitize=address -g program.c`
+- You'll see: `stack-buffer-overflow` with the exact line
+- Use `fgets()` instead of `gets()` to limit input
+
+### Error: `warning: implicit declaration of function 'strlen'`
+
+**What it means:** You used `strlen()` but forgot to include `<string.h>`.
+
+**How to fix:**
+```c
+#include <string.h>  // Add this for strlen, strcpy, strcmp, etc.
+```
+
+### Runtime Bug: Random Garbage Characters
+
+**What it means:** Missing null terminator or uninitialized array.
+
+**Example:**
+```c
+char str[10];
+str[0] = 'H';
+str[1] = 'i';
+// Forgot to add '\0' at str[2]!
+printf("%s\n", str);  // Prints: Hi█▓▒░ (garbage)
+```
+
+**How to fix:**
+```c
+char str[10];
+str[0] = 'H';
+str[1] = 'i';
+str[2] = '\0';  // Always add null terminator!
+printf("%s\n", str);  // Prints: Hi
+```
+
+### Error: `warning: format '%s' expects argument of type 'char *'`
+
+**What it means:** You passed the wrong type to `printf()` with `%s`.
+
+**Example:**
+```c
+char c = 'A';
+printf("%s", c);  // WRONG: %s expects a string (char*), not a char
+```
+
+**How to fix:**
+```c
+printf("%c", c);  // Use %c for single characters
+```
+
 ## Common Pitfalls
 
 ### Pitfall 1: Forgetting the Null Terminator
@@ -395,18 +553,43 @@ char str[] = "Hello";
 
 ### Pitfall 2: Buffer Overflow
 
+**Why it happens:** C doesn't check array bounds. Functions like `strcpy()` blindly copy until they find `'\0'`, regardless of destination size.
+
 ```c
 char name[5];  // Only holds 4 chars + '\0'
 
 // WRONG: "Alexander" is 9 chars + '\0' = 10 bytes!
-strcpy(name, "Alexander");  // BUFFER OVERFLOW!
+strcpy(name, "Alexander");  // BUFFER OVERFLOW! Writes 5 bytes into unknown memory!
+```
 
-// CORRECT: Ensure buffer is large enough
+**What you might see:**
+```
+*** stack smashing detected ***: terminated
+Aborted (core dumped)
+```
+Or worse: no error at all, but corrupted data and crashes later!
+
+**The fix - Option 1: Make buffer larger**
+```c
 char name[20];
 strcpy(name, "Alexander");  // OK, 20 >= 10
 ```
 
-**This is a major security vulnerability!** Always ensure buffers are large enough.
+**The fix - Option 2: Use safe functions**
+```c
+char name[5];
+strncpy(name, "Alexander", sizeof(name) - 1);  // Copies max 4 chars
+name[sizeof(name) - 1] = '\0';  // Ensure null termination
+// Result: "Alex" (truncated but safe)
+```
+
+**Prevention:**
+- Use `gcc -Wall -Wextra -Wformat-security` to catch some issues
+- Use `gcc -fsanitize=address` during development to catch overflows immediately
+- Use `strncpy()`, `snprintf()`, `strncat()` instead of unsafe versions
+- Always validate user input length before copying
+
+**Security note:** Buffer overflows are exploited in real attacks. NEVER use `gets()` (removed from C11), and be very careful with `strcpy()`, `strcat()`, and `sprintf()`.
 
 ### Pitfall 3: Modifying String Literals
 

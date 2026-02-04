@@ -6,6 +6,7 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 import netlify from '@netlify/vite-plugin-tanstack-start'
+import path from 'path'
 
 const config = defineConfig({
   plugins: [
@@ -20,6 +21,11 @@ const config = defineConfig({
     netlify(),
     viteReact(),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   ssr: {
     external: [
       '@tanstack/react-query',

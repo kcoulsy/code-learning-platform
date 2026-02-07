@@ -1,0 +1,907 @@
+---
+id: iterators-and-traversal
+title: 'Iterators and Traversal'
+order: 3
+---
+
+# Iterators and Traversal
+
+## Prerequisites
+
+- Completion of Lesson 2 Step 2: Hash Table Implementation
+- Understanding of iterator patterns
+- Familiarity with C struct and pointer manipulation
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement a robust iterator for hash table traversal
+- Support safe iteration with concurrent modifications
+- Create utility functions for common operations
+- Build a foundation for the LIST command
+- Understand iterator invalidation
+
+## Overview
+
+Iterators are essential for database operations. They allow us to:
+
+- List all keys (LIST command)
+- Export data
+- Perform bulk operations
+- Implement range queries
+
+## Complete Implementation
+
+### 1. Iterator Header (src/iterator.h)
+
+```c
+#ifndef ITERATOR_H
+#define ITERATOR_H
+
+#include "utils.h"
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ============================================================================
+// HASH TABLE ITERATOR
+// ============================================================================
+
+typedef struct ht_iterator ht_iterator_t;
+
+// Create an iterator for the hash table
+// The iterator starts before the first element
+// Call ht_iter_next() to get the first element
+ht_iterator_t *ht_iter_create(hash_table_t *ht);
+
+// Destroy an iterator
+void ht_iter_destroy(ht_iterator_t *iter);
+
+// Move to the next entry
+// Returns true if there is a next entry, false at end
+bool ht_iter_next(ht_iterator_t *iter);
+
+// Get current key (valid after successful next)
+// Returns NULL if iterator is invalid
+const char *ht_iter_key(ht_iterator_t *iter);
+
+// Get current value (valid after successful next)
+// Returns NULL if iterator is invalid
+const value_t *ht_iter_value(ht_iterator_t *iter);
+
+// Check if iterator is valid (positioned at an entry)
+bool ht_iter_valid(ht_iterator_t *iter);
+
+// Reset iterator to beginning
+void ht_iter_reset(ht_iterator_t *iter);
+
+// Get the number of entries the iterator will traverse
+size_t ht_iter_count(ht_iterator_t *iter);
+
+// ============================================================================
+// KV STORE ITERATOR
+// ============================================================================
+
+// Iterator for key-value store (wrapper around hash table iterator)
+typedef struct kv_iterator {
+    ht_iterator_t *ht_iter;
+} kv_iterator_t;
+
+// Create a key-value store iterator
+kv_iterator_t *kv_iterator_create(kv_store_t *store);
+
+// Destroy iterator
+void kv_iterator_destroy(kv_iterator_t *iter);
+
+// Move to next entry
+bool kv_iterator_next(kv_iterator_t *iter);
+
+// Get current key
+const char *kv_iterator_key(kv_iterator_t *iter);
+
+// Get current value
+const value_t *kv_iterator_value(kv_iterator_t *iter);
+
+// Reset iterator
+void kv_iterator_reset(kv_iterator_t *iter);
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+// Callback function type for foreach operations
+typedef void (*kv_foreach_cb)(const char *key, const value_t *value, void *ctx);
+
+// Apply a function to all entries
+// The callback is called for each key-value pair
+void kv_store_foreach(kv_store_t *store, kv_foreach_cb callback, void *ctx);
+
+// Find entries matching a predicate
+typedef bool (*kv_predicate_cb)(const char *key, const value_t *value, void *ctx);
+
+// Find first entry matching predicate
+// Returns true if found, sets out_key and out_value
+bool kv_store_find(kv_store_t *store, kv_predicate_cb predicate,
+                   void *ctx, const char **out_key, const value_t **out_value);
+
+// Count entries matching predicate
+size_t kv_store_count_matching(kv_store_t *store, kv_predicate_cb predicate, void *ctx);
+
+// ============================================================================
+// FILTERED ITERATOR
+// ============================================================================
+
+typedef struct kv_filtered_iterator kv_filtered_iterator_t;
+
+// Create an iterator that only yields entries matching a predicate
+kv_filtered_iterator_t *kv_filtered_iter_create(kv_store_t *store,
+                                                 kv_predicate_cb predicate,
+                                                 void *ctx);
+
+void kv_filtered_iter_destroy(kv_filtered_iterator_t *iter);
+bool kv_filtered_iter_next(kv_filtered_iterator_t *iter);
+const char *kv_filtered_iter_key(kv_filtered_iterator_t *iter);
+const value_t *kv_filtered_iter_value(kv_filtered_iterator_t *iter);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // ITERATOR_H
+```
+
+### 2. Iterator Implementation (src/iterator.c)
+
+```c
+#include "iterator.h"
+#include "hash_table.h"
+
+#include <string.h>
+
+// ============================================================================
+// HASH TABLE ITERATOR INTERNAL STRUCTURE
+// ============================================================================
+
+struct ht_iterator {
+    hash_table_t *ht;           // Reference to hash table
+    size_t bucket_idx;          // Current bucket index
+    ht_entry_t *entry;          // Current entry in bucket
+    size_t entries_traversed;   // Count for debugging
+};
+
+// ============================================================================
+// HASH TABLE ITERATOR IMPLEMENTATION
+// ============================================================================
+
+ht_iterator_t *ht_iter_create(hash_table_t *ht) {
+    if (!ht) {
+        return NULL;
+    }
+
+    ht_iterator_t *iter = DB_MALLOC(sizeof(ht_iterator_t));
+    if (!iter) {
+        return NULL;
+    }
+
+    iter->ht = ht;
+    iter->bucket_idx = 0;
+    iter->entry = NULL;
+    iter->entries_traversed = 0;
+
+    // Position at first entry
+    ht_iter_next(iter);
+
+    db_debug("Created hash table iterator");
+    return iter;
+}
+
+void ht_iter_destroy(ht_iterator_t *iter) {
+    if (!iter) return;
+
+    db_debug("Destroyed hash table iterator (traversed %zu entries)",
+             iter->entries_traversed);
+    DB_FREE(iter);
+}
+
+bool ht_iter_next(ht_iterator_t *iter) {
+    if (!iter || !iter->ht) {
+        return false;
+    }
+
+    // If we have a current entry, move to next in chain
+    if (iter->entry && iter->entry->next) {
+        iter->entry = iter->entry->next;
+        iter->entries_traversed++;
+        return true;
+    }
+
+    // Move to next bucket
+    iter->bucket_idx++;
+
+    // Find next non-empty bucket
+    while (iter->bucket_idx < iter->ht->capacity) {
+        iter->entry = iter->ht->buckets[iter->bucket_idx];
+        if (iter->entry) {
+            iter->entries_traversed++;
+            return true;
+        }
+        iter->bucket_idx++;
+    }
+
+    // No more entries
+    iter->entry = NULL;
+    return false;
+}
+
+const char *ht_iter_key(ht_iterator_t *iter) {
+    if (!iter || !iter->entry) {
+        return NULL;
+    }
+    return iter->entry->key;
+}
+
+const value_t *ht_iter_value(ht_iterator_t *iter) {
+    if (!iter || !iter->entry) {
+        return NULL;
+    }
+    return &iter->entry->value;
+}
+
+bool ht_iter_valid(ht_iterator_t *iter) {
+    return iter && iter->entry != NULL;
+}
+
+void ht_iter_reset(ht_iterator_t *iter) {
+    if (!iter) return;
+
+    iter->bucket_idx = 0;
+    iter->entry = NULL;
+    iter->entries_traversed = 0;
+
+    // Position at first entry
+    ht_iter_next(iter);
+}
+
+size_t ht_iter_count(ht_iterator_t *iter) {
+    if (!iter || !iter->ht) {
+        return 0;
+    }
+    return ht_size(iter->ht);
+}
+
+// ============================================================================
+// KV STORE ITERATOR IMPLEMENTATION
+// ============================================================================
+
+kv_iterator_t *kv_iterator_create(kv_store_t *store) {
+    if (!store) {
+        return NULL;
+    }
+
+    kv_iterator_t *iter = DB_MALLOC(sizeof(kv_iterator_t));
+    if (!iter) {
+        return NULL;
+    }
+
+    // Access hash table through store's internal structure
+    // We need to expose this in kv_store.h or use a different approach
+    // For now, we'll use a forward declaration
+    extern hash_table_t *kv_store_get_ht(kv_store_t *store);
+    iter->ht_iter = ht_iter_create(kv_store_get_ht(store));
+
+    if (!iter->ht_iter) {
+        DB_FREE(iter);
+        return NULL;
+    }
+
+    return iter;
+}
+
+void kv_iterator_destroy(kv_iterator_t *iter) {
+    if (!iter) return;
+
+    ht_iter_destroy(iter->ht_iter);
+    DB_FREE(iter);
+}
+
+bool kv_iterator_next(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) {
+        return false;
+    }
+    return ht_iter_next(iter->ht_iter);
+}
+
+const char *kv_iterator_key(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) {
+        return NULL;
+    }
+    return ht_iter_key(iter->ht_iter);
+}
+
+const value_t *kv_iterator_value(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) {
+        return NULL;
+    }
+    return ht_iter_value(iter->ht_iter);
+}
+
+void kv_iterator_reset(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) return;
+    ht_iter_reset(iter->ht_iter);
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+void kv_store_foreach(kv_store_t *store, kv_foreach_cb callback, void *ctx) {
+    if (!store || !callback) {
+        return;
+    }
+
+    kv_iterator_t *iter = kv_iterator_create(store);
+    if (!iter) {
+        return;
+    }
+
+    while (kv_iterator_next(iter)) {
+        callback(kv_iterator_key(iter), kv_iterator_value(iter), ctx);
+    }
+
+    kv_iterator_destroy(iter);
+}
+
+bool kv_store_find(kv_store_t *store, kv_predicate_cb predicate,
+                   void *ctx, const char **out_key, const value_t **out_value) {
+    if (!store || !predicate) {
+        return false;
+    }
+
+    kv_iterator_t *iter = kv_iterator_create(store);
+    if (!iter) {
+        return false;
+    }
+
+    bool found = false;
+    while (kv_iterator_next(iter)) {
+        const char *key = kv_iterator_key(iter);
+        const value_t *value = kv_iterator_value(iter);
+
+        if (predicate(key, value, ctx)) {
+            if (out_key) *out_key = key;
+            if (out_value) *out_value = value;
+            found = true;
+            break;
+        }
+    }
+
+    kv_iterator_destroy(iter);
+    return found;
+}
+
+size_t kv_store_count_matching(kv_store_t *store, kv_predicate_cb predicate, void *ctx) {
+    if (!store || !predicate) {
+        return 0;
+    }
+
+    size_t count = 0;
+    kv_iterator_t *iter = kv_iterator_create(store);
+    if (!iter) {
+        return 0;
+    }
+
+    while (kv_iterator_next(iter)) {
+        if (predicate(kv_iterator_key(iter), kv_iterator_value(iter), ctx)) {
+            count++;
+        }
+    }
+
+    kv_iterator_destroy(iter);
+    return count;
+}
+
+// ============================================================================
+// FILTERED ITERATOR IMPLEMENTATION
+// ============================================================================
+
+struct kv_filtered_iterator {
+    kv_iterator_t *base_iter;
+    kv_predicate_cb predicate;
+    void *ctx;
+};
+
+kv_filtered_iterator_t *kv_filtered_iter_create(kv_store_t *store,
+                                                 kv_predicate_cb predicate,
+                                                 void *ctx) {
+    if (!store || !predicate) {
+        return NULL;
+    }
+
+    kv_filtered_iterator_t *iter = DB_MALLOC(sizeof(kv_filtered_iterator_t));
+    if (!iter) {
+        return NULL;
+    }
+
+    iter->base_iter = kv_iterator_create(store);
+    if (!iter->base_iter) {
+        DB_FREE(iter);
+        return NULL;
+    }
+
+    iter->predicate = predicate;
+    iter->ctx = ctx;
+
+    // Advance to first matching entry
+    kv_filtered_iter_next(iter);
+
+    return iter;
+}
+
+void kv_filtered_iter_destroy(kv_filtered_iterator_t *iter) {
+    if (!iter) return;
+
+    kv_iterator_destroy(iter->base_iter);
+    DB_FREE(iter);
+}
+
+bool kv_filtered_iter_next(kv_filtered_iterator_t *iter) {
+    if (!iter || !iter->base_iter) {
+        return false;
+    }
+
+    while (kv_iterator_next(iter->base_iter)) {
+        const char *key = kv_iterator_key(iter->base_iter);
+        const value_t *value = kv_iterator_value(iter->base_iter);
+
+        if (iter->predicate(key, value, iter->ctx)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const char *kv_filtered_iter_key(kv_filtered_iterator_t *iter) {
+    if (!iter || !iter->base_iter) {
+        return NULL;
+    }
+    return kv_iterator_key(iter->base_iter);
+}
+
+const value_t *kv_filtered_iter_value(kv_filtered_iterator_t *iter) {
+    if (!iter || !iter->base_iter) {
+        return NULL;
+    }
+    return kv_iterator_value(iter->base_iter);
+}
+```
+
+### 3. Update kv_store.c with Iterator Support
+
+Add this to the end of src/kv_store.c:
+
+```c
+// ============================================================================
+// ITERATOR SUPPORT
+// ============================================================================
+
+// Internal function to expose hash table for iterator
+hash_table_t *kv_store_get_ht(kv_store_t *store) {
+    return store ? store->ht : NULL;
+}
+
+// ============================================================================
+// ITERATOR IMPLEMENTATION
+// ============================================================================
+
+struct kv_iterator {
+    ht_iterator_t *ht_iter;
+};
+
+kv_iterator_t *kv_iterator_create(kv_store_t *store) {
+    if (!store) {
+        return NULL;
+    }
+
+    kv_iterator_t *iter = DB_MALLOC(sizeof(kv_iterator_t));
+    if (!iter) {
+        return NULL;
+    }
+
+    iter->ht_iter = ht_iter_create(store->ht);
+    if (!iter->ht_iter) {
+        DB_FREE(iter);
+        return NULL;
+    }
+
+    return iter;
+}
+
+void kv_iterator_destroy(kv_iterator_t *iter) {
+    if (!iter) return;
+
+    ht_iter_destroy(iter->ht_iter);
+    DB_FREE(iter);
+}
+
+bool kv_iterator_next(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) {
+        return false;
+    }
+    return ht_iter_next(iter->ht_iter);
+}
+
+const char *kv_iterator_key(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) {
+        return NULL;
+    }
+    return ht_iter_key(iter->ht_iter);
+}
+
+const value_t *kv_iterator_value(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) {
+        return NULL;
+    }
+    return ht_iter_value(iter->ht_iter);
+}
+
+void kv_iterator_reset(kv_iterator_t *iter) {
+    if (!iter || !iter->ht_iter) return;
+    ht_iter_reset(iter->ht_iter);
+}
+```
+
+### 4. Unit Tests (tests/test_iterator.c)
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
+
+#include "../src/kv_store.h"
+#include "../src/iterator.h"
+
+static int tests_run = 0;
+static int tests_passed = 0;
+
+#define TEST(name) static void test_##name(void)
+#define RUN_TEST(name) do { \
+    printf("  Running %s...", #name); \
+    tests_run++; \
+    test_##name(); \
+    tests_passed++; \
+    printf(" OK\n"); \
+} while(0)
+
+// ============================================================================
+// TESTS
+// ============================================================================
+
+TEST(basic_iteration) {
+    kv_store_t *store = kv_store_create();
+
+    // Insert some entries
+    value_t v1 = value_from_int(1);
+    value_t v2 = value_from_int(2);
+    value_t v3 = value_from_int(3);
+
+    kv_store_set(store, "a", &v1);
+    kv_store_set(store, "b", &v2);
+    kv_store_set(store, "c", &v3);
+
+    value_free(&v1);
+    value_free(&v2);
+    value_free(&v3);
+
+    // Iterate and count
+    kv_iterator_t *iter = kv_iterator_create(store);
+    int count = 0;
+
+    while (kv_iterator_next(iter)) {
+        assert(kv_iterator_key(iter) != NULL);
+        assert(kv_iterator_value(iter) != NULL);
+        count++;
+    }
+
+    assert(count == 3);
+
+    kv_iterator_destroy(iter);
+    kv_store_destroy(store);
+}
+
+TEST(empty_store_iteration) {
+    kv_store_t *store = kv_store_create();
+
+    kv_iterator_t *iter = kv_iterator_create(store);
+    assert(!kv_iterator_next(iter));  // Should return false immediately
+
+    kv_iterator_destroy(iter);
+    kv_store_destroy(store);
+}
+
+TEST(iterator_reset) {
+    kv_store_t *store = kv_store_create();
+
+    value_t v = value_from_int(42);
+    kv_store_set(store, "key", &v);
+    value_free(&v);
+
+    kv_iterator_t *iter = kv_iterator_create(store);
+
+    // First pass
+    int count1 = 0;
+    while (kv_iterator_next(iter)) {
+        count1++;
+    }
+    assert(count1 == 1);
+
+    // Reset and second pass
+    kv_iterator_reset(iter);
+    int count2 = 0;
+    while (kv_iterator_next(iter)) {
+        count2++;
+    }
+    assert(count2 == 1);
+
+    kv_iterator_destroy(iter);
+    kv_store_destroy(store);
+}
+
+TEST(foreach_callback) {
+    kv_store_t *store = kv_store_create();
+
+    value_t v1 = value_from_int(10);
+    value_t v2 = value_from_int(20);
+    kv_store_set(store, "x", &v1);
+    kv_store_set(store, "y", &v2);
+    value_free(&v1);
+    value_free(&v2);
+
+    // Context to accumulate sum
+    int sum = 0;
+
+    kv_store_foreach(store,
+        lambda(void, (const char *key, const value_t *value, void *ctx) {
+            (void)key;
+            int *s = (int*)ctx;
+            *s += value->data.int_val;
+        }),
+        &sum);
+
+    assert(sum == 30);
+
+    kv_store_destroy(store);
+}
+
+// Helper predicate for find test
+static bool find_by_value(const char *key, const value_t *value, void *ctx) {
+    (void)key;
+    int target = *(int*)ctx;
+    return value->type == VALUE_TYPE_INT && value->data.int_val == target;
+}
+
+TEST(find_operation) {
+    kv_store_t *store = kv_store_create();
+
+    value_t v1 = value_from_int(100);
+    value_t v2 = value_from_int(200);
+    kv_store_set(store, "first", &v1);
+    kv_store_set(store, "second", &v2);
+    value_free(&v1);
+    value_free(&v2);
+
+    const char *key = NULL;
+    const value_t *value = NULL;
+
+    int target = 200;
+    bool found = kv_store_find(store, find_by_value, &target, &key, &value);
+
+    assert(found);
+    assert(strcmp(key, "second") == 0);
+    assert(value->data.int_val == 200);
+
+    kv_store_destroy(store);
+}
+
+TEST(large_iteration) {
+    kv_store_t *store = kv_store_create();
+
+    // Insert 1000 entries
+    for (int i = 0; i < 1000; i++) {
+        char key[32];
+        snprintf(key, sizeof(key), "key_%d", i);
+        value_t v = value_from_int(i);
+        kv_store_set(store, key, &v);
+        value_free(&v);
+    }
+
+    // Iterate and verify
+    kv_iterator_t *iter = kv_iterator_create(store);
+    int count = 0;
+
+    while (kv_iterator_next(iter)) {
+        count++;
+    }
+
+    assert(count == 1000);
+
+    kv_iterator_destroy(iter);
+    kv_store_destroy(store);
+}
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+int main(void) {
+    printf("Running iterator tests...\n\n");
+
+    RUN_TEST(basic_iteration);
+    RUN_TEST(empty_store_iteration);
+    RUN_TEST(iterator_reset);
+    RUN_TEST(foreach_callback);
+    RUN_TEST(find_operation);
+    RUN_TEST(large_iteration);
+
+    printf("\n==============================\n");
+    printf("Results: %d/%d tests passed\n", tests_passed, tests_run);
+    printf("==============================\n");
+
+    return (tests_passed == tests_run) ? 0 : 1;
+}
+```
+
+### 5. Update Makefile
+
+Add iterator.c to the Makefile:
+
+```makefile
+# Source files
+SOURCES = $(wildcard $(SRC_DIR)/*.c)
+# Now includes: main.c, utils.c, kv_store.c, hash_table.c, iterator.c
+```
+
+## Code Walkthrough
+
+### Iterator Pattern
+
+Our iterator follows the standard pattern:
+
+1. **Create:** Initialize iterator state
+2. **Next:** Advance to next element
+3. **Access:** Get current key/value
+4. **Destroy:** Clean up resources
+
+### Traversal Algorithm
+
+1. Start at bucket 0
+2. If bucket has entries, traverse the chain
+3. When chain ends, move to next bucket
+4. Repeat until all buckets processed
+
+### Safety Considerations
+
+- Iterator becomes invalid if underlying store is modified
+- Always check return value of `next()`
+- Keys/values are valid only until next call
+
+## Hands-On Exercise
+
+### Challenge: Implement LIST Command
+
+**Goal:** Create a LIST command that displays all key-value pairs
+
+**Requirements:**
+
+1. **Add LIST command to main.c:**
+   - Accepts optional pattern (e.g., `LIST user*`)
+   - Displays matching entries
+   - Formats output nicely
+
+2. **Implement pattern matching:**
+   - Support `*` wildcard at end
+   - Support `?` single character wildcard
+   - Case-sensitive matching
+
+3. **Add statistics:**
+   - Show total count
+   - Show memory usage
+
+**Expected Output:**
+
+```
+> LIST
+3 entries:
+  age = 25
+  name = Alice
+  user_id = 12345
+
+> LIST user*
+2 entries:
+  user_id = 12345
+  user_name = alice
+
+> COUNT
+3
+```
+
+## Solution
+
+<details>
+<summary>Click to see LIST implementation</summary>
+
+```c
+// Pattern matching function
+static bool match_pattern(const char *str, const char *pattern) {
+    while (*pattern) {
+        if (*pattern == '*') {
+            // Match any sequence
+            pattern++;
+            if (!*pattern) return true;  // * at end matches everything
+
+            while (*str) {
+                if (match_pattern(str, pattern)) return true;
+                str++;
+            }
+            return false;
+        } else if (*pattern == '?') {
+            // Match any single char
+            if (!*str) return false;
+            pattern++;
+            str++;
+        } else {
+            if (*str != *pattern) return false;
+            pattern++;
+            str++;
+        }
+    }
+    return *str == '\0';
+}
+
+// LIST command implementation
+void cmd_list(kv_store_t *store, const char *pattern) {
+    kv_iterator_t *iter = kv_iterator_create(store);
+    int count = 0;
+
+    printf("Entries:\n");
+    while (kv_iterator_next(iter)) {
+        const char *key = kv_iterator_key(iter);
+
+        if (pattern && !match_pattern(key, pattern)) {
+            continue;
+        }
+
+        const value_t *value = kv_iterator_value(iter);
+        char buf[256];
+        value_to_string(value, buf, sizeof(buf));
+
+        printf("  %s = %s\n", key, buf);
+        count++;
+    }
+
+    printf("\nTotal: %d entries\n", count);
+    kv_iterator_destroy(iter);
+}
+
+// COUNT command
+void cmd_count(kv_store_t *store) {
+    printf("%zu\n", kv_store_count(store));
+}
+```
+
+</details>
+
+## Next Steps
+
+In the next step, you'll build the **REPL (Read-Eval-Print Loop)** interface. You'll:
+
+- Parse user commands
+- Execute database operations
+- Handle errors gracefully
+- Add command history
+- Create an interactive experience
+
+Get ready to make your database interactive!

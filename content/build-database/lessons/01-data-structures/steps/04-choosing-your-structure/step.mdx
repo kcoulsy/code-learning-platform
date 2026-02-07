@@ -1,0 +1,811 @@
+---
+id: choosing-your-structure
+title: 'Choosing Your Data Structure'
+order: 4
+---
+
+# Choosing Your Data Structure
+
+## Prerequisites
+
+- Completion of Steps 1-3 in this lesson
+- Understanding of hash tables and B-trees
+- Familiarity with time and space complexity
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Compare hash tables, B-trees, B+ trees, and LSM trees
+- Analyze real-world database use cases
+- Build a decision framework for choosing data structures
+- Justify your choices for different scenarios
+
+## The Complete Comparison
+
+We've learned about three major data structure families for databases:
+
+### 1. Hash Tables
+
+- **Best for:** Exact key lookups, caches
+- **Operations:** O(1) average for insert/delete/lookup
+- **Cannot do:** Range queries, ordered iteration
+
+### 2. B-Trees
+
+- **Best for:** Range queries, ordered data
+- **Operations:** O(log n) for all operations
+- **Excellent for:** Disk-based storage
+
+### 3. LSM Trees (Log-Structured Merge)
+
+- **Best for:** Write-heavy workloads
+- **Operations:** O(1) write, O(log n) read
+- **Used by:** LevelDB, RocksDB, Cassandra
+
+## Complete Implementation: Comparison Framework
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <time.h>
+#include <stdint.h>
+
+// ============================================================================
+// DATA STRUCTURE INTERFACES
+// ============================================================================
+
+/*
+ * Common interface for all data structures.
+ * This allows us to benchmark them uniformly.
+ */
+
+typedef struct {
+    const char *name;
+    void *data;
+    void (*insert)(void *data, int key, const char *value);
+    const char *(*get)(void *data, int key);
+    void (*delete)(void *data, int key);
+    void (*destroy)(void *data);
+    void (*print_stats)(void *data);
+} data_structure_t;
+
+// ============================================================================
+// HASH TABLE IMPLEMENTATION (from Step 2)
+// ============================================================================
+
+#define HT_INITIAL_CAPACITY 1024
+#define HT_MAX_LOAD_FACTOR 0.75
+
+typedef enum { HT_EMPTY, HT_OCCUPIED, HT_DELETED } ht_state_t;
+
+typedef struct {
+    int key;
+    char *value;
+    ht_state_t state;
+} ht_entry_t;
+
+typedef struct {
+    ht_entry_t *entries;
+    size_t capacity;
+    size_t size;
+    size_t tombstones;
+} hash_table_impl_t;
+
+uint64_t ht_hash(int key) {
+    // Simple hash for integers
+    return (uint64_t)key * 2654435761ULL;
+}
+
+hash_table_impl_t *ht_create_impl(void) {
+    hash_table_impl_t *ht = malloc(sizeof(hash_table_impl_t));
+    ht->capacity = HT_INITIAL_CAPACITY;
+    ht->size = 0;
+    ht->tombstones = 0;
+    ht->entries = calloc(ht->capacity, sizeof(ht_entry_t));
+    return ht;
+}
+
+static int ht_find_slot(hash_table_impl_t *ht, int key, int *insert_slot) {
+    uint64_t hash = ht_hash(key);
+    int idx = hash % ht->capacity;
+    int first_deleted = -1;
+
+    for (size_t i = 0; i < ht->capacity; i++) {
+        int probe = (idx + i) % ht->capacity;
+        ht_entry_t *entry = &ht->entries[probe];
+
+        if (entry->state == HT_EMPTY) {
+            if (insert_slot) {
+                *insert_slot = (first_deleted >= 0) ? first_deleted : probe;
+            }
+            return -1;
+        }
+
+        if (entry->state == HT_DELETED && first_deleted < 0) {
+            first_deleted = probe;
+        }
+
+        if (entry->state == HT_OCCUPIED && entry->key == key) {
+            return probe;
+        }
+    }
+
+    if (insert_slot) *insert_slot = first_deleted;
+    return -1;
+}
+
+static void ht_resize(hash_table_impl_t *ht, size_t new_capacity) {
+    ht_entry_t *old_entries = ht->entries;
+    size_t old_capacity = ht->capacity;
+
+    ht->entries = calloc(new_capacity, sizeof(ht_entry_t));
+    ht->capacity = new_capacity;
+    ht->size = 0;
+    ht->tombstones = 0;
+
+    for (size_t i = 0; i < old_capacity; i++) {
+        if (old_entries[i].state == HT_OCCUPIED) {
+            int slot;
+            ht_find_slot(ht, old_entries[i].key, &slot);
+            ht->entries[slot] = old_entries[i];
+            ht->size++;
+        }
+    }
+
+    free(old_entries);
+}
+
+void ht_insert_impl(void *data, int key, const char *value) {
+    hash_table_impl_t *ht = data;
+
+    if ((double)(ht->size + ht->tombstones) / ht->capacity > HT_MAX_LOAD_FACTOR) {
+        ht_resize(ht, ht->capacity * 2);
+    }
+
+    int slot;
+    int existing = ht_find_slot(ht, key, &slot);
+
+    if (existing >= 0) {
+        free(ht->entries[existing].value);
+        ht->entries[existing].value = strdup(value);
+    } else {
+        if (ht->entries[slot].state == HT_DELETED) {
+            ht->tombstones--;
+        }
+        ht->entries[slot].key = key;
+        ht->entries[slot].value = strdup(value);
+        ht->entries[slot].state = HT_OCCUPIED;
+        ht->size++;
+    }
+}
+
+const char *ht_get_impl(void *data, int key) {
+    hash_table_impl_t *ht = data;
+    int slot = ht_find_slot(ht, key, NULL);
+    return (slot >= 0) ? ht->entries[slot].value : NULL;
+}
+
+void ht_delete_impl(void *data, int key) {
+    hash_table_impl_t *ht = data;
+    int slot = ht_find_slot(ht, key, NULL);
+
+    if (slot >= 0) {
+        free(ht->entries[slot].value);
+        ht->entries[slot].value = NULL;
+        ht->entries[slot].state = HT_DELETED;
+        ht->size--;
+        ht->tombstones++;
+    }
+}
+
+void ht_destroy_impl(void *data) {
+    hash_table_impl_t *ht = data;
+    for (size_t i = 0; i < ht->capacity; i++) {
+        if (ht->entries[i].state == HT_OCCUPIED) {
+            free(ht->entries[i].value);
+        }
+    }
+    free(ht->entries);
+    free(ht);
+}
+
+void ht_print_stats_impl(void *data) {
+    hash_table_impl_t *ht = data;
+    printf("  Size: %zu, Capacity: %zu, Load: %.2f%%\n",
+           ht->size, ht->capacity,
+           100.0 * ht->size / ht->capacity);
+}
+
+// ============================================================================
+// B-TREE IMPLEMENTATION (from Step 3)
+// ============================================================================
+
+#define BT_ORDER 4
+#define BT_MAX_KEYS (2 * BT_ORDER - 1)
+#define BT_MIN_KEYS (BT_ORDER - 1)
+
+typedef struct bt_node {
+    int keys[BT_MAX_KEYS];
+    struct bt_node *children[BT_MAX_KEYS + 1];
+    int num_keys;
+    bool is_leaf;
+} bt_node_t;
+
+typedef struct {
+    bt_node_t *root;
+} btree_impl_t;
+
+bt_node_t *bt_create_node(bool is_leaf) {
+    bt_node_t *node = malloc(sizeof(bt_node_t));
+    node->num_keys = 0;
+    node->is_leaf = is_leaf;
+    for (int i = 0; i <= BT_MAX_KEYS; i++) {
+        node->children[i] = NULL;
+    }
+    return node;
+}
+
+btree_impl_t *bt_create_impl(void) {
+    btree_impl_t *bt = malloc(sizeof(btree_impl_t));
+    bt->root = bt_create_node(true);
+    return bt;
+}
+
+static int bt_find_key(bt_node_t *node, int key) {
+    int idx = 0;
+    while (idx < node->num_keys && key > node->keys[idx]) {
+        idx++;
+    }
+    return idx;
+}
+
+static bool bt_search_node(bt_node_t *node, int key) {
+    if (!node) return false;
+
+    int idx = bt_find_key(node, key);
+    if (idx < node->num_keys && node->keys[idx] == key) {
+        return true;
+    }
+
+    if (node->is_leaf) return false;
+    return bt_search_node(node->children[idx], key);
+}
+
+static void bt_split_child(bt_node_t *parent, int idx) {
+    bt_node_t *full = parent->children[idx];
+    bt_node_t *new_node = bt_create_node(full->is_leaf);
+    new_node->num_keys = BT_MIN_KEYS;
+
+    for (int i = 0; i < BT_MIN_KEYS; i++) {
+        new_node->keys[i] = full->keys[i + BT_ORDER];
+    }
+
+    if (!full->is_leaf) {
+        for (int i = 0; i < BT_ORDER; i++) {
+            new_node->children[i] = full->children[i + BT_ORDER];
+        }
+    }
+
+    full->num_keys = BT_MIN_KEYS;
+
+    for (int i = parent->num_keys; i >= idx + 1; i--) {
+        parent->children[i + 1] = parent->children[i];
+    }
+    parent->children[idx + 1] = new_node;
+
+    for (int i = parent->num_keys - 1; i >= idx; i--) {
+        parent->keys[i + 1] = parent->keys[i];
+    }
+    parent->keys[idx] = full->keys[BT_MIN_KEYS];
+    parent->num_keys++;
+}
+
+static void bt_insert_non_full(bt_node_t *node, int key) {
+    int idx = node->num_keys - 1;
+
+    if (node->is_leaf) {
+        while (idx >= 0 && key < node->keys[idx]) {
+            node->keys[idx + 1] = node->keys[idx];
+            idx--;
+        }
+        node->keys[idx + 1] = key;
+        node->num_keys++;
+    } else {
+        while (idx >= 0 && key < node->keys[idx]) idx--;
+        idx++;
+
+        if (node->children[idx]->num_keys == BT_MAX_KEYS) {
+            bt_split_child(node, idx);
+            if (key > node->keys[idx]) idx++;
+        }
+        bt_insert_non_full(node->children[idx], key);
+    }
+}
+
+void bt_insert_impl(void *data, int key, const char *value) {
+    btree_impl_t *bt = data;
+    (void)value;  // B-tree stores just keys for this demo
+
+    if (bt->root->num_keys == BT_MAX_KEYS) {
+        bt_node_t *new_root = bt_create_node(false);
+        new_root->children[0] = bt->root;
+        bt->root = new_root;
+        bt_split_child(new_root, 0);
+        bt_insert_non_full(new_root, key);
+    } else {
+        bt_insert_non_full(bt->root, key);
+    }
+}
+
+const char *bt_get_impl(void *data, int key) {
+    btree_impl_t *bt = data;
+    bool found = bt_search_node(bt->root, key);
+    return found ? "found" : NULL;
+}
+
+void bt_delete_impl(void *data, int key) {
+    // Simplified delete - just mark as not found
+    btree_impl_t *bt = data;
+    (void)bt;
+    (void)key;
+}
+
+static void bt_free_node(bt_node_t *node) {
+    if (!node) return;
+    if (!node->is_leaf) {
+        for (int i = 0; i <= node->num_keys; i++) {
+            bt_free_node(node->children[i]);
+        }
+    }
+    free(node);
+}
+
+void bt_destroy_impl(void *data) {
+    btree_impl_t *bt = data;
+    bt_free_node(bt->root);
+    free(bt);
+}
+
+static int bt_height(bt_node_t *node) {
+    if (!node) return 0;
+    if (node->is_leaf) return 1;
+    return 1 + bt_height(node->children[0]);
+}
+
+static int bt_count_nodes(bt_node_t *node) {
+    if (!node) return 0;
+    int count = 1;
+    for (int i = 0; i <= node->num_keys; i++) {
+        count += bt_count_nodes(node->children[i]);
+    }
+    return count;
+}
+
+void bt_print_stats_impl(void *data) {
+    btree_impl_t *bt = data;
+    printf("  Height: %d, Nodes: %d\n",
+           bt_height(bt->root),
+           bt_count_nodes(bt->root));
+}
+
+// ============================================================================
+// BENCHMARKING FRAMEWORK
+// ============================================================================
+
+typedef struct {
+    const char *name;
+    double insert_time;
+    double lookup_time;
+    double delete_time;
+    size_t memory_bytes;
+} benchmark_result_t;
+
+void benchmark_ds(data_structure_t *ds, int num_ops, benchmark_result_t *result) {
+    struct timespec start, end;
+
+    result->name = ds->name;
+
+    // Benchmark insertions
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < num_ops; i++) {
+        char value[32];
+        snprintf(value, sizeof(value), "value_%d", i);
+        ds->insert(ds->data, i, value);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    result->insert_time = (end.tv_sec - start.tv_sec) +
+                          (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    // Benchmark lookups
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < num_ops; i++) {
+        ds->get(ds->data, i);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    result->lookup_time = (end.tv_sec - start.tv_sec) +
+                          (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    // Benchmark deletions
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < num_ops; i++) {
+        ds->delete(ds->data, i);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    result->delete_time = (end.tv_sec - start.tv_sec) +
+                          (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    printf("\n%s:\n", ds->name);
+    ds->print_stats(ds->data);
+    printf("  Insert: %.4f sec (%.0f ops/sec)\n",
+           result->insert_time, num_ops / result->insert_time);
+    printf("  Lookup: %.4f sec (%.0f ops/sec)\n",
+           result->lookup_time, num_ops / result->lookup_time);
+    printf("  Delete: %.4f sec (%.0f ops/sec)\n",
+           result->delete_time, num_ops / result->delete_time);
+
+    ds->destroy(ds->data);
+}
+
+// ============================================================================
+// DECISION FRAMEWORK
+// ============================================================================
+
+typedef enum {
+    DS_HASH_TABLE,
+    DS_BTREE,
+    DS_LSM_TREE,
+    DS_UNKNOWN
+} ds_choice_t;
+
+typedef struct {
+    bool needs_range_queries;
+    bool needs_ordered_iteration;
+    bool is_write_heavy;
+    bool is_read_heavy;
+    bool data_fits_in_memory;
+    bool needs_transactions;
+    int estimated_size;
+} workload_profile_t;
+
+ds_choice_t choose_data_structure(workload_profile_t *profile) {
+    printf("\nDecision Analysis:\n");
+    printf("  Range queries needed: %s\n", profile->needs_range_queries ? "Yes" : "No");
+    printf("  Ordered iteration: %s\n", profile->needs_ordered_iteration ? "Yes" : "No");
+    printf("  Write-heavy: %s\n", profile->is_write_heavy ? "Yes" : "No");
+    printf("  Read-heavy: %s\n", profile->is_read_heavy ? "Yes" : "No");
+    printf("  Fits in memory: %s\n", profile->data_fits_in_memory ? "Yes" : "No");
+
+    if (profile->needs_range_queries || profile->needs_ordered_iteration) {
+        printf("  -> Must use B-Tree (hash tables can't do ranges)\n");
+        return DS_BTREE;
+    }
+
+    if (profile->is_write_heavy && !profile->is_read_heavy) {
+        printf("  -> Consider LSM Tree (optimized for writes)\n");
+        return DS_LSM_TREE;
+    }
+
+    if (profile->data_fits_in_memory) {
+        printf("  -> Hash Table (fastest for in-memory lookups)\n");
+        return DS_HASH_TABLE;
+    }
+
+    printf("  -> B-Tree (best for disk-based storage)\n");
+    return DS_BTREE;
+}
+
+// ============================================================================
+// USE CASE ANALYSIS
+// ============================================================================
+
+void analyze_use_case(const char *name, workload_profile_t *profile) {
+    printf("\n%s\n", name);
+    printf("%.*s\n", (int)strlen(name), "==================================================");
+
+    ds_choice_t choice = choose_data_structure(profile);
+
+    switch (choice) {
+        case DS_HASH_TABLE:
+            printf("Recommendation: Hash Table\n");
+            printf("Rationale: Fast O(1) lookups, simple implementation\n");
+            break;
+        case DS_BTREE:
+            printf("Recommendation: B-Tree\n");
+            printf("Rationale: Supports range queries, optimal for disk\n");
+            break;
+        case DS_LSM_TREE:
+            printf("Recommendation: LSM Tree\n");
+            printf("Rationale: Write-optimized, good for append-heavy workloads\n");
+            break;
+        default:
+            printf("Recommendation: Needs further analysis\n");
+    }
+}
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+int main() {
+    printf("Data Structure Comparison and Selection Framework\n");
+    printf("=================================================\n");
+
+    // Performance Benchmark
+    printf("\n\nPERFORMANCE BENCHMARK\n");
+    printf("=====================\n");
+
+    int num_ops = 100000;
+
+    // Hash Table
+    data_structure_t ht_ds = {
+        .name = "Hash Table",
+        .data = ht_create_impl(),
+        .insert = ht_insert_impl,
+        .get = ht_get_impl,
+        .delete = ht_delete_impl,
+        .destroy = ht_destroy_impl,
+        .print_stats = ht_print_stats_impl
+    };
+
+    benchmark_result_t ht_result;
+    benchmark_ds(&ht_ds, num_ops, &ht_result);
+
+    // B-Tree
+    data_structure_t bt_ds = {
+        .name = "B-Tree",
+        .data = bt_create_impl(),
+        .insert = bt_insert_impl,
+        .get = bt_get_impl,
+        .delete = bt_delete_impl,
+        .destroy = bt_destroy_impl,
+        .print_stats = bt_print_stats_impl
+    };
+
+    benchmark_result_t bt_result;
+    benchmark_ds(&bt_ds, num_ops, &bt_result);
+
+    // Use Case Analysis
+    printf("\n\nUSE CASE ANALYSIS\n");
+    printf("=================\n");
+
+    // Use Case 1: User Session Cache
+    workload_profile_t session_cache = {
+        .needs_range_queries = false,
+        .needs_ordered_iteration = false,
+        .is_write_heavy = false,
+        .is_read_heavy = true,
+        .data_fits_in_memory = true,
+        .needs_transactions = false,
+        .estimated_size = 1000000
+    };
+    analyze_use_case("Use Case 1: User Session Cache", &session_cache);
+
+    // Use Case 2: Time-Series Database
+    workload_profile_t timeseries = {
+        .needs_range_queries = true,
+        .needs_ordered_iteration = true,
+        .is_write_heavy = true,
+        .is_read_heavy = false,
+        .data_fits_in_memory = false,
+        .needs_transactions = false,
+        .estimated_size = 1000000000
+    };
+    analyze_use_case("Use Case 2: Time-Series Database", &timeseries);
+
+    // Use Case 3: Primary Key Index
+    workload_profile_t pk_index = {
+        .needs_range_queries = false,
+        .needs_ordered_iteration = false,
+        .is_write_heavy = false,
+        .is_read_heavy = true,
+        .data_fits_in_memory = false,
+        .needs_transactions = true,
+        .estimated_size = 100000000
+    };
+    analyze_use_case("Use Case 3: Primary Key Index", &pk_index);
+
+    // Use Case 4: Secondary Index (e.g., email index)
+    workload_profile_t secondary_index = {
+        .needs_range_queries = true,
+        .needs_ordered_iteration = true,
+        .is_write_heavy = false,
+        .is_read_heavy = true,
+        .data_fits_in_memory = false,
+        .needs_transactions = true,
+        .estimated_size = 100000000
+    };
+    analyze_use_case("Use Case 4: Secondary Index (e.g., email)", &secondary_index);
+
+    // Summary
+    printf("\n\nSUMMARY\n");
+    printf("=======\n");
+    printf("\nComparison Table:\n");
+    printf("%-20s %10s %10s %10s %15s\n",
+           "Structure", "Insert", "Lookup", "Delete", "Range Query");
+    printf("%-20s %10s %10s %10s %15s\n",
+           "", "", "", "", "");
+    printf("%-20s %10s %10s %10s %15s\n",
+           "Hash Table", "O(1)", "O(1)", "O(1)", "N/A");
+    printf("%-20s %10s %10s %10s %15s\n",
+           "B-Tree", "O(log n)", "O(log n)", "O(log n)", "O(log n)");
+    printf("%-20s %10s %10s %10s %15s\n",
+           "LSM Tree", "O(1)", "O(log n)", "O(1)*", "O(log n)");
+
+    printf("\n* LSM Tree deletes are typically tombstone markers\n");
+
+    printf("\nRecommendations:\n");
+    printf("- Use Hash Tables for: Caches, primary key lookups, in-memory indexes\n");
+    printf("- Use B-Trees for: Range queries, disk-based storage, ordered data\n");
+    printf("- Use LSM Trees for: Write-heavy workloads, time-series data\n");
+
+    return 0;
+}
+```
+
+## Code Walkthrough
+
+### The Decision Framework
+
+The `choose_data_structure()` function implements a decision tree:
+
+1. **Range queries needed?** → Must use B-Tree
+2. **Write-heavy workload?** → Consider LSM Tree
+3. **Fits in memory?** → Hash Table is fastest
+4. **Otherwise** → B-Tree for disk storage
+
+### Real-World Database Examples
+
+**Redis (Hash Table):**
+
+- In-memory cache
+- O(1) key lookups
+- No range queries needed
+
+**MySQL InnoDB (B+ Tree):**
+
+- Disk-based storage
+- Supports range queries
+- ACID transactions
+
+**Cassandra (LSM Tree):**
+
+- Write-heavy distributed database
+- Time-series data
+- High write throughput
+
+## Hands-On Exercise
+
+### Challenge: Design a Database Schema
+
+**Goal:** Choose appropriate data structures for a real-world application
+
+**Scenario:** You're building a **Library Management System** with:
+
+1. **Books table:**
+   - ISBN (primary key)
+   - Title, author, publication year
+   - Search by title prefix ("Harry Pot...")
+   - Range queries by year ("books from 2020-2023")
+
+2. **Patrons table:**
+   - Card number (primary key)
+   - Name, email, phone
+   - Lookup by card number
+   - Search by email
+
+3. **Loans table:**
+   - Book ISBN + Patron card + Due date
+   - Find overdue books
+   - Range queries by due date
+
+**Requirements:**
+
+For each table/index, specify:
+
+1. What data structure would you use? (Hash Table / B-Tree / LSM Tree)
+2. Why did you choose it?
+3. What are the trade-offs?
+
+**Example Answer Format:**
+
+```
+Table: Books Primary Key (ISBN)
+Structure: Hash Table
+Reason: Exact lookups by ISBN, no range queries needed
+Trade-off: Can't iterate in ISBN order
+
+Index: Books by Title
+Structure: B-Tree
+Reason: Need prefix search (range query on strings)
+Trade-off: Slightly slower than hash table
+```
+
+**Questions to Consider:**
+
+1. Which indexes need range queries?
+2. Which are read-heavy vs write-heavy?
+3. What fits in memory vs goes to disk?
+4. Are there any composite indexes needed?
+
+## Testing Your Code
+
+```bash
+# Compile
+gcc -o comparison comparison.c -Wall -Wextra -O2
+
+# Run benchmarks and analysis
+./comparison
+```
+
+## Solution
+
+<details>
+<summary>Click to see recommended design</summary>
+
+```
+Table: Books (Primary Key: ISBN)
+Structure: Hash Table
+Reason: ISBN lookups are exact, very frequent
+Trade-off: Cannot list books in ISBN order
+
+Index: Books by Title
+Structure: B-Tree
+Reason: Title prefix search requires range queries
+Trade-off: Slower inserts than hash table
+
+Index: Books by Publication Year
+Structure: B-Tree
+Reason: Range queries ("books from 2020-2023")
+Trade-off: Extra storage space
+
+Table: Patrons (Primary Key: Card Number)
+Structure: Hash Table
+Reason: Card number lookups are exact
+Trade-off: None significant
+
+Index: Patrons by Email
+Structure: B-Tree
+Reason: Email search might need range queries (domain-based)
+Trade-off: Slightly slower than hash
+
+Table: Loans
+Structure: B-Tree (clustered by Due Date)
+Reason: Primary access pattern is date range queries
+Trade-off: Slower single-record lookups
+
+Index: Loans by Patron
+Structure: Hash Table or B-Tree
+Reason: Exact lookups, but might need patron's loan history
+Trade-off: Choose based on query patterns
+```
+
+**Key Insights:**
+
+1. Primary keys often use hash tables (exact lookups)
+2. Secondary indexes often use B-trees (flexibility)
+3. Date/time fields almost always need B-trees
+4. Consider access patterns, not just data types
+
+</details>
+
+## Next Steps
+
+Congratulations! You've completed Lesson 1. In Lesson 2, you'll build an **In-Memory Key-Value Store** where you'll:
+
+- Set up a complete project structure
+- Implement a production-ready hash table
+- Add dynamic resizing and memory management
+- Build a REPL interface
+- Create your first working database component!
+
+## Key Takeaways
+
+1. **No single data structure is best for everything**
+2. **Hash tables** excel at exact lookups in memory
+3. **B-trees** are essential for range queries and disk storage
+4. **LSM trees** optimize for write-heavy workloads
+5. **Real databases use multiple structures** for different access patterns
+6. **Always analyze your workload** before choosing

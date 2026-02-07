@@ -1,0 +1,457 @@
+---
+id: why-data-structures-matter
+title: 'Why Data Structures Matter for Databases'
+order: 1
+---
+
+# Why Data Structures Matter for Databases
+
+## Prerequisites
+
+Before starting this course, you should have:
+
+- **C Programming:** Solid understanding of pointers, structs, arrays, and strings
+- **Memory Management:** Experience with malloc/free, understanding of memory leaks
+- **Basic Algorithms:** Familiarity with time complexity (Big O notation)
+- **File I/O:** Basic knowledge of reading/writing files in C
+- **Recommended:** Completion of "Learning C" and "Data Structures" courses
+
+## System Requirements
+
+- C compiler (gcc or clang)
+- Make utility
+- 4GB RAM minimum
+- Unix-like environment (Linux/Mac) or WSL on Windows
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Understand why databases need specialized data structures
+- Learn how memory hierarchy affects database performance
+- Measure the real-world impact of algorithmic complexity
+- Set up your development environment for the course
+
+## Why This Matters
+
+Databases seem magical. You insert millions of records and can still retrieve any one in milliseconds. But there's no magic—just carefully chosen data structures optimized for specific access patterns.
+
+### The Memory Hierarchy
+
+Your computer has multiple levels of storage, each with different speeds:
+
+```
+Level          Latency          Size
+─────────────────────────────────────────
+CPU Cache      ~1 ns            32-64 KB
+L2 Cache       ~4 ns            256 KB-1 MB
+L3 Cache       ~10 ns           4-32 MB
+RAM            ~100 ns          8-64 GB
+SSD            ~100,000 ns      256 GB-4 TB
+HDD            ~10,000,000 ns   1-16 TB
+Network        ~50,000,000 ns   ∞
+```
+
+**Key Insight:** Accessing RAM is 100,000x slower than accessing CPU cache. Accessing SSD is 1,000,000x slower than RAM. Every data structure decision is about minimizing expensive operations.
+
+### Algorithmic Complexity in Practice
+
+Let's measure what O(1), O(log n), and O(n) actually mean:
+
+## Complete Implementation
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <string.h>
+
+// Structure to hold timing results
+typedef struct {
+    const char *name;
+    double time_seconds;
+    long operations;
+} benchmark_result_t;
+
+// Simple hash function (we'll build better ones later)
+unsigned int simple_hash(const char *key, int table_size) {
+    unsigned int hash = 0;
+    while (*key) {
+        hash = hash * 31 + *key++;
+    }
+    return hash % table_size;
+}
+
+// Linear search - O(n)
+int linear_search(int *arr, int n, int target) {
+    for (int i = 0; i < n; i++) {
+        if (arr[i] == target) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Binary search - O(log n)
+int binary_search(int *arr, int left, int right, int target) {
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        if (arr[mid] == target) {
+            return mid;
+        }
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    return -1;
+}
+
+// Hash table lookup - O(1) average case
+typedef struct {
+    int *keys;
+    int *values;
+    int size;
+    int capacity;
+} simple_hash_table_t;
+
+simple_hash_table_t *ht_create(int capacity) {
+    simple_hash_table_t *ht = malloc(sizeof(simple_hash_table_t));
+    ht->capacity = capacity;
+    ht->size = 0;
+    ht->keys = calloc(capacity, sizeof(int));
+    ht->values = calloc(capacity, sizeof(int));
+    return ht;
+}
+
+void ht_insert(simple_hash_table_t *ht, int key, int value) {
+    unsigned int idx = (unsigned int)key % ht->capacity;
+    // Simple linear probing
+    while (ht->keys[idx] != 0 && ht->keys[idx] != key) {
+        idx = (idx + 1) % ht->capacity;
+    }
+    ht->keys[idx] = key;
+    ht->values[idx] = value;
+    ht->size++;
+}
+
+int ht_search(simple_hash_table_t *ht, int key) {
+    unsigned int idx = (unsigned int)key % ht->capacity;
+    int start_idx = idx;
+    while (ht->keys[idx] != 0) {
+        if (ht->keys[idx] == key) {
+            return ht->values[idx];
+        }
+        idx = (idx + 1) % ht->capacity;
+        if (idx == start_idx) break;
+    }
+    return -1;
+}
+
+void ht_destroy(simple_hash_table_t *ht) {
+    free(ht->keys);
+    free(ht->values);
+    free(ht);
+}
+
+// Benchmark function
+void run_benchmark(const char *name,
+                   void (*setup)(void *),
+                   void (*search)(void *, int),
+                   void *data,
+                   int num_searches,
+                   int data_size) {
+    struct timespec start, end;
+
+    // Setup
+    if (setup) setup(data);
+
+    // Warmup
+    for (int i = 0; i < 1000; i++) {
+        search(data, rand() % data_size);
+    }
+
+    // Actual benchmark
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < num_searches; i++) {
+        int target = rand() % data_size;
+        search(data, target);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    double elapsed = (end.tv_sec - start.tv_sec) +
+                     (end.tv_nsec - start.tv_nsec) / 1e9;
+    double ops_per_sec = num_searches / elapsed;
+
+    printf("%-20s %10.4f sec  %12.0f ops/sec  (n=%d)\n",
+           name, elapsed, ops_per_sec, data_size);
+}
+
+// Data structures for benchmarks
+typedef struct {
+    int *arr;
+    int size;
+} linear_search_data_t;
+
+typedef struct {
+    int *arr;
+    int size;
+} binary_search_data_t;
+
+typedef struct {
+    simple_hash_table_t *ht;
+    int size;
+} hash_search_data_t;
+
+void linear_setup(void *data) {
+    // Nothing to setup for linear search
+}
+
+void linear_search_wrapper(void *data, int target) {
+    linear_search_data_t *d = data;
+    linear_search(d->arr, d->size, target);
+}
+
+void binary_setup(void *data) {
+    // Array is already sorted
+}
+
+void binary_search_wrapper(void *data, int target) {
+    binary_search_data_t *d = data;
+    binary_search(d->arr, 0, d->size - 1, target);
+}
+
+void hash_setup(void *data) {
+    hash_search_data_t *d = data;
+    // Hash table is already populated
+}
+
+void hash_search_wrapper(void *data, int target) {
+    hash_search_data_t *d = data;
+    ht_search(d->ht, target);
+}
+
+int main() {
+    printf("Database Data Structures Benchmark\n");
+    printf("===================================\n\n");
+
+    // Test with different sizes
+    int sizes[] = {1000, 10000, 100000, 1000000};
+    int num_sizes = sizeof(sizes) / sizeof(sizes[0]);
+
+    for (int s = 0; s < num_sizes; s++) {
+        int n = sizes[s];
+        int num_searches = 100000;
+
+        printf("\nData size: %d elements\n", n);
+        printf("%-20s %10s     %12s\n", "Algorithm", "Time", "Ops/sec");
+        printf("─────────────────────────────────────────────────────\n");
+
+        // Prepare sorted array for binary search
+        int *sorted_arr = malloc(n * sizeof(int));
+        for (int i = 0; i < n; i++) {
+            sorted_arr[i] = i;
+        }
+
+        // Linear search
+        linear_search_data_t linear_data = {sorted_arr, n};
+        run_benchmark("Linear Search (O(n))",
+                      linear_setup,
+                      linear_search_wrapper,
+                      &linear_data,
+                      num_searches,
+                      n);
+
+        // Binary search
+        binary_search_data_t binary_data = {sorted_arr, n};
+        run_benchmark("Binary Search (O(log n))",
+                      binary_setup,
+                      binary_search_wrapper,
+                      &binary_data,
+                      num_searches,
+                      n);
+
+        // Hash table search
+        simple_hash_table_t *ht = ht_create(n * 2);
+        for (int i = 0; i < n; i++) {
+            ht_insert(ht, i, i * 10);
+        }
+        hash_search_data_t hash_data = {ht, n};
+        run_benchmark("Hash Table (O(1))",
+                      hash_setup,
+                      hash_search_wrapper,
+                      &hash_data,
+                      num_searches,
+                      n);
+
+        // Cleanup
+        free(sorted_arr);
+        ht_destroy(ht);
+
+        printf("\n");
+    }
+
+    printf("\nKey Takeaways:\n");
+    printf("- O(1) hash table lookups are consistently fast regardless of size\n");
+    printf("- O(log n) binary search scales well but is slower than hash tables\n");
+    printf("- O(n) linear search becomes unusable as data grows\n");
+    printf("- At 1M elements, O(n) is ~1000x slower than O(1)\n\n");
+
+    return 0;
+}
+```
+
+## Code Walkthrough
+
+### The Benchmark Structure
+
+We create three data structures and measure their search performance:
+
+1. **Linear Search (O(n))**: Checks every element until found
+2. **Binary Search (O(log n))**: Divides search space in half each iteration
+3. **Hash Table (O(1))**: Computes index directly from key
+
+### Why These Matter for Databases
+
+- **Hash Tables:** Perfect for "find user by ID" queries
+- **B-Trees (similar to binary search):** Perfect for "find users aged 20-30" range queries
+- **Linear Search:** Only used for small datasets or full table scans
+
+### The Memory Wall
+
+Notice how even O(1) operations slow down as data grows? That's because:
+
+- Small data fits in CPU cache (fast)
+- Large data spills to RAM (slower)
+- Very large data might not fit in RAM at all (very slow)
+
+## Hands-On Exercise
+
+### Challenge: Measure Cache Effects
+
+**Goal:** Observe how memory access patterns affect performance
+
+**Requirements:**
+
+1. Create an array of 10 million integers
+2. Measure sequential access time (access elements 0, 1, 2, 3...)
+3. Measure random access time (access elements in random order)
+4. Compare the results
+
+**Expected Behavior:**
+
+- Sequential access should be 5-10x faster than random access
+- This demonstrates cache locality importance
+
+**Starter Code:**
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+int main() {
+    const int N = 10000000;
+    int *arr = malloc(N * sizeof(int));
+
+    // Initialize array
+    for (int i = 0; i < N; i++) {
+        arr[i] = i;
+    }
+
+    // TODO: Measure sequential access
+    // TODO: Measure random access
+    // TODO: Print comparison
+
+    free(arr);
+    return 0;
+}
+```
+
+**Hints:**
+
+- Use `clock_gettime(CLOCK_MONOTONIC, ...)` for timing
+- For random access, shuffle an index array or use `rand()`
+- Run each test multiple times and take the average
+- Disable compiler optimizations with `-O0` to see true effects
+
+## Testing Your Code
+
+```bash
+# Compile the benchmark
+gcc -o benchmark step1.c -Wall -Wextra -O2
+
+# Run it
+./benchmark
+
+# Expected output shows timing comparisons
+```
+
+## Solution
+
+<details>
+<summary>Click to see solution</summary>
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+int main() {
+    const int N = 10000000;
+    int *arr = malloc(N * sizeof(int));
+    struct timespec start, end;
+
+    // Initialize array
+    for (int i = 0; i < N; i++) {
+        arr[i] = i;
+    }
+
+    // Sequential access
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    long long sum1 = 0;
+    for (int i = 0; i < N; i++) {
+        sum1 += arr[i];
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double seq_time = (end.tv_sec - start.tv_sec) +
+                      (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    // Random access
+    srand(time(NULL));
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    long long sum2 = 0;
+    for (int i = 0; i < N; i++) {
+        int idx = rand() % N;
+        sum2 += arr[idx];
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double rand_time = (end.tv_sec - start.tv_sec) +
+                       (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    printf("Sequential access: %.4f seconds\n", seq_time);
+    printf("Random access:     %.4f seconds\n", rand_time);
+    printf("Speedup:           %.1fx\n", rand_time / seq_time);
+
+    free(arr);
+    return 0;
+}
+```
+
+</details>
+
+## Next Steps
+
+In the next step, we'll dive deep into hash tables—the foundation of many database operations. You'll implement a complete hash table from scratch with:
+
+- FNV-1a hash function
+- Collision resolution
+- Dynamic resizing
+- A practical phone book application
+
+## Additional Resources
+
+- **Book:** "Database Internals" by Alex Petrov (Chapters 1-2)
+- **Paper:** "The 5 Minute Rule for Trading Memory for Disk Access"
+- **Video:** "How Databases Work" by Martin Kleppmann

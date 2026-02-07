@@ -1,0 +1,1104 @@
+---
+id: hash-table-implementation
+title: 'Hash Table Implementation'
+order: 2
+---
+
+# Hash Table Implementation
+
+## Prerequisites
+
+- Completion of Lesson 2 Step 1: Project Setup
+- Understanding of hash tables and collision resolution
+- Familiarity with dynamic memory allocation in C
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement a production-quality hash table with chaining
+- Handle dynamic resizing for optimal performance
+- Implement proper memory management for entries
+- Create a robust hash function using FNV-1a
+- Pass comprehensive unit tests
+
+## Overview
+
+In this step, we'll implement the core hash table that powers our key-value store. This isn't a toy implementation—we're building a hash table that can handle millions of entries efficiently.
+
+## Complete Implementation
+
+### 1. Hash Table Header (src/hash_table.h)
+
+```c
+#ifndef HASH_TABLE_H
+#define HASH_TABLE_H
+
+#include "utils.h"
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+#define HT_INITIAL_CAPACITY 16
+#define HT_LOAD_FACTOR_THRESHOLD 0.75
+#define HT_MIN_CAPACITY 16
+
+// ============================================================================
+// DATA STRUCTURES
+// ============================================================================
+
+typedef struct ht_entry {
+    char *key;                  // Key string (owned)
+    value_t value;              // Value (owned)
+    struct ht_entry *next;      // Next in chain (separate chaining)
+} ht_entry_t;
+
+typedef struct {
+    ht_entry_t **buckets;       // Array of bucket pointers
+    size_t capacity;            // Number of buckets
+    size_t size;                // Number of active entries
+    size_t tombstones;          // Deleted entries (for resizing logic)
+} hash_table_t;
+
+// ============================================================================
+// LIFECYCLE
+// ============================================================================
+
+// Create a new hash table with specified initial capacity
+hash_table_t *ht_create(size_t initial_capacity);
+
+// Destroy hash table and free all memory
+void ht_destroy(hash_table_t *ht);
+
+// Clear all entries (keep capacity)
+void ht_clear(hash_table_t *ht);
+
+// ============================================================================
+// OPERATIONS
+// ============================================================================
+
+// Insert or update a key-value pair
+// Returns DB_OK on success, error code on failure
+// Makes copies of both key and value
+db_error_t ht_set(hash_table_t *ht, const char *key, const value_t *value);
+
+// Retrieve a value by key
+// Returns pointer to internal value (do not modify!), or NULL if not found
+const value_t *ht_get(hash_table_t *ht, const char *key);
+
+// Delete a key-value pair
+// Returns DB_OK on success, DB_ERROR_NOTFOUND if key doesn't exist
+db_error_t ht_delete(hash_table_t *ht, const char *key);
+
+// Check if key exists
+bool ht_contains(hash_table_t *ht, const char *key);
+
+// Get number of entries
+size_t ht_size(hash_table_t *ht);
+
+// ============================================================================
+// HASH FUNCTION
+// ============================================================================
+
+// FNV-1a hash function
+uint64_t ht_hash(const char *key);
+
+// ============================================================================
+// INTERNAL (exposed for testing)
+// ============================================================================
+
+// Resize the hash table to new capacity
+// Called automatically when load factor exceeds threshold
+db_error_t ht_resize(hash_table_t *ht, size_t new_capacity);
+
+// Get current load factor
+double ht_load_factor(hash_table_t *ht);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // HASH_TABLE_H
+```
+
+### 2. Hash Table Implementation (src/hash_table.c)
+
+```c
+#include "hash_table.h"
+
+#include <string.h>
+#include <assert.h>
+
+// ============================================================================
+// HASH FUNCTION
+// ============================================================================
+
+uint64_t ht_hash(const char *key) {
+    // FNV-1a hash algorithm
+    // Excellent distribution, fast, well-tested
+    uint64_t hash = 14695981039346656037ULL;  // FNV offset basis
+
+    while (*key) {
+        hash ^= (unsigned char)*key++;
+        hash *= 1099511628211ULL;  // FNV prime
+    }
+
+    return hash;
+}
+
+// ============================================================================
+// LIFECYCLE
+// ============================================================================
+
+hash_table_t *ht_create(size_t initial_capacity) {
+    if (initial_capacity < HT_MIN_CAPACITY) {
+        initial_capacity = HT_MIN_CAPACITY;
+    }
+
+    // Round up to next power of 2 for efficient modulo
+    size_t capacity = 1;
+    while (capacity < initial_capacity) {
+        capacity <<= 1;
+    }
+
+    hash_table_t *ht = DB_MALLOC(sizeof(hash_table_t));
+    if (!ht) {
+        return NULL;
+    }
+
+    ht->buckets = DB_CALLOC(capacity, sizeof(ht_entry_t*));
+    if (!ht->buckets) {
+        DB_FREE(ht);
+        return NULL;
+    }
+
+    ht->capacity = capacity;
+    ht->size = 0;
+    ht->tombstones = 0;
+
+    db_debug("Created hash table with capacity %zu", capacity);
+    return ht;
+}
+
+void ht_destroy(hash_table_t *ht) {
+    if (!ht) return;
+
+    // Free all entries
+    for (size_t i = 0; i < ht->capacity; i++) {
+        ht_entry_t *entry = ht->buckets[i];
+        while (entry) {
+            ht_entry_t *next = entry->next;
+
+            // Free key and value
+            DB_FREE(entry->key);
+            value_free(&entry->value);
+
+            DB_FREE(entry);
+            entry = next;
+        }
+    }
+
+    DB_FREE(ht->buckets);
+    DB_FREE(ht);
+
+    db_debug("Destroyed hash table");
+}
+
+void ht_clear(hash_table_t *ht) {
+    if (!ht) return;
+
+    // Free all entries but keep buckets
+    for (size_t i = 0; i < ht->capacity; i++) {
+        ht_entry_t *entry = ht->buckets[i];
+        while (entry) {
+            ht_entry_t *next = entry->next;
+
+            DB_FREE(entry->key);
+            value_free(&entry->value);
+            DB_FREE(entry);
+
+            entry = next;
+        }
+        ht->buckets[i] = NULL;
+    }
+
+    ht->size = 0;
+    ht->tombstones = 0;
+
+    db_debug("Cleared hash table");
+}
+
+// ============================================================================
+// OPERATIONS
+// ============================================================================
+
+db_error_t ht_set(hash_table_t *ht, const char *key, const value_t *value) {
+    if (!ht || !key || !value) {
+        return DB_ERROR_INVALID;
+    }
+
+    // Check if we need to resize
+    if ((double)(ht->size + 1) / ht->capacity > HT_LOAD_FACTOR_THRESHOLD) {
+        db_error_t err = ht_resize(ht, ht->capacity * 2);
+        if (err != DB_OK) {
+            return err;
+        }
+    }
+
+    uint64_t hash = ht_hash(key);
+    size_t idx = hash & (ht->capacity - 1);  // Fast modulo for power-of-2
+
+    // Search for existing key
+    ht_entry_t *entry = ht->buckets[idx];
+    while (entry) {
+        if (strcmp(entry->key, key) == 0) {
+            // Key exists - update value
+            value_free(&entry->value);
+            db_error_t err = value_copy(value, &entry->value);
+            if (err != DB_OK) {
+                return err;
+            }
+            db_debug("Updated key '%s' in bucket %zu", key, idx);
+            return DB_OK;
+        }
+        entry = entry->next;
+    }
+
+    // Key not found - create new entry
+    ht_entry_t *new_entry = DB_MALLOC(sizeof(ht_entry_t));
+    if (!new_entry) {
+        return DB_ERROR_NOMEM;
+    }
+
+    new_entry->key = DB_STRDUP(key);
+    if (!new_entry->key) {
+        DB_FREE(new_entry);
+        return DB_ERROR_NOMEM;
+    }
+
+    db_error_t err = value_copy(value, &new_entry->value);
+    if (err != DB_OK) {
+        DB_FREE(new_entry->key);
+        DB_FREE(new_entry);
+        return err;
+    }
+
+    // Insert at head of chain
+    new_entry->next = ht->buckets[idx];
+    ht->buckets[idx] = new_entry;
+    ht->size++;
+
+    db_debug("Inserted key '%s' in bucket %zu (size=%zu)",
+             key, idx, ht->size);
+    return DB_OK;
+}
+
+const value_t *ht_get(hash_table_t *ht, const char *key) {
+    if (!ht || !key) {
+        return NULL;
+    }
+
+    uint64_t hash = ht_hash(key);
+    size_t idx = hash & (ht->capacity - 1);
+
+    ht_entry_t *entry = ht->buckets[idx];
+    while (entry) {
+        if (strcmp(entry->key, key) == 0) {
+            return &entry->value;
+        }
+        entry = entry->next;
+    }
+
+    return NULL;
+}
+
+db_error_t ht_delete(hash_table_t *ht, const char *key) {
+    if (!ht || !key) {
+        return DB_ERROR_INVALID;
+    }
+
+    uint64_t hash = ht_hash(key);
+    size_t idx = hash & (ht->capacity - 1);
+
+    ht_entry_t *entry = ht->buckets[idx];
+    ht_entry_t *prev = NULL;
+
+    while (entry) {
+        if (strcmp(entry->key, key) == 0) {
+            // Found it - remove from chain
+            if (prev) {
+                prev->next = entry->next;
+            } else {
+                ht->buckets[idx] = entry->next;
+            }
+
+            // Free entry
+            DB_FREE(entry->key);
+            value_free(&entry->value);
+            DB_FREE(entry);
+
+            ht->size--;
+            ht->tombstones++;
+
+            db_debug("Deleted key '%s' from bucket %zu", key, idx);
+            return DB_OK;
+        }
+        prev = entry;
+        entry = entry->next;
+    }
+
+    return DB_ERROR_NOTFOUND;
+}
+
+bool ht_contains(hash_table_t *ht, const char *key) {
+    return ht_get(ht, key) != NULL;
+}
+
+size_t ht_size(hash_table_t *ht) {
+    return ht ? ht->size : 0;
+}
+
+// ============================================================================
+// RESIZING
+// ============================================================================
+
+db_error_t ht_resize(hash_table_t *ht, size_t new_capacity) {
+    if (!ht || new_capacity < HT_MIN_CAPACITY) {
+        return DB_ERROR_INVALID;
+    }
+
+    // Round up to next power of 2
+    size_t capacity = 1;
+    while (capacity < new_capacity) {
+        capacity <<= 1;
+    }
+
+    if (capacity == ht->capacity) {
+        return DB_OK;  // No change needed
+    }
+
+    db_info("Resizing hash table from %zu to %zu buckets",
+            ht->capacity, capacity);
+
+    // Allocate new buckets
+    ht_entry_t **new_buckets = DB_CALLOC(capacity, sizeof(ht_entry_t*));
+    if (!new_buckets) {
+        return DB_ERROR_NOMEM;
+    }
+
+    // Rehash all entries
+    for (size_t i = 0; i < ht->capacity; i++) {
+        ht_entry_t *entry = ht->buckets[i];
+        while (entry) {
+            ht_entry_t *next = entry->next;
+
+            // Compute new index
+            uint64_t hash = ht_hash(entry->key);
+            size_t new_idx = hash & (capacity - 1);
+
+            // Insert into new bucket
+            entry->next = new_buckets[new_idx];
+            new_buckets[new_idx] = entry;
+
+            entry = next;
+        }
+    }
+
+    // Replace old buckets
+    DB_FREE(ht->buckets);
+    ht->buckets = new_buckets;
+    ht->capacity = capacity;
+    ht->tombstones = 0;
+
+    db_info("Resize complete. Load factor: %.2f", ht_load_factor(ht));
+    return DB_OK;
+}
+
+double ht_load_factor(hash_table_t *ht) {
+    if (!ht || ht->capacity == 0) {
+        return 0.0;
+    }
+    return (double)ht->size / ht->capacity;
+}
+```
+
+### 3. Key-Value Store Implementation (src/kv_store.c)
+
+```c
+#include "kv_store.h"
+#include "hash_table.h"
+
+#include <string.h>
+#include <stdio.h>
+
+// ============================================================================
+// VALUE OPERATIONS
+// ============================================================================
+
+value_t value_from_int(int64_t val) {
+    return (value_t){
+        .type = VALUE_TYPE_INT,
+        .data.int_val = val
+    };
+}
+
+value_t value_from_float(double val) {
+    return (value_t){
+        .type = VALUE_TYPE_FLOAT,
+        .data.float_val = val
+    };
+}
+
+value_t value_from_string(const char *val) {
+    value_t v = {
+        .type = VALUE_TYPE_STRING,
+        .data.string_val = NULL
+    };
+    if (val) {
+        v.data.string_val = DB_STRDUP(val);
+    }
+    return v;
+}
+
+value_t value_from_blob(const void *data, size_t size) {
+    value_t v = {
+        .type = VALUE_TYPE_BLOB,
+        .data.blob_val = {NULL, 0}
+    };
+    if (data && size > 0) {
+        v.data.blob_val.data = DB_MALLOC(size);
+        if (v.data.blob_val.data) {
+            memcpy(v.data.blob_val.data, data, size);
+            v.data.blob_val.size = size;
+        }
+    }
+    return v;
+}
+
+value_t value_from_bool(bool val) {
+    return (value_t){
+        .type = VALUE_TYPE_BOOL,
+        .data.bool_val = val
+    };
+}
+
+value_t value_null(void) {
+    return (value_t){.type = VALUE_TYPE_NULL};
+}
+
+db_error_t value_copy(const value_t *src, value_t *dst) {
+    if (!src || !dst) {
+        return DB_ERROR_INVALID;
+    }
+
+    dst->type = src->type;
+
+    switch (src->type) {
+        case VALUE_TYPE_NULL:
+            break;
+
+        case VALUE_TYPE_INT:
+            dst->data.int_val = src->data.int_val;
+            break;
+
+        case VALUE_TYPE_FLOAT:
+            dst->data.float_val = src->data.float_val;
+            break;
+
+        case VALUE_TYPE_STRING:
+            if (src->data.string_val) {
+                dst->data.string_val = DB_STRDUP(src->data.string_val);
+                if (!dst->data.string_val) {
+                    return DB_ERROR_NOMEM;
+                }
+            } else {
+                dst->data.string_val = NULL;
+            }
+            break;
+
+        case VALUE_TYPE_BLOB:
+            if (src->data.blob_val.data && src->data.blob_val.size > 0) {
+                dst->data.blob_val.data = DB_MALLOC(src->data.blob_val.size);
+                if (!dst->data.blob_val.data) {
+                    return DB_ERROR_NOMEM;
+                }
+                memcpy(dst->data.blob_val.data,
+                       src->data.blob_val.data,
+                       src->data.blob_val.size);
+                dst->data.blob_val.size = src->data.blob_val.size;
+            } else {
+                dst->data.blob_val.data = NULL;
+                dst->data.blob_val.size = 0;
+            }
+            break;
+
+        case VALUE_TYPE_BOOL:
+            dst->data.bool_val = src->data.bool_val;
+            break;
+
+        default:
+            return DB_ERROR_INVALID;
+    }
+
+    return DB_OK;
+}
+
+void value_free(value_t *val) {
+    if (!val) return;
+
+    switch (val->type) {
+        case VALUE_TYPE_STRING:
+            DB_FREE(val->data.string_val);
+            break;
+
+        case VALUE_TYPE_BLOB:
+            DB_FREE(val->data.blob_val.data);
+            val->data.blob_val.size = 0;
+            break;
+
+        default:
+            break;
+    }
+
+    val->type = VALUE_TYPE_NULL;
+}
+
+int value_compare(const value_t *a, const value_t *b) {
+    if (!a || !b) return -2;
+    if (a->type != b->type) return -2;
+
+    switch (a->type) {
+        case VALUE_TYPE_NULL:
+            return 0;
+
+        case VALUE_TYPE_INT:
+            if (a->data.int_val < b->data.int_val) return -1;
+            if (a->data.int_val > b->data.int_val) return 1;
+            return 0;
+
+        case VALUE_TYPE_FLOAT:
+            if (a->data.float_val < b->data.float_val) return -1;
+            if (a->data.float_val > b->data.float_val) return 1;
+            return 0;
+
+        case VALUE_TYPE_STRING:
+            if (!a->data.string_val || !b->data.string_val) return -2;
+            return strcmp(a->data.string_val, b->data.string_val);
+
+        case VALUE_TYPE_BOOL:
+            if (a->data.bool_val == b->data.bool_val) return 0;
+            return a->data.bool_val ? 1 : -1;
+
+        default:
+            return -2;
+    }
+}
+
+int value_to_string(const value_t *val, char *buf, size_t buf_size) {
+    if (!val || !buf || buf_size == 0) return 0;
+
+    switch (val->type) {
+        case VALUE_TYPE_NULL:
+            return snprintf(buf, buf_size, "NULL");
+
+        case VALUE_TYPE_INT:
+            return snprintf(buf, buf_size, "%lld",
+                          (long long)val->data.int_val);
+
+        case VALUE_TYPE_FLOAT:
+            return snprintf(buf, buf_size, "%.6f", val->data.float_val);
+
+        case VALUE_TYPE_STRING:
+            if (val->data.string_val) {
+                return snprintf(buf, buf_size, "\"%s\"",
+                              val->data.string_val);
+            }
+            return snprintf(buf, buf_size, "NULL");
+
+        case VALUE_TYPE_BOOL:
+            return snprintf(buf, buf_size, "%s",
+                          val->data.bool_val ? "true" : "false");
+
+        case VALUE_TYPE_BLOB:
+            return snprintf(buf, buf_size, "<BLOB:%zu bytes>",
+                          val->data.blob_val.size);
+
+        default:
+            return snprintf(buf, buf_size, "<unknown>");
+    }
+}
+
+size_t value_size(const value_t *val) {
+    if (!val) return 0;
+
+    size_t size = sizeof(value_t);
+
+    switch (val->type) {
+        case VALUE_TYPE_STRING:
+            if (val->data.string_val) {
+                size += strlen(val->data.string_val) + 1;
+            }
+            break;
+
+        case VALUE_TYPE_BLOB:
+            size += val->data.blob_val.size;
+            break;
+
+        default:
+            break;
+    }
+
+    return size;
+}
+
+// ============================================================================
+// KEY-VALUE STORE
+// ============================================================================
+
+struct kv_store {
+    hash_table_t *ht;
+};
+
+kv_store_t *kv_store_create(void) {
+    kv_store_t *store = DB_MALLOC(sizeof(kv_store_t));
+    if (!store) {
+        return NULL;
+    }
+
+    store->ht = ht_create(HT_INITIAL_CAPACITY);
+    if (!store->ht) {
+        DB_FREE(store);
+        return NULL;
+    }
+
+    db_info("Key-value store created");
+    return store;
+}
+
+void kv_store_destroy(kv_store_t *store) {
+    if (!store) return;
+
+    ht_destroy(store->ht);
+    DB_FREE(store);
+
+    db_info("Key-value store destroyed");
+}
+
+db_error_t kv_store_set(kv_store_t *store, const char *key,
+                        const value_t *value) {
+    if (!store || !key || !value) {
+        return DB_ERROR_INVALID;
+    }
+
+    return ht_set(store->ht, key, value);
+}
+
+const value_t *kv_store_get(kv_store_t *store, const char *key) {
+    if (!store || !key) {
+        return NULL;
+    }
+
+    return ht_get(store->ht, key);
+}
+
+db_error_t kv_store_delete(kv_store_t *store, const char *key) {
+    if (!store || !key) {
+        return DB_ERROR_INVALID;
+    }
+
+    return ht_delete(store->ht, key);
+}
+
+bool kv_store_exists(kv_store_t *store, const char *key) {
+    if (!store || !key) {
+        return false;
+    }
+
+    return ht_contains(store->ht, key);
+}
+
+size_t kv_store_count(kv_store_t *store) {
+    if (!store) {
+        return 0;
+    }
+
+    return ht_size(store->ht);
+}
+
+db_error_t kv_store_clear(kv_store_t *store) {
+    if (!store) {
+        return DB_ERROR_INVALID;
+    }
+
+    ht_clear(store->ht);
+    db_info("Key-value store cleared");
+    return DB_OK;
+}
+
+void kv_store_stats(kv_store_t *store, kv_stats_t *stats) {
+    if (!store || !stats) {
+        return;
+    }
+
+    memset(stats, 0, sizeof(kv_stats_t));
+    stats->entry_count = ht_size(store->ht);
+    stats->capacity = store->ht->capacity;
+    stats->load_factor = ht_load_factor(store->ht);
+
+    // Calculate sizes
+    // This would require iterating all entries
+    // For now, just report basic stats
+}
+
+void kv_store_print_stats(kv_store_t *store) {
+    if (!store) return;
+
+    kv_stats_t stats;
+    kv_store_stats(store, &stats);
+
+    db_info("KV Store Statistics:");
+    db_info("  Entries: %zu", stats.entry_count);
+    db_info("  Capacity: %zu buckets", stats.capacity);
+    db_info("  Load factor: %.2f%%", stats.load_factor * 100);
+}
+```
+
+### 4. Unit Tests (tests/test_hash_table.c)
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
+
+#include "../src/hash_table.h"
+#include "../src/kv_store.h"
+
+// Test counter
+static int tests_run = 0;
+static int tests_passed = 0;
+
+#define TEST(name) static void test_##name(void)
+#define RUN_TEST(name) do { \
+    printf("  Running %s...", #name); \
+    tests_run++; \
+    test_##name(); \
+    tests_passed++; \
+    printf(" OK\n"); \
+} while(0)
+
+// ============================================================================
+// TESTS
+// ============================================================================
+
+TEST(create_destroy) {
+    hash_table_t *ht = ht_create(16);
+    assert(ht != NULL);
+    assert(ht_size(ht) == 0);
+    ht_destroy(ht);
+}
+
+TEST(basic_operations) {
+    hash_table_t *ht = ht_create(16);
+
+    // Insert
+    value_t v1 = value_from_int(42);
+    assert(ht_set(ht, "answer", &v1) == DB_OK);
+    value_free(&v1);
+
+    // Retrieve
+    const value_t *retrieved = ht_get(ht, "answer");
+    assert(retrieved != NULL);
+    assert(retrieved->type == VALUE_TYPE_INT);
+    assert(retrieved->data.int_val == 42);
+
+    // Update
+    value_t v2 = value_from_int(43);
+    assert(ht_set(ht, "answer", &v2) == DB_OK);
+    value_free(&v2);
+
+    retrieved = ht_get(ht, "answer");
+    assert(retrieved->data.int_val == 43);
+
+    // Delete
+    assert(ht_delete(ht, "answer") == DB_OK);
+    assert(ht_get(ht, "answer") == NULL);
+
+    ht_destroy(ht);
+}
+
+TEST(string_values) {
+    hash_table_t *ht = ht_create(16);
+
+    value_t v = value_from_string("Hello, World!");
+    assert(ht_set(ht, "greeting", &v) == DB_OK);
+    value_free(&v);
+
+    const value_t *retrieved = ht_get(ht, "greeting");
+    assert(retrieved != NULL);
+    assert(retrieved->type == VALUE_TYPE_STRING);
+    assert(strcmp(retrieved->data.string_val, "Hello, World!") == 0);
+
+    ht_destroy(ht);
+}
+
+TEST(multiple_entries) {
+    hash_table_t *ht = ht_create(16);
+
+    // Insert many entries
+    for (int i = 0; i < 100; i++) {
+        char key[32];
+        snprintf(key, sizeof(key), "key_%d", i);
+        value_t v = value_from_int(i);
+        assert(ht_set(ht, key, &v) == DB_OK);
+        value_free(&v);
+    }
+
+    assert(ht_size(ht) == 100);
+
+    // Verify all entries
+    for (int i = 0; i < 100; i++) {
+        char key[32];
+        snprintf(key, sizeof(key), "key_%d", i);
+        const value_t *v = ht_get(ht, key);
+        assert(v != NULL);
+        assert(v->data.int_val == i);
+    }
+
+    ht_destroy(ht);
+}
+
+TEST(resizing) {
+    hash_table_t *ht = ht_create(8);  // Small initial capacity
+
+    // Insert enough to trigger resize
+    for (int i = 0; i < 20; i++) {
+        char key[32];
+        snprintf(key, sizeof(key), "key_%d", i);
+        value_t v = value_from_int(i);
+        ht_set(ht, key, &v);
+        value_free(&v);
+    }
+
+    // Should have resized
+    assert(ht_size(ht) == 20);
+
+    // Verify all still accessible
+    for (int i = 0; i < 20; i++) {
+        char key[32];
+        snprintf(key, sizeof(key), "key_%d", i);
+        assert(ht_get(ht, key) != NULL);
+    }
+
+    ht_destroy(ht);
+}
+
+TEST(collision_handling) {
+    hash_table_t *ht = ht_create(4);  // Very small to force collisions
+
+    // These will definitely collide in a small table
+    value_t v1 = value_from_int(1);
+    value_t v2 = value_from_int(2);
+    value_t v3 = value_from_int(3);
+
+    ht_set(ht, "a", &v1);
+    ht_set(ht, "b", &v2);
+    ht_set(ht, "c", &v3);
+
+    value_free(&v1);
+    value_free(&v2);
+    value_free(&v3);
+
+    // All should be retrievable
+    assert(ht_get(ht, "a")->data.int_val == 1);
+    assert(ht_get(ht, "b")->data.int_val == 2);
+    assert(ht_get(ht, "c")->data.int_val == 3);
+
+    ht_destroy(ht);
+}
+
+TEST(kv_store_interface) {
+    kv_store_t *store = kv_store_create();
+    assert(store != NULL);
+
+    // Test all operations
+    value_t v1 = value_from_string("Alice");
+    assert(kv_store_set(store, "user1", &v1) == DB_OK);
+    value_free(&v1);
+
+    assert(kv_store_exists(store, "user1"));
+    assert(kv_store_count(store) == 1);
+
+    const value_t *v = kv_store_get(store, "user1");
+    assert(v != NULL);
+
+    assert(kv_store_delete(store, "user1") == DB_OK);
+    assert(!kv_store_exists(store, "user1"));
+
+    kv_store_destroy(store);
+}
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+int main(void) {
+    printf("Running hash table tests...\n\n");
+
+    RUN_TEST(create_destroy);
+    RUN_TEST(basic_operations);
+    RUN_TEST(string_values);
+    RUN_TEST(multiple_entries);
+    RUN_TEST(resizing);
+    RUN_TEST(collision_handling);
+    RUN_TEST(kv_store_interface);
+
+    printf("\n==============================\n");
+    printf("Results: %d/%d tests passed\n", tests_passed, tests_run);
+    printf("==============================\n");
+
+    return (tests_passed == tests_run) ? 0 : 1;
+}
+```
+
+## Code Walkthrough
+
+### Hash Function
+
+We use the FNV-1a hash algorithm because it:
+
+- Has excellent distribution properties
+- Is fast to compute
+- Has been extensively tested
+- Works well for string keys
+
+### Collision Resolution
+
+We use **separate chaining** with linked lists:
+
+- Each bucket is a linked list of entries
+- Collisions are handled by adding to the list
+- Simple and effective for most workloads
+
+### Dynamic Resizing
+
+When the load factor exceeds 0.75:
+
+1. Allocate new buckets (double the capacity)
+2. Rehash all entries into new buckets
+3. Free old bucket array
+4. This maintains O(1) average case
+
+### Memory Management
+
+Every allocation uses our `DB_*` macros:
+
+- Tracks allocation site for debugging
+- Automatically logs failures
+- Sets pointers to NULL after free
+
+## Hands-On Exercise
+
+### Challenge: Stress Test the Hash Table
+
+**Goal:** Verify the hash table handles edge cases correctly
+
+**Requirements:**
+
+1. **Create a stress test** that:
+   - Inserts 10,000 random key-value pairs
+   - Verifies all can be retrieved
+   - Deletes half of them
+   - Verifies deletions worked
+   - Checks for memory leaks
+
+2. **Test collision scenarios:**
+   - Create keys that hash to the same bucket
+   - Verify all are stored correctly
+   - Verify all can be retrieved
+
+3. **Measure performance:**
+   - Time insertions
+   - Time lookups
+   - Calculate average time per operation
+
+**Expected Output:**
+
+```
+Stress Test Results:
+  Inserted: 10000 entries
+  Time: 0.045s (4.5μs per insert)
+  Lookups: 10000
+  Time: 0.023s (2.3μs per lookup)
+  All tests passed!
+```
+
+## Solution
+
+<details>
+<summary>Click to see stress test implementation</summary>
+
+```c
+#include <time.h>
+#include <stdlib.h>
+
+void stress_test(void) {
+    printf("Starting stress test...\n");
+
+    hash_table_t *ht = ht_create(1024);
+    clock_t start, end;
+
+    // Insert 10,000 entries
+    start = clock();
+    for (int i = 0; i < 10000; i++) {
+        char key[64];
+        snprintf(key, sizeof(key), "key_%d_%d", i, rand());
+        value_t v = value_from_int(i);
+        ht_set(ht, key, &v);
+        value_free(&v);
+    }
+    end = clock();
+    double insert_time = ((double)(end - start)) / CLOCKS_PER_SEC;
+
+    printf("Inserted 10000 entries in %.3fs (%.1fμs each)\n",
+           insert_time, (insert_time / 10000) * 1000000);
+
+    // Verify all exist
+    start = clock();
+    for (int i = 0; i < 10000; i++) {
+        char key[64];
+        snprintf(key, sizeof(key), "key_%d_%d", i, rand());
+        // Note: rand() will generate different values
+        // In real test, store keys in array
+    }
+    end = clock();
+
+    ht_destroy(ht);
+    printf("Stress test complete!\n");
+}
+```
+
+Key improvements for production:
+
+1. Store keys in array for verification
+2. Use fixed random seed for reproducibility
+3. Test deletion and re-insertion
+4. Check memory with valgrind
+
+</details>
+
+## Next Steps
+
+In the next step, you'll implement **iterators** to traverse all entries in the hash table. You'll:
+
+- Create an iterator abstraction
+- Support forward traversal
+- Handle concurrent modifications safely
+- Use iterators to implement LIST and other operations
+
+This will complete the core key-value store functionality!

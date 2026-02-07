@@ -1,0 +1,859 @@
+---
+id: repl-and-cli
+title: 'REPL and Command Interface'
+order: 4
+---
+
+# REPL and Command Interface
+
+## Prerequisites
+
+- Completion of Lesson 2 Steps 1-3
+- Understanding of command-line interfaces
+- Familiarity with string parsing in C
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Build an interactive REPL (Read-Eval-Print Loop)
+- Implement a command parser
+- Handle errors gracefully
+- Add command history support
+- Create a user-friendly CLI
+
+## Overview
+
+The REPL is the primary interface to our database. Users will type commands, and the database will execute them immediately. We'll support:
+
+- **SET key value** - Store a value
+- **GET key** - Retrieve a value
+- **DEL key** - Delete a key
+- **LIST [pattern]** - List all keys (with optional pattern)
+- **COUNT** - Count entries
+- **CLEAR** - Clear all data
+- **STATS** - Show statistics
+- **HELP** - Show help
+- **QUIT** - Exit
+
+## Complete Implementation
+
+### 1. Command Parser Header (src/repl.h)
+
+```c
+#ifndef REPL_H
+#define REPL_H
+
+#include "utils.h"
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ============================================================================
+// COMMAND TYPES
+// ============================================================================
+
+typedef enum {
+    CMD_UNKNOWN = 0,
+    CMD_SET,
+    CMD_GET,
+    CMD_DELETE,
+    CMD_LIST,
+    CMD_COUNT,
+    CMD_CLEAR,
+    CMD_STATS,
+    CMD_HELP,
+    CMD_QUIT,
+    CMD_BATCH   // For batch file processing
+} command_type_t;
+
+// ============================================================================
+// COMMAND STRUCTURE
+// ============================================================================
+
+#define MAX_ARGS 16
+#define MAX_ARG_LEN 1024
+
+typedef struct {
+    command_type_t type;
+    int argc;
+    char argv[MAX_ARGS][MAX_ARG_LEN];
+} command_t;
+
+// ============================================================================
+// REPL INTERFACE
+// ============================================================================
+
+// Initialize the REPL with a key-value store
+void repl_init(kv_store_t *store);
+
+// Run the REPL interactively
+// Returns exit code
+int repl_run(void);
+
+// Execute a single command
+// Returns: 0 on success, -1 on error, 1 on QUIT
+int repl_execute(const char *line);
+
+// Clean up REPL resources
+void repl_cleanup(void);
+
+// ============================================================================
+// COMMAND PARSING
+// ============================================================================
+
+// Parse a command line into a command structure
+// Returns true if parsing succeeded
+bool repl_parse(const char *line, command_t *cmd);
+
+// Get command name as string
+const char *repl_cmd_name(command_type_t type);
+
+// ============================================================================
+// BATCH PROCESSING
+// ============================================================================
+
+// Execute commands from a file
+// Returns number of commands executed, or -1 on error
+int repl_execute_file(const char *filename);
+
+// Execute commands from a string (for testing)
+int repl_execute_string(const char *commands);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // REPL_H
+```
+
+### 2. REPL Implementation (src/repl.c)
+
+```c
+#include "repl.h"
+#include "iterator.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <readline/readline.h>
+#include <readline/history.h>
+
+// ============================================================================
+// GLOBAL STATE
+// ============================================================================
+
+static kv_store_t *g_store = NULL;
+static bool g_running = false;
+
+// ============================================================================
+// COMMAND PARSING
+// ============================================================================
+
+static command_type_t parse_command_type(const char *name) {
+    if (strcasecmp(name, "SET") == 0) return CMD_SET;
+    if (strcasecmp(name, "GET") == 0) return CMD_GET;
+    if (strcasecmp(name, "DELETE") == 0 || strcasecmp(name, "DEL") == 0) return CMD_DELETE;
+    if (strcasecmp(name, "LIST") == 0 || strcasecmp(name, "LS") == 0) return CMD_LIST;
+    if (strcasecmp(name, "COUNT") == 0) return CMD_COUNT;
+    if (strcasecmp(name, "CLEAR") == 0) return CMD_CLEAR;
+    if (strcasecmp(name, "STATS") == 0 || strcasecmp(name, "STAT") == 0) return CMD_STATS;
+    if (strcasecmp(name, "HELP") == 0 || strcasecmp(name, "?") == 0) return CMD_HELP;
+    if (strcasecmp(name, "QUIT") == 0 || strcasecmp(name, "EXIT") == 0) return CMD_QUIT;
+    if (strcasecmp(name, "BATCH") == 0) return CMD_BATCH;
+    return CMD_UNKNOWN;
+}
+
+bool repl_parse(const char *line, command_t *cmd) {
+    if (!line || !cmd) return false;
+
+    memset(cmd, 0, sizeof(command_t));
+    cmd->type = CMD_UNKNOWN;
+
+    // Skip leading whitespace
+    while (isspace((unsigned char)*line)) line++;
+
+    // Empty line
+    if (*line == '\0' || *line == '#') {
+        return true;  // Comment or empty, not an error
+    }
+
+    // Tokenize
+    char buffer[MAX_ARG_LEN];
+    strncpy(buffer, line, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    char *token = strtok(buffer, " \t\n\r");
+    if (!token) return true;  // Empty after whitespace
+
+    // First token is command
+    cmd->type = parse_command_type(token);
+
+    // Parse arguments
+    cmd->argc = 0;
+    while ((token = strtok(NULL, " \t\n\r")) != NULL && cmd->argc < MAX_ARGS) {
+        strncpy(cmd->argv[cmd->argc], token, MAX_ARG_LEN - 1);
+        cmd->argv[cmd->argc][MAX_ARG_LEN - 1] = '\0';
+        cmd->argc++;
+    }
+
+    return true;
+}
+
+const char *repl_cmd_name(command_type_t type) {
+    switch (type) {
+        case CMD_SET: return "SET";
+        case CMD_GET: return "GET";
+        case CMD_DELETE: return "DELETE";
+        case CMD_LIST: return "LIST";
+        case CMD_COUNT: return "COUNT";
+        case CMD_CLEAR: return "CLEAR";
+        case CMD_STATS: return "STATS";
+        case CMD_HELP: return "HELP";
+        case CMD_QUIT: return "QUIT";
+        case CMD_BATCH: return "BATCH";
+        default: return "UNKNOWN";
+    }
+}
+
+// ============================================================================
+// COMMAND EXECUTION
+// ============================================================================
+
+static int cmd_set(int argc, char argv[][MAX_ARG_LEN]) {
+    if (argc < 2) {
+        printf("ERROR: Usage: SET <key> <value>\n");
+        return -1;
+    }
+
+    const char *key = argv[0];
+
+    // Join remaining arguments as value
+    char value[MAX_ARG_LEN] = {0};
+    for (int i = 1; i < argc; i++) {
+        if (i > 1) strncat(value, " ", sizeof(value) - strlen(value) - 1);
+        strncat(value, argv[i], sizeof(value) - strlen(value) - 1);
+    }
+
+    // Determine value type
+    value_t val;
+
+    // Check if it's a number
+    char *endptr;
+    long int_val = strtol(value, &endptr, 10);
+    if (*endptr == '\0') {
+        val = value_from_int(int_val);
+    } else {
+        // Try float
+        double float_val = strtod(value, &endptr);
+        if (*endptr == '\0') {
+            val = value_from_float(float_val);
+        } else if (strcasecmp(value, "true") == 0) {
+            val = value_from_bool(true);
+        } else if (strcasecmp(value, "false") == 0) {
+            val = value_from_bool(false);
+        } else if (strcasecmp(value, "null") == 0) {
+            val = value_null();
+        } else {
+            // Treat as string
+            val = value_from_string(value);
+        }
+    }
+
+    db_error_t err = kv_store_set(g_store, key, &val);
+    value_free(&val);
+
+    if (err == DB_OK) {
+        printf("OK\n");
+        return 0;
+    } else {
+        printf("ERROR: %s\n", db_strerror(err));
+        return -1;
+    }
+}
+
+static int cmd_get(int argc, char argv[][MAX_ARG_LEN]) {
+    if (argc < 1) {
+        printf("ERROR: Usage: GET <key>\n");
+        return -1;
+    }
+
+    const char *key = argv[0];
+    const value_t *val = kv_store_get(g_store, key);
+
+    if (val) {
+        char buf[1024];
+        value_to_string(val, buf, sizeof(buf));
+        printf("%s\n", buf);
+        return 0;
+    } else {
+        printf("(nil)\n");
+        return -1;
+    }
+}
+
+static int cmd_delete(int argc, char argv[][MAX_ARG_LEN]) {
+    if (argc < 1) {
+        printf("ERROR: Usage: DELETE <key>\n");
+        return -1;
+    }
+
+    const char *key = argv[0];
+    db_error_t err = kv_store_delete(g_store, key);
+
+    if (err == DB_OK) {
+        printf("OK\n");
+        return 0;
+    } else if (err == DB_ERROR_NOTFOUND) {
+        printf("(nil)\n");
+        return -1;
+    } else {
+        printf("ERROR: %s\n", db_strerror(err));
+        return -1;
+    }
+}
+
+static bool match_pattern(const char *str, const char *pattern) {
+    if (!pattern || *pattern == '\0') return true;
+
+    while (*pattern) {
+        if (*pattern == '*') {
+            pattern++;
+            if (!*pattern) return true;
+            while (*str) {
+                if (match_pattern(str, pattern)) return true;
+                str++;
+            }
+            return false;
+        } else if (*pattern == '?') {
+            if (!*str) return false;
+            pattern++;
+            str++;
+        } else {
+            if (tolower((unsigned char)*str) != tolower((unsigned char)*pattern))
+                return false;
+            pattern++;
+            str++;
+        }
+    }
+    return *str == '\0';
+}
+
+static int cmd_list(int argc, char argv[][MAX_ARG_LEN]) {
+    const char *pattern = (argc > 0) ? argv[0] : NULL;
+
+    kv_iterator_t *iter = kv_iterator_create(g_store);
+    int count = 0;
+
+    while (kv_iterator_next(iter)) {
+        const char *key = kv_iterator_key(iter);
+
+        if (pattern && !match_pattern(key, pattern)) {
+            continue;
+        }
+
+        const value_t *val = kv_iterator_value(iter);
+        char buf[1024];
+        value_to_string(val, buf, sizeof(buf));
+
+        printf("%s = %s\n", key, buf);
+        count++;
+    }
+
+    kv_iterator_destroy(iter);
+
+    printf("\n%d entr%s\n", count, count == 1 ? "y" : "ies");
+    return 0;
+}
+
+static int cmd_count(int argc, char argv[][MAX_ARG_LEN]) {
+    (void)argc;
+    (void)argv;
+    printf("%zu\n", kv_store_count(g_store));
+    return 0;
+}
+
+static int cmd_clear(int argc, char argv[][MAX_ARG_LEN]) {
+    (void)argc;
+    (void)argv;
+
+    printf("Are you sure? This will delete all data. (yes/no): ");
+    fflush(stdout);
+
+    char response[16];
+    if (fgets(response, sizeof(response), stdin) == NULL) {
+        return -1;
+    }
+
+    if (strncasecmp(response, "yes", 3) == 0) {
+        kv_store_clear(g_store);
+        printf("OK\n");
+        return 0;
+    } else {
+        printf("Cancelled\n");
+        return 0;
+    }
+}
+
+static int cmd_stats(int argc, char argv[][MAX_ARG_LEN]) {
+    (void)argc;
+    (void)argv;
+
+    kv_stats_t stats;
+    kv_store_stats(g_store, &stats);
+
+    printf("Database Statistics:\n");
+    printf("  Entries: %zu\n", stats.entry_count);
+    printf("  Capacity: %zu buckets\n", stats.capacity);
+    printf("  Load factor: %.2f%%\n", stats.load_factor * 100);
+
+    return 0;
+}
+
+static int cmd_help(int argc, char argv[][MAX_ARG_LEN]) {
+    (void)argc;
+    (void)argv;
+
+    printf("Available commands:\n\n");
+    printf("  SET <key> <value>    Store a value\n");
+    printf("  GET <key>           Retrieve a value\n");
+    printf("  DELETE <key>        Delete a key\n");
+    printf("  LIST [pattern]      List all keys (optional pattern)\n");
+    printf("  COUNT               Count entries\n");
+    printf("  CLEAR               Delete all data\n");
+    printf("  STATS               Show statistics\n");
+    printf("  HELP                Show this help\n");
+    printf("  QUIT                Exit the program\n");
+    printf("\n");
+    printf("Value types:\n");
+    printf("  - Numbers (integers or floats)\n");
+    printf("  - Strings (auto-detected, use quotes for spaces)\n");
+    printf("  - true/false (booleans)\n");
+    printf("  - null\n");
+
+    return 0;
+}
+
+static int cmd_batch(int argc, char argv[][MAX_ARG_LEN]) {
+    if (argc < 1) {
+        printf("ERROR: Usage: BATCH <filename>\n");
+        return -1;
+    }
+
+    int count = repl_execute_file(argv[0]);
+    if (count >= 0) {
+        printf("Executed %d commands\n", count);
+        return 0;
+    } else {
+        printf("ERROR: Failed to execute batch file\n");
+        return -1;
+    }
+}
+
+// ============================================================================
+// PUBLIC INTERFACE
+// ============================================================================
+
+void repl_init(kv_store_t *store) {
+    g_store = store;
+    g_running = false;
+
+    // Initialize readline
+    rl_bind_key('\t', rl_complete);
+}
+
+int repl_execute(const char *line) {
+    if (!line) return -1;
+
+    command_t cmd;
+    if (!repl_parse(line, &cmd)) {
+        printf("ERROR: Failed to parse command\n");
+        return -1;
+    }
+
+    switch (cmd.type) {
+        case CMD_SET:      return cmd_set(cmd.argc, cmd.argv);
+        case CMD_GET:      return cmd_get(cmd.argc, cmd.argv);
+        case CMD_DELETE:   return cmd_delete(cmd.argc, cmd.argv);
+        case CMD_LIST:     return cmd_list(cmd.argc, cmd.argv);
+        case CMD_COUNT:    return cmd_count(cmd.argc, cmd.argv);
+        case CMD_CLEAR:    return cmd_clear(cmd.argc, cmd.argv);
+        case CMD_STATS:    return cmd_stats(cmd.argc, cmd.argv);
+        case CMD_HELP:     return cmd_help(cmd.argc, cmd.argv);
+        case CMD_QUIT:     return 1;  // Signal to quit
+        case CMD_BATCH:    return cmd_batch(cmd.argc, cmd.argv);
+        case CMD_UNKNOWN:
+            printf("ERROR: Unknown command. Type HELP for available commands.\n");
+            return -1;
+        default:
+            return 0;  // Empty line or comment
+    }
+}
+
+int repl_run(void) {
+    if (!g_store) {
+        fprintf(stderr, "ERROR: REPL not initialized\n");
+        return 1;
+    }
+
+    g_running = true;
+
+    printf("\n");
+    printf("╔════════════════════════════════════════╗\n");
+    printf("║     SimpleKV Database v1.0.0           ║\n");
+    printf("║     Type HELP for available commands   ║\n");
+    printf("╚════════════════════════════════════════╝\n");
+    printf("\n");
+
+    while (g_running) {
+        char *line = readline("kv> ");
+
+        if (!line) {
+            // EOF (Ctrl+D)
+            printf("\n");
+            break;
+        }
+
+        // Skip empty lines
+        if (*line \u0026\u0026 *line != '\n') {
+            add_history(line);
+
+            int result = repl_execute(line);
+            if (result == 1) {
+                // QUIT command
+                free(line);
+                break;
+            }
+        }
+
+        free(line);
+    }
+
+    printf("Goodbye!\n");
+    return 0;
+}
+
+void repl_cleanup(void) {
+    g_store = NULL;
+    g_running = false;
+    clear_history();
+}
+
+// ============================================================================
+// BATCH PROCESSING
+// ============================================================================
+
+int repl_execute_file(const char *filename) {
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        printf("ERROR: Cannot open file: %s\n", filename);
+        return -1;
+    }
+
+    char line[4096];
+    int count = 0;
+    int line_num = 0;
+
+    while (fgets(line, sizeof(line), f)) {
+        line_num++;
+
+        // Remove trailing newline
+        size_t len = strlen(line);
+        if (len > 0 &\u0026 line[len-1] == '\n') {
+            line[len-1] = '\0';
+        }
+
+        // Skip empty lines and comments
+        char *p = line;
+        while (isspace((unsigned char)*p)) p++;
+        if (*p == '\0' || *p == '#') continue;
+
+        int result = repl_execute(line);
+        if (result < 0) {
+            printf("ERROR on line %d: %s\n", line_num, line);
+        } else {
+            count++;
+        }
+    }
+
+    fclose(f);
+    return count;
+}
+
+int repl_execute_string(const char *commands) {
+    if (!commands) return 0;
+
+    // Make a copy since strtok modifies the string
+    char *copy = strdup(commands);
+    if (!copy) return -1;
+
+    int count = 0;
+    char *line = strtok(copy, "\n");
+
+    while (line) {
+        // Skip empty lines and comments
+        char *p = line;
+        while (isspace((unsigned char)*p)) p++;
+
+        if (*p != '\0' \u0026\u0026 *p != '#') {
+            repl_execute(line);
+            count++;
+        }
+
+        line = strtok(NULL, "\n");
+    }
+
+    free(copy);
+    return count;
+}
+```
+
+### 3. Updated Main (src/main.c)
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "utils.h"
+#include "kv_store.h"
+#include "repl.h"
+
+static void print_usage(const char *program) {
+    printf("Usage: %s [options] [commands...]\n", program);
+    printf("\nOptions:\n");
+    printf("  -h, --help          Show this help message\n");
+    printf("  -v, --version       Show version information\n");
+    printf("  -d, --debug         Enable debug logging\n");
+    printf("  -f, --file FILE     Execute commands from file\n");
+    printf("  -e, --exec CMD      Execute single command\n");
+    printf("  -i, --interactive   Force interactive mode\n");
+    printf("\n");
+    printf("Examples:\n");
+    printf("  %s                  Start interactive REPL\n", program);
+    printf("  %s -e 'SET x 42'    Execute single command\n", program);
+    printf("  %s -f script.kv     Execute script file\n", program);
+    printf("  %s -e 'SET x 1' -e 'GET x'\n", program);
+}
+
+static void print_version(void) {
+    printf("%s version %s\n", DB_NAME, DB_VERSION_STRING);
+    printf("A simple key-value store database\n");
+}
+
+int main(int argc, char *argv[]) {
+    // Parse command line arguments
+    bool interactive = false;
+    bool has_commands = false;
+    const char *batch_file = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        }
+        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        }
+        if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--debug") == 0) {
+            db_set_log_level(LOG_LEVEL_DEBUG);
+            db_debug("Debug logging enabled");
+        }
+        else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0) {
+            if (i + 1 < argc) {
+                batch_file = argv[++i];
+                has_commands = true;
+            } else {
+                fprintf(stderr, "ERROR: -f requires a filename\n");
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--exec") == 0) {
+            if (i + 1 < argc) {
+                has_commands = true;
+                // Don't increment i here, we'll process later
+            } else {
+                fprintf(stderr, "ERROR: -e requires a command\n");
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interactive") == 0) {
+            interactive = true;
+        }
+        else if (argv[i][0] != '-') {
+            // Non-option argument, treat as command
+            has_commands = true;
+        }
+    }
+
+    // Default to interactive if no commands specified and stdin is a tty
+    if (!has_commands \u0026\u0026 !interactive) {
+        interactive = isatty(fileno(stdin));
+    }
+
+    db_info("Starting %s %s", DB_NAME, DB_VERSION_STRING);
+
+    // Create key-value store
+    kv_store_t *store = kv_store_create();
+    if (!store) {
+        db_fatal("Failed to create key-value store");
+        return 1;
+    }
+
+    db_info("Key-value store created successfully");
+
+    // Initialize REPL
+    repl_init(store);
+
+    int exit_code = 0;
+
+    // Execute batch file if specified
+    if (batch_file) {
+        int count = repl_execute_file(batch_file);
+        if (count < 0) {
+            exit_code = 1;
+        }
+    }
+
+    // Execute inline commands
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--exec") == 0) {
+            if (i + 1 < argc) {
+                repl_execute(argv[++i]);
+            }
+        }
+    }
+
+    // Run interactive REPL if requested
+    if (interactive) {
+        exit_code = repl_run();
+    }
+
+    // Cleanup
+    repl_cleanup();
+    kv_store_destroy(store);
+    db_info("Database shutdown complete");
+
+    return exit_code;
+}
+```
+
+### 4. Update Makefile
+
+Add readline library:
+
+```makefile
+# Compiler settings
+CC = gcc
+CFLAGS = -Wall -Wextra -Werror -std=c11 -O2
+LDFLAGS = -lreadline
+```
+
+## Code Walkthrough
+
+### Command Parsing
+
+1. **Tokenization:** Split line by whitespace
+2. **Command identification:** First token determines command type
+3. **Argument collection:** Remaining tokens are arguments
+
+### Interactive Mode
+
+Using GNU readline:
+
+- Command history (up/down arrows)
+- Line editing
+- Tab completion (extensible)
+- Persistent history file
+
+### Error Handling
+
+- Invalid commands show helpful messages
+- Missing arguments are detected
+- Database errors are translated to user-friendly messages
+
+## Hands-On Exercise
+
+### Challenge: Add Advanced Features
+
+**Goal:** Extend the REPL with additional features
+
+**Requirements:**
+
+1. **Add EXPIRE command:**
+   - `EXPIRE key seconds` - Set TTL on a key
+   - Keys automatically deleted after TTL expires
+   - `TTL key` - Show remaining time
+
+2. **Add MGET/MSET:**
+   - `MSET key1 val1 key2 val2 ...` - Set multiple keys
+   - `MGET key1 key2 ...` - Get multiple values
+
+3. **Add SAVE command:**
+   - `SAVE filename` - Export to file
+   - Format: one key-value pair per line
+
+**Expected Usage:**
+
+```
+kv> SET temp_data "cache"
+OK
+kv> EXPIRE temp_data 60
+OK
+kv> TTL temp_data
+58
+kv> MSET a 1 b 2 c 3
+OK
+kv> MGET a b c
+1
+2
+3
+```
+
+## Solution
+
+<details>
+<summary>Click to see implementation hints</summary>
+
+For EXPIRE/TTL:
+
+1. Store expiration time alongside value
+2. Check expiration on GET
+3. Lazy deletion (delete on access) or background cleanup
+
+For MGET/MSET:
+
+1. Parse multiple key-value pairs
+2. Loop through and call kv_store_set/get for each
+3. Return results as array
+
+For SAVE:
+
+1. Use iterator to traverse all entries
+2. Write key=value to file
+3. Handle errors appropriately
+
+</details>
+
+## Next Steps
+
+Congratulations! You've completed Lesson 2 and built a fully functional in-memory key-value store with:
+
+- Professional project structure
+- Hash table with dynamic resizing
+- Iterator support
+- Interactive REPL
+- Command-line interface
+
+In **Lesson 3: Persistence**, you'll learn to:
+
+- Write data to disk using Write-Ahead Log (WAL)
+- Recover database state on restart
+- Handle crashes gracefully
+- Implement compaction
+
+Your database is about to become durable!

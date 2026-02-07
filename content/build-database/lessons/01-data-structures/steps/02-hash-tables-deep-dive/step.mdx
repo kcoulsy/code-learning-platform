@@ -1,0 +1,715 @@
+---
+id: hash-tables-deep-dive
+title: 'Hash Tables Deep Dive'
+order: 2
+---
+
+# Hash Tables Deep Dive
+
+## Prerequisites
+
+- Completion of Step 1: Why Data Structures Matter
+- Understanding of arrays and pointers in C
+- Familiarity with dynamic memory allocation
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement a complete hash table from scratch
+- Understand hash function design (FNV-1a)
+- Master collision resolution strategies
+- Build a practical phone book application
+
+## Why Hash Tables?
+
+Hash tables provide O(1) average-case lookups, making them ideal for:
+
+- User sessions (lookup by session ID)
+- Caches (lookup by cache key)
+- Indexes (lookup by primary key)
+- Configuration storage (lookup by setting name)
+
+## Complete Implementation
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <assert.h>
+
+// ============================================================================
+// HASH FUNCTION (FNV-1a)
+// ============================================================================
+
+/*
+ * FNV-1a (Fowler-Noll-Vo) is a non-cryptographic hash function.
+ * It's fast, has good distribution, and is widely used in databases.
+ *
+ * Why FNV-1a?
+ * - Simple to implement
+ * - Good avalanche effect (small key changes = big hash changes)
+ * - Fast on modern CPUs
+ * - Well-tested and proven
+ */
+
+#define FNV_OFFSET_BASIS 14695981039346656037ULL
+#define FNV_PRIME 1099511628211ULL
+
+uint64_t fnv1a_hash(const char *key) {
+    uint64_t hash = FNV_OFFSET_BASIS;
+
+    while (*key) {
+        hash ^= (unsigned char)*key++;
+        hash *= FNV_PRIME;
+    }
+
+    return hash;
+}
+
+// ============================================================================
+// HASH TABLE ENTRY
+// ============================================================================
+
+typedef enum {
+    ENTRY_EMPTY,      // Never used
+    ENTRY_OCCUPIED,   // Currently has data
+    ENTRY_DELETED     // Was occupied, now deleted (tombstone)
+} entry_state_t;
+
+typedef struct {
+    char *key;
+    char *value;
+    entry_state_t state;
+} hash_entry_t;
+
+// ============================================================================
+// HASH TABLE STRUCTURE
+// ============================================================================
+
+typedef struct {
+    hash_entry_t *entries;  // Array of entries
+    size_t capacity;        // Total slots in table
+    size_t size;           // Number of occupied entries
+    size_t tombstones;     // Number of deleted entries
+} hash_table_t;
+
+// Load factor thresholds
+#define MAX_LOAD_FACTOR 0.75   // Grow when 75% full
+#define MIN_LOAD_FACTOR 0.10   // Shrink when 10% full (optional optimization)
+
+// ============================================================================
+// HASH TABLE OPERATIONS
+// ============================================================================
+
+/*
+ * Create a new hash table with given initial capacity.
+ * Capacity should be a power of 2 for efficient modulo operations.
+ */
+hash_table_t *ht_create(size_t initial_capacity) {
+    hash_table_t *ht = malloc(sizeof(hash_table_t));
+    if (!ht) return NULL;
+
+    // Round up to next power of 2
+    size_t capacity = 16;
+    while (capacity < initial_capacity) {
+        capacity *= 2;
+    }
+
+    ht->capacity = capacity;
+    ht->size = 0;
+    ht->tombstones = 0;
+    ht->entries = calloc(capacity, sizeof(hash_entry_t));
+
+    if (!ht->entries) {
+        free(ht);
+        return NULL;
+    }
+
+    // Initialize all entries as empty
+    for (size_t i = 0; i < capacity; i++) {
+        ht->entries[i].state = ENTRY_EMPTY;
+    }
+
+    return ht;
+}
+
+/*
+ * Destroy a hash table and free all memory.
+ */
+void ht_destroy(hash_table_t *ht) {
+    if (!ht) return;
+
+    // Free all keys and values
+    for (size_t i = 0; i < ht->capacity; i++) {
+        if (ht->entries[i].state == ENTRY_OCCUPIED) {
+            free(ht->entries[i].key);
+            free(ht->entries[i].value);
+        }
+    }
+
+    free(ht->entries);
+    free(ht);
+}
+
+/*
+ * Compute index for a key using FNV-1a hash.
+ */
+static size_t ht_index(hash_table_t *ht, const char *key) {
+    uint64_t hash = fnv1a_hash(key);
+    return hash % ht->capacity;
+}
+
+/*
+ * Find an entry for a key.
+ * Returns pointer to entry if found, NULL if not found.
+ * Also returns insertion point for new keys via insert_idx.
+ */
+static hash_entry_t *ht_find_entry(hash_table_t *ht, const char *key,
+                                    size_t *insert_idx) {
+    size_t idx = ht_index(ht, key);
+    size_t first_deleted = ht->capacity;  // Sentinel value
+
+    // Linear probing
+    for (size_t i = 0; i < ht->capacity; i++) {
+        size_t probe_idx = (idx + i) % ht->capacity;
+        hash_entry_t *entry = &ht->entries[probe_idx];
+
+        if (entry->state == ENTRY_EMPTY) {
+            // Found empty slot - key doesn't exist
+            if (insert_idx) {
+                // Prefer to insert at first deleted slot if we saw one
+                *insert_idx = (first_deleted < ht->capacity) ? first_deleted : probe_idx;
+            }
+            return NULL;
+        }
+
+        if (entry->state == ENTRY_DELETED && first_deleted == ht->capacity) {
+            // Remember first deleted slot for potential insertion
+            first_deleted = probe_idx;
+        }
+
+        if (entry->state == ENTRY_OCCUPIED && strcmp(entry->key, key) == 0) {
+            // Found the key
+            return entry;
+        }
+    }
+
+    // Table is full (shouldn't happen with proper resizing)
+    if (insert_idx) {
+        *insert_idx = first_deleted;
+    }
+    return NULL;
+}
+
+/*
+ * Resize the hash table to a new capacity.
+ * Rehashes all existing entries.
+ */
+static int ht_resize(hash_table_t *ht, size_t new_capacity) {
+    hash_entry_t *old_entries = ht->entries;
+    size_t old_capacity = ht->capacity;
+
+    // Allocate new array
+    ht->entries = calloc(new_capacity, sizeof(hash_entry_t));
+    if (!ht->entries) {
+        ht->entries = old_entries;
+        return -1;
+    }
+
+    ht->capacity = new_capacity;
+    ht->size = 0;
+    ht->tombstones = 0;
+
+    // Initialize new array
+    for (size_t i = 0; i < new_capacity; i++) {
+        ht->entries[i].state = ENTRY_EMPTY;
+    }
+
+    // Rehash all existing entries
+    for (size_t i = 0; i < old_capacity; i++) {
+        if (old_entries[i].state == ENTRY_OCCUPIED) {
+            ht_insert(ht, old_entries[i].key, old_entries[i].value);
+            free(old_entries[i].key);
+            free(old_entries[i].value);
+        }
+    }
+
+    free(old_entries);
+    return 0;
+}
+
+/*
+ * Insert or update a key-value pair.
+ * Returns 0 on success, -1 on failure.
+ */
+int ht_insert(hash_table_t *ht, const char *key, const char *value) {
+    // Check load factor and resize if needed
+    double load = (double)(ht->size + ht->tombstones) / ht->capacity;
+    if (load > MAX_LOAD_FACTOR) {
+        if (ht_resize(ht, ht->capacity * 2) < 0) {
+            return -1;
+        }
+    }
+
+    size_t insert_idx;
+    hash_entry_t *existing = ht_find_entry(ht, key, &insert_idx);
+
+    if (existing) {
+        // Update existing entry
+        free(existing->value);
+        existing->value = strdup(value);
+        return 0;
+    }
+
+    // Insert new entry
+    hash_entry_t *entry = &ht->entries[insert_idx];
+
+    if (entry->state == ENTRY_DELETED) {
+        ht->tombstones--;
+    }
+
+    entry->key = strdup(key);
+    entry->value = strdup(value);
+    entry->state = ENTRY_OCCUPIED;
+    ht->size++;
+
+    return 0;
+}
+
+/*
+ * Look up a value by key.
+ * Returns pointer to value (don't modify!), or NULL if not found.
+ */
+const char *ht_get(hash_table_t *ht, const char *key) {
+    hash_entry_t *entry = ht_find_entry(ht, key, NULL);
+    return entry ? entry->value : NULL;
+}
+
+/*
+ * Delete a key-value pair.
+ * Returns 0 on success, -1 if key not found.
+ */
+int ht_delete(hash_table_t *ht, const char *key) {
+    hash_entry_t *entry = ht_find_entry(ht, key, NULL);
+
+    if (!entry) {
+        return -1;
+    }
+
+    // Mark as deleted (tombstone)
+    free(entry->key);
+    free(entry->value);
+    entry->key = NULL;
+    entry->value = NULL;
+    entry->state = ENTRY_DELETED;
+
+    ht->size--;
+    ht->tombstones++;
+
+    return 0;
+}
+
+/*
+ * Check if a key exists in the table.
+ */
+bool ht_contains(hash_table_t *ht, const char *key) {
+    return ht_find_entry(ht, key, NULL) != NULL;
+}
+
+/*
+ * Get the number of entries in the table.
+ */
+size_t ht_size(hash_table_t *ht) {
+    return ht->size;
+}
+
+/*
+ * Print hash table statistics (for debugging).
+ */
+void ht_print_stats(hash_table_t *ht) {
+    printf("Hash Table Stats:\n");
+    printf("  Capacity:    %zu\n", ht->capacity);
+    printf("  Size:        %zu\n", ht->size);
+    printf("  Tombstones:  %zu\n", ht->tombstones);
+    printf("  Load Factor: %.2f%%\n",
+           100.0 * (ht->size + ht->tombstones) / ht->capacity);
+    printf("  Used Slots:  %.2f%%\n",
+           100.0 * ht->size / ht->capacity);
+}
+
+// ============================================================================
+// PHONE BOOK APPLICATION
+// ============================================================================
+
+typedef struct {
+    hash_table_t *contacts;
+} phone_book_t;
+
+phone_book_t *phone_book_create(void) {
+    phone_book_t *pb = malloc(sizeof(phone_book_t));
+    pb->contacts = ht_create(100);
+    return pb;
+}
+
+void phone_book_destroy(phone_book_t *pb) {
+    ht_destroy(pb->contacts);
+    free(pb);
+}
+
+void phone_book_add(phone_book_t *pb, const char *name, const char *phone) {
+    ht_insert(pb->contacts, name, phone);
+    printf("Added: %s -> %s\n", name, phone);
+}
+
+void phone_book_lookup(phone_book_t *pb, const char *name) {
+    const char *phone = ht_get(pb->contacts, name);
+    if (phone) {
+        printf("%s: %s\n", name, phone);
+    } else {
+        printf("%s: Not found\n", name);
+    }
+}
+
+void phone_book_remove(phone_book_t *pb, const char *name) {
+    if (ht_delete(pb->contacts, name) == 0) {
+        printf("Removed: %s\n", name);
+    } else {
+        printf("%s: Not found\n", name);
+    }
+}
+
+// ============================================================================
+// TESTS
+// ============================================================================
+
+void test_basic_operations() {
+    printf("\n=== Test: Basic Operations ===\n");
+
+    hash_table_t *ht = ht_create(16);
+    assert(ht != NULL);
+
+    // Test insert
+    assert(ht_insert(ht, "name", "Alice") == 0);
+    assert(ht_insert(ht, "age", "30") == 0);
+    assert(ht_size(ht) == 2);
+
+    // Test get
+    assert(strcmp(ht_get(ht, "name"), "Alice") == 0);
+    assert(strcmp(ht_get(ht, "age"), "30") == 0);
+    assert(ht_get(ht, "missing") == NULL);
+
+    // Test update
+    assert(ht_insert(ht, "age", "31") == 0);
+    assert(strcmp(ht_get(ht, "age"), "31") == 0);
+    assert(ht_size(ht) == 2);  // Size shouldn't change
+
+    // Test delete
+    assert(ht_delete(ht, "age") == 0);
+    assert(ht_get(ht, "age") == NULL);
+    assert(ht_size(ht) == 1);
+
+    // Test delete non-existent
+    assert(ht_delete(ht, "missing") == -1);
+
+    ht_destroy(ht);
+    printf("✓ Basic operations test passed\n");
+}
+
+void test_collision_handling() {
+    printf("\n=== Test: Collision Handling ===\n");
+
+    // Use small table to force collisions
+    hash_table_t *ht = ht_create(4);
+
+    // Insert many items
+    for (int i = 0; i < 100; i++) {
+        char key[32], value[32];
+        snprintf(key, sizeof(key), "key%d", i);
+        snprintf(value, sizeof(value), "value%d", i);
+        assert(ht_insert(ht, key, value) == 0);
+    }
+
+    // Verify all items are retrievable
+    for (int i = 0; i < 100; i++) {
+        char key[32], expected[32];
+        snprintf(key, sizeof(key), "key%d", i);
+        snprintf(expected, sizeof(expected), "value%d", i);
+        const char *actual = ht_get(ht, key);
+        assert(actual != NULL);
+        assert(strcmp(actual, expected) == 0);
+    }
+
+    ht_print_stats(ht);
+    ht_destroy(ht);
+    printf("✓ Collision handling test passed\n");
+}
+
+void test_phone_book() {
+    printf("\n=== Test: Phone Book Application ===\n");
+
+    phone_book_t *pb = phone_book_create();
+
+    phone_book_add(pb, "Alice", "555-0101");
+    phone_book_add(pb, "Bob", "555-0102");
+    phone_book_add(pb, "Charlie", "555-0103");
+
+    printf("\nLooking up contacts:\n");
+    phone_book_lookup(pb, "Alice");
+    phone_book_lookup(pb, "Bob");
+    phone_book_lookup(pb, "David");  // Not found
+
+    printf("\nRemoving contact:\n");
+    phone_book_remove(pb, "Bob");
+    phone_book_lookup(pb, "Bob");  // Should be not found
+
+    phone_book_destroy(pb);
+    printf("✓ Phone book test passed\n");
+}
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+int main() {
+    printf("Hash Table Implementation\n");
+    printf("=========================\n");
+
+    test_basic_operations();
+    test_collision_handling();
+    test_phone_book();
+
+    printf("\n=== All tests passed! ===\n");
+
+    return 0;
+}
+```
+
+## Code Walkthrough
+
+### FNV-1a Hash Function
+
+The hash function is critical for performance:
+
+```c
+uint64_t fnv1a_hash(const char *key) {
+    uint64_t hash = FNV_OFFSET_BASIS;  // Magic starting value
+
+    while (*key) {
+        hash ^= (unsigned char)*key++;  // XOR with byte
+        hash *= FNV_PRIME;               // Multiply by prime
+    }
+
+    return hash;
+}
+```
+
+**Why it works:**
+
+- XOR provides good bit mixing
+- Prime multiplication spreads values across the hash space
+- 64-bit output means low collision probability
+
+### Collision Resolution
+
+When two keys hash to the same index, we use **linear probing**:
+
+```
+Index 0: Alice (hash=42)
+Index 1: Bob (hash=42, collision! placed at next slot)
+Index 2: Charlie (hash=44)
+```
+
+**Tombstones** are crucial for deletion:
+
+- Can't just clear the slot (would break probing chain)
+- Mark as "deleted" so probes can continue past it
+- Reuse deleted slots on next insertion
+
+### Dynamic Resizing
+
+When the table gets 75% full:
+
+1. Allocate new array (2x size)
+2. Rehash all existing entries
+3. Free old array
+
+This keeps operations O(1) amortized.
+
+## Hands-On Exercise
+
+### Challenge: Build a Word Frequency Counter
+
+**Goal:** Count how many times each word appears in a text file
+
+**Requirements:**
+
+1. Read a text file from command line
+2. Tokenize into words (lowercase, remove punctuation)
+3. Count frequency of each word using hash table
+4. Print top 10 most frequent words
+
+**Expected Output:**
+
+```
+Top 10 words:
+1. "the" - 1542 times
+2. "and" - 982 times
+3. "to" - 876 times
+...
+```
+
+**Starter Code:**
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
+#include "hash_table.h"  // Your implementation from above
+
+// Normalize word: lowercase, remove punctuation
+void normalize_word(char *word) {
+    // TODO: Convert to lowercase
+    // TODO: Remove trailing punctuation
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <file>\n", argv[0]);
+        return 1;
+    }
+
+    FILE *f = fopen(argv[1], "r");
+    if (!f) {
+        perror("fopen");
+        return 1;
+    }
+
+    hash_table_t *freq = ht_create(1000);
+    char word[256];
+
+    // TODO: Read file word by word
+    // TODO: Normalize each word
+    // TODO: Update count in hash table
+
+    // TODO: Find top 10 words
+    // Hint: Iterate through hash table, track top 10
+
+    fclose(f);
+    ht_destroy(freq);
+    return 0;
+}
+```
+
+**Hints:**
+
+- Use `fscanf(f, "%255s", word)` to read words
+- Check `ispunct()` to detect punctuation
+- Store count as string in hash table (e.g., "42")
+- Use `atoi()` to convert back to integer
+- Iterate through all entries to find top 10
+
+## Testing Your Code
+
+```bash
+# Compile
+gcc -o hash_table hash_table.c -Wall -Wextra -O2
+
+# Run tests
+./hash_table
+
+# Test phone book
+./hash_table
+
+# For word frequency (after you implement it)
+./word_count moby_dick.txt
+```
+
+## Solution
+
+<details>
+<summary>Click to see word frequency solution</summary>
+
+```c
+void normalize_word(char *word) {
+    // Convert to lowercase
+    for (int i = 0; word[i]; i++) {
+        word[i] = tolower((unsigned char)word[i]);
+    }
+
+    // Remove trailing punctuation
+    int len = strlen(word);
+    while (len > 0 && ispunct((unsigned char)word[len-1])) {
+        word[--len] = '\0';
+    }
+}
+
+// In main():
+while (fscanf(f, "%255s", word) == 1) {
+    normalize_word(word);
+    if (strlen(word) == 0) continue;
+
+    const char *count_str = ht_get(freq, word);
+    int count = count_str ? atoi(count_str) : 0;
+    count++;
+
+    char new_count[32];
+    snprintf(new_count, sizeof(new_count), "%d", count);
+    ht_insert(freq, word, new_count);
+}
+
+// Find top 10
+typedef struct {
+    char word[256];
+    int count;
+} word_freq_t;
+
+word_freq_t top[10] = {0};
+
+for (size_t i = 0; i < freq->capacity; i++) {
+    if (freq->entries[i].state == ENTRY_OCCUPIED) {
+        const char *word = freq->entries[i].key;
+        int count = atoi(freq->entries[i].value);
+
+        // Insert into top 10 if count is high enough
+        for (int j = 0; j < 10; j++) {
+            if (count > top[j].count) {
+                // Shift down
+                for (int k = 9; k > j; k--) {
+                    top[k] = top[k-1];
+                }
+                strcpy(top[j].word, word);
+                top[j].count = count;
+                break;
+            }
+        }
+    }
+}
+
+printf("Top 10 words:\n");
+for (int i = 0; i < 10 && top[i].count > 0; i++) {
+    printf("%d. \"%s\" - %d times\n", i+1, top[i].word, top[i].count);
+}
+```
+
+</details>
+
+## Next Steps
+
+In the next step, we'll explore B-Trees—the data structure that powers range queries and ordered iteration in databases. You'll learn:
+
+- B-Tree node structure and properties
+- Search, insert, and delete operations
+- Why B-Trees are optimal for disk-based storage
+- How to trace through B-Tree operations
+
+## Key Takeaways
+
+1. **Hash functions** should be fast and distribute keys uniformly
+2. **Collision resolution** keeps the table working under load
+3. **Tombstones** enable deletion without breaking probe chains
+4. **Dynamic resizing** maintains O(1) performance as data grows
+5. **Load factor** of 0.75 balances memory usage vs collision rate

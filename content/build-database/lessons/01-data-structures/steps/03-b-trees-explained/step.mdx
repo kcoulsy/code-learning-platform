@@ -1,0 +1,891 @@
+---
+id: b-trees-explained
+title: 'B-Trees Explained'
+order: 3
+---
+
+# B-Trees Explained
+
+## Prerequisites
+
+- Completion of Steps 1-2 in this lesson
+- Understanding of binary search trees
+- Familiarity with recursion in C
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Understand B-Tree structure and invariants
+- Implement B-Tree node operations
+- Perform search, insert, and delete operations
+- Trace through B-Tree operations step-by-step
+- Understand why B-Trees are optimal for disk storage
+
+## Why B-Trees?
+
+Hash tables are great for exact lookups but cannot:
+
+- Find all keys in a range ("users aged 20-30")
+- Iterate in sorted order
+- Find nearest key ("floor" or "ceiling")
+
+**B-Trees solve all of these with O(log n) operations.**
+
+### The Disk Problem
+
+When data doesn't fit in RAM:
+
+- Reading from disk: ~10ms (10,000,000 ns)
+- Reading from RAM: ~100 ns
+- **Disk is 100,000x slower!**
+
+**Key insight:** Minimize disk reads by storing many keys per node (a "page").
+
+## Complete Implementation
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <assert.h>
+
+// ============================================================================
+// B-TREE CONFIGURATION
+// ============================================================================
+
+/*
+ * B-TREE ORDER (t):
+ * - Minimum degree of the B-tree
+ * - Each node (except root) must have at least t-1 keys
+ * - Each node can have at most 2t-1 keys
+ * - For ORDER=3: min=2 keys, max=5 keys per node
+ *
+ * Higher order = fewer disk accesses but more CPU work per node
+ */
+#define BTREE_ORDER 3
+#define MAX_KEYS (2 * BTREE_ORDER - 1)    // 5 keys max
+#define MIN_KEYS (BTREE_ORDER - 1)        // 2 keys min
+#define MAX_CHILDREN (2 * BTREE_ORDER)    // 6 children max
+
+// ============================================================================
+// B-TREE NODE STRUCTURE
+// ============================================================================
+
+typedef struct btree_node {
+    int keys[MAX_KEYS];              // Keys stored in this node
+    struct btree_node *children[MAX_CHILDREN];  // Child pointers
+    int num_keys;                    // Current number of keys
+    bool is_leaf;                    // true if leaf node
+} btree_node_t;
+
+// ============================================================================
+// B-TREE STRUCTURE
+// ============================================================================
+
+typedef struct {
+    btree_node_t *root;
+    int order;                       // Minimum degree
+} btree_t;
+
+// ============================================================================
+// NODE OPERATIONS
+// ============================================================================
+
+/*
+ * Create a new B-tree node.
+ */
+btree_node_t *btree_create_node(bool is_leaf) {
+    btree_node_t *node = malloc(sizeof(btree_node_t));
+    if (!node) return NULL;
+
+    node->num_keys = 0;
+    node->is_leaf = is_leaf;
+
+    // Initialize all children to NULL
+    for (int i = 0; i < MAX_CHILDREN; i++) {
+        node->children[i] = NULL;
+    }
+
+    return node;
+}
+
+/*
+ * Free a B-tree node and all its children.
+ */
+void btree_free_node(btree_node_t *node) {
+    if (!node) return;
+
+    // Recursively free children
+    if (!node->is_leaf) {
+        for (int i = 0; i <= node->num_keys; i++) {
+            btree_free_node(node->children[i]);
+        }
+    }
+
+    free(node);
+}
+
+// ============================================================================
+// B-TREE SEARCH
+// ============================================================================
+
+/*
+ * Search for a key in a node.
+ * Returns index if found, or insertion point if not found.
+ */
+static int btree_find_key_index(btree_node_t *node, int key) {
+    int idx = 0;
+    while (idx < node->num_keys && key > node->keys[idx]) {
+        idx++;
+    }
+    return idx;
+}
+
+/*
+ * Search for a key in the B-tree.
+ * Returns true if found, false otherwise.
+ * If found, sets *out_node and *out_idx to the location.
+ */
+bool btree_search(btree_t *tree, int key, btree_node_t **out_node, int *out_idx) {
+    btree_node_t *node = tree->root;
+
+    while (node != NULL) {
+        int idx = btree_find_key_index(node, key);
+
+        // Check if key is at this index
+        if (idx < node->num_keys && node->keys[idx] == key) {
+            if (out_node) *out_node = node;
+            if (out_idx) *out_idx = idx;
+            return true;
+        }
+
+        // If leaf, key not found
+        if (node->is_leaf) {
+            return false;
+        }
+
+        // Descend to appropriate child
+        node = node->children[idx];
+    }
+
+    return false;
+}
+
+// ============================================================================
+// B-TREE INSERTION
+// ============================================================================
+
+/*
+ * Split a full child node.
+ *
+ * parent: parent node containing the full child
+ * idx: index of the full child in parent's children array
+ */
+static void btree_split_child(btree_node_t *parent, int idx) {
+    btree_node_t *full_child = parent->children[idx];
+    btree_node_t *new_child = btree_create_node(full_child->is_leaf);
+
+    // New child gets t-1 largest keys from full_child
+    new_child->num_keys = MIN_KEYS;
+    for (int j = 0; j < MIN_KEYS; j++) {
+        new_child->keys[j] = full_child->keys[j + BTREE_ORDER];
+    }
+
+    // If not leaf, move t largest children too
+    if (!full_child->is_leaf) {
+        for (int j = 0; j < BTREE_ORDER; j++) {
+            new_child->children[j] = full_child->children[j + BTREE_ORDER];
+        }
+    }
+
+    // Reduce full_child's key count
+    full_child->num_keys = MIN_KEYS;
+
+    // Make room in parent for new child
+    for (int j = parent->num_keys; j >= idx + 1; j--) {
+        parent->children[j + 1] = parent->children[j];
+    }
+    parent->children[idx + 1] = new_child;
+
+    // Move middle key from full_child up to parent
+    for (int j = parent->num_keys - 1; j >= idx; j--) {
+        parent->keys[j + 1] = parent->keys[j];
+    }
+    parent->keys[idx] = full_child->keys[MIN_KEYS];
+    parent->num_keys++;
+}
+
+/*
+ * Insert a key into a non-full node.
+ */
+static void btree_insert_non_full(btree_node_t *node, int key) {
+    int idx = node->num_keys - 1;
+
+    if (node->is_leaf) {
+        // Insert into leaf node
+        // Shift keys to make room
+        while (idx >= 0 && key < node->keys[idx]) {
+            node->keys[idx + 1] = node->keys[idx];
+            idx--;
+        }
+        node->keys[idx + 1] = key;
+        node->num_keys++;
+    } else {
+        // Find child to insert into
+        while (idx >= 0 && key < node->keys[idx]) {
+            idx--;
+        }
+        idx++;
+
+        // If child is full, split it first
+        if (node->children[idx]->num_keys == MAX_KEYS) {
+            btree_split_child(node, idx);
+
+            // After split, determine which child to use
+            if (key > node->keys[idx]) {
+                idx++;
+            }
+        }
+
+        btree_insert_non_full(node->children[idx], key);
+    }
+}
+
+/*
+ * Insert a key into the B-tree.
+ */
+void btree_insert(btree_t *tree, int key) {
+    btree_node_t *root = tree->root;
+
+    // If root is full, split it
+    if (root->num_keys == MAX_KEYS) {
+        btree_node_t *new_root = btree_create_node(false);
+        new_root->children[0] = root;
+        tree->root = new_root;
+        btree_split_child(new_root, 0);
+        btree_insert_non_full(new_root, key);
+    } else {
+        btree_insert_non_full(root, key);
+    }
+}
+
+// ============================================================================
+// B-TREE DELETION
+// ============================================================================
+
+/*
+ * Get predecessor (largest key in left subtree).
+ */
+static int btree_get_predecessor(btree_node_t *node, int idx) {
+    btree_node_t *current = node->children[idx];
+    while (!current->is_leaf) {
+        current = current->children[current->num_keys];
+    }
+    return current->keys[current->num_keys - 1];
+}
+
+/*
+ * Get successor (smallest key in right subtree).
+ */
+static int btree_get_successor(btree_node_t *node, int idx) {
+    btree_node_t *current = node->children[idx + 1];
+    while (!current->is_leaf) {
+        current = current->children[0];
+    }
+    return current->keys[0];
+}
+
+/*
+ * Merge child[idx] and child[idx+1] into child[idx].
+ */
+static void btree_merge(btree_node_t *node, int idx) {
+    btree_node_t *child = node->children[idx];
+    btree_node_t *sibling = node->children[idx + 1];
+
+    // Pull key from parent down into child
+    child->keys[MIN_KEYS] = node->keys[idx];
+
+    // Copy keys from sibling to child
+    for (int i = 0; i < sibling->num_keys; i++) {
+        child->keys[MIN_KEYS + 1 + i] = sibling->keys[i];
+    }
+
+    // Copy children from sibling to child
+    if (!child->is_leaf) {
+        for (int i = 0; i <= sibling->num_keys; i++) {
+            child->children[MIN_KEYS + 1 + i] = sibling->children[i];
+        }
+    }
+
+    // Shift keys in parent left
+    for (int i = idx + 1; i < node->num_keys; i++) {
+        node->keys[i - 1] = node->keys[i];
+    }
+
+    // Shift children in parent left
+    for (int i = idx + 2; i <= node->num_keys; i++) {
+        node->children[i - 1] = node->children[i];
+    }
+
+    child->num_keys += sibling->num_keys + 1;
+    node->num_keys--;
+
+    free(sibling);
+}
+
+/*
+ * Fill child node that has too few keys.
+ */
+static void btree_fill(btree_node_t *node, int idx) {
+    // Borrow from previous sibling if possible
+    if (idx != 0 && node->children[idx - 1]->num_keys >= BTREE_ORDER) {
+        btree_node_t *child = node->children[idx];
+        btree_node_t *sibling = node->children[idx - 1];
+
+        // Shift keys in child right
+        for (int i = child->num_keys - 1; i >= 0; i--) {
+            child->keys[i + 1] = child->keys[i];
+        }
+
+        // Move key from parent to child
+        child->keys[0] = node->keys[idx - 1];
+
+        // Move key from sibling to parent
+        node->keys[idx - 1] = sibling->keys[sibling->num_keys - 1];
+
+        // Move children if not leaf
+        if (!child->is_leaf) {
+            for (int i = child->num_keys; i >= 0; i--) {
+                child->children[i + 1] = child->children[i];
+            }
+            child->children[0] = sibling->children[sibling->num_keys];
+        }
+
+        child->num_keys++;
+        sibling->num_keys--;
+    }
+    // Borrow from next sibling if possible
+    else if (idx != node->num_keys &&
+             node->children[idx + 1]->num_keys >= BTREE_ORDER) {
+        btree_node_t *child = node->children[idx];
+        btree_node_t *sibling = node->children[idx + 1];
+
+        // Move key from parent to child
+        child->keys[child->num_keys] = node->keys[idx];
+
+        // Move key from sibling to parent
+        node->keys[idx] = sibling->keys[0];
+
+        // Shift keys in sibling left
+        for (int i = 1; i < sibling->num_keys; i++) {
+            sibling->keys[i - 1] = sibling->keys[i];
+        }
+
+        // Move children if not leaf
+        if (!child->is_leaf) {
+            child->children[child->num_keys + 1] = sibling->children[0];
+            for (int i = 1; i <= sibling->num_keys; i++) {
+                sibling->children[i - 1] = sibling->children[i];
+            }
+        }
+
+        child->num_keys++;
+        sibling->num_keys--;
+    }
+    // Merge with sibling
+    else {
+        if (idx != node->num_keys) {
+            btree_merge(node, idx);
+        } else {
+            btree_merge(node, idx - 1);
+        }
+    }
+}
+
+/*
+ * Delete a key from a subtree rooted at node.
+ */
+static void btree_delete_from_node(btree_node_t *node, int key) {
+    int idx = btree_find_key_index(node, key);
+
+    if (idx < node->num_keys && node->keys[idx] == key) {
+        // Key is in this node
+        if (node->is_leaf) {
+            // Case 1: Key is in leaf - just remove it
+            for (int i = idx + 1; i < node->num_keys; i++) {
+                node->keys[i - 1] = node->keys[i];
+            }
+            node->num_keys--;
+        } else {
+            // Case 2: Key is in internal node
+            btree_node_t *left_child = node->children[idx];
+            btree_node_t *right_child = node->children[idx + 1];
+
+            if (left_child->num_keys >= BTREE_ORDER) {
+                // Case 2a: Left child has enough keys
+                int pred = btree_get_predecessor(node, idx);
+                node->keys[idx] = pred;
+                btree_delete_from_node(left_child, pred);
+            } else if (right_child->num_keys >= BTREE_ORDER) {
+                // Case 2b: Right child has enough keys
+                int succ = btree_get_successor(node, idx);
+                node->keys[idx] = succ;
+                btree_delete_from_node(right_child, succ);
+            } else {
+                // Case 2c: Both children have minimum keys - merge and delete
+                btree_merge(node, idx);
+                btree_delete_from_node(left_child, key);
+            }
+        }
+    } else {
+        // Key is not in this node
+        if (node->is_leaf) {
+            return;  // Key not found
+        }
+
+        // Determine which child to descend to
+        bool is_last_child = (idx == node->num_keys);
+
+        // Fill child if it has minimum keys
+        if (node->children[idx]->num_keys == MIN_KEYS) {
+            btree_fill(node, idx);
+        }
+
+        // If we merged with last child, adjust index
+        if (is_last_child && idx > node->num_keys) {
+            btree_delete_from_node(node->children[idx - 1], key);
+        } else {
+            btree_delete_from_node(node->children[idx], key);
+        }
+    }
+}
+
+/*
+ * Delete a key from the B-tree.
+ */
+void btree_delete(btree_t *tree, int key) {
+    if (!tree->root) return;
+
+    btree_delete_from_node(tree->root, key);
+
+    // If root is empty, make its first child the new root
+    if (tree->root->num_keys == 0) {
+        btree_node_t *old_root = tree->root;
+        if (tree->root->is_leaf) {
+            tree->root = NULL;
+        } else {
+            tree->root = tree->root->children[0];
+        }
+        free(old_root);
+    }
+}
+
+// ============================================================================
+// B-TREE CREATION AND DESTRUCTION
+// ============================================================================
+
+btree_t *btree_create(void) {
+    btree_t *tree = malloc(sizeof(btree_t));
+    if (!tree) return NULL;
+
+    tree->order = BTREE_ORDER;
+    tree->root = btree_create_node(true);
+
+    return tree;
+}
+
+void btree_destroy(btree_t *tree) {
+    if (!tree) return;
+    btree_free_node(tree->root);
+    free(tree);
+}
+
+// ============================================================================
+// VISUALIZATION
+// ============================================================================
+
+void btree_print_node(btree_node_t *node, int level) {
+    if (!node) return;
+
+    // Print indentation
+    for (int i = 0; i < level; i++) {
+        printf("  ");
+    }
+
+    // Print keys
+    printf("[");
+    for (int i = 0; i < node->num_keys; i++) {
+        printf("%d", node->keys[i]);
+        if (i < node->num_keys - 1) {
+            printf(" ");
+        }
+    }
+    printf("]");
+
+    if (node->is_leaf) {
+        printf(" (leaf)");
+    }
+    printf("\n");
+
+    // Print children
+    if (!node->is_leaf) {
+        for (int i = 0; i <= node->num_keys; i++) {
+            btree_print_node(node->children[i], level + 1);
+        }
+    }
+}
+
+void btree_print(btree_t *tree) {
+    printf("B-Tree (order=%d):\n", tree->order);
+    btree_print_node(tree->root, 0);
+    printf("\n");
+}
+
+// ============================================================================
+// TESTS
+// ============================================================================
+
+void test_insertion() {
+    printf("\n=== Test: Insertion ===\n");
+
+    btree_t *tree = btree_create();
+    assert(tree != NULL);
+
+    // Insert keys: 10, 20, 5, 6, 12, 30, 7, 17
+    int keys[] = {10, 20, 5, 6, 12, 30, 7, 17};
+    int n = sizeof(keys) / sizeof(keys[0]);
+
+    printf("Inserting: ");
+    for (int i = 0; i < n; i++) {
+        printf("%d ", keys[i]);
+        btree_insert(tree, keys[i]);
+    }
+    printf("\n\n");
+
+    btree_print(tree);
+
+    // Verify all keys are present
+    for (int i = 0; i < n; i++) {
+        assert(btree_search(tree, keys[i], NULL, NULL) == true);
+    }
+
+    btree_destroy(tree);
+    printf("✓ Insertion test passed\n");
+}
+
+void test_search() {
+    printf("\n=== Test: Search ===\n");
+
+    btree_t *tree = btree_create();
+
+    // Insert some keys
+    for (int i = 1; i <= 20; i++) {
+        btree_insert(tree, i * 5);  // 5, 10, 15, ..., 100
+    }
+
+    // Search for existing keys
+    for (int i = 1; i <= 20; i++) {
+        assert(btree_search(tree, i * 5, NULL, NULL) == true);
+    }
+
+    // Search for non-existing keys
+    assert(btree_search(tree, 3, NULL, NULL) == false);
+    assert(btree_search(tree, 999, NULL, NULL) == false);
+
+    btree_destroy(tree);
+    printf("✓ Search test passed\n");
+}
+
+void test_deletion() {
+    printf("\n=== Test: Deletion ===\n");
+
+    btree_t *tree = btree_create();
+
+    // Insert keys 1-20
+    printf("Inserting keys 1-20...\n");
+    for (int i = 1; i <= 20; i++) {
+        btree_insert(tree, i);
+    }
+
+    btree_print(tree);
+
+    // Delete some keys
+    printf("\nDeleting keys: 1, 10, 20\n");
+    btree_delete(tree, 1);
+    btree_delete(tree, 10);
+    btree_delete(tree, 20);
+
+    btree_print(tree);
+
+    // Verify deleted keys are gone
+    assert(btree_search(tree, 1, NULL, NULL) == false);
+    assert(btree_search(tree, 10, NULL, NULL) == false);
+    assert(btree_search(tree, 20, NULL, NULL) == false);
+
+    // Verify other keys still exist
+    for (int i = 2; i <= 19; i++) {
+        if (i != 10) {
+            assert(btree_search(tree, i, NULL, NULL) == true);
+        }
+    }
+
+    btree_destroy(tree);
+    printf("✓ Deletion test passed\n");
+}
+
+void test_large_dataset() {
+    printf("\n=== Test: Large Dataset (1000 keys) ===\n");
+
+    btree_t *tree = btree_create();
+
+    // Insert 1000 keys
+    printf("Inserting 1000 keys...\n");
+    for (int i = 1; i <= 1000; i++) {
+        btree_insert(tree, i);
+    }
+
+    // Verify all keys
+    printf("Verifying all keys...\n");
+    for (int i = 1; i <= 1000; i++) {
+        assert(btree_search(tree, i, NULL, NULL) == true);
+    }
+
+    // Delete half the keys
+    printf("Deleting even keys...\n");
+    for (int i = 2; i <= 1000; i += 2) {
+        btree_delete(tree, i);
+    }
+
+    // Verify deletions
+    for (int i = 2; i <= 1000; i += 2) {
+        assert(btree_search(tree, i, NULL, NULL) == false);
+    }
+
+    // Verify remaining keys
+    for (int i = 1; i <= 1000; i += 2) {
+        assert(btree_search(tree, i, NULL, NULL) == true);
+    }
+
+    btree_destroy(tree);
+    printf("✓ Large dataset test passed\n");
+}
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+int main() {
+    printf("B-Tree Implementation\n");
+    printf("=====================\n");
+
+    test_insertion();
+    test_search();
+    test_deletion();
+    test_large_dataset();
+
+    printf("\n=== All tests passed! ===\n");
+
+    return 0;
+}
+```
+
+## Code Walkthrough
+
+### B-Tree Invariants
+
+For a B-tree of order t:
+
+1. **Every node** (except root) has at least t-1 keys
+2. **Every node** has at most 2t-1 keys
+3. **Root** has at least 1 key (if not empty)
+4. **All leaves** are at the same depth
+5. **Keys in each node** are sorted
+6. **Child i** contains keys between key[i-1] and key[i]
+
+### Why B-Trees Are Optimal for Disks
+
+```
+Disk Block = 4KB
+Key size = 8 bytes
+Pointer size = 8 bytes
+
+B-tree node with 500 keys:
+- Keys: 500 × 8 = 4000 bytes
+- Pointers: 501 × 8 = 4008 bytes
+- Total: ~8KB (2 disk blocks)
+
+Height 3 B-tree:
+- Root: 500 keys, 501 children
+- Level 2: 501 nodes × 500 keys = 250,500 keys
+- Level 3: 501×501 nodes × 500 keys = 125,500,500 keys
+
+Result: 125 million keys in just 3 disk accesses!
+```
+
+### Insertion Algorithm
+
+1. **If root is full:** Split root, create new root
+2. **Traverse to leaf:** Following appropriate child pointers
+3. **If child is full:** Split child before descending
+4. **Insert in leaf:** Shift keys to make room
+
+### Deletion Cases
+
+**Case 1:** Key in leaf → Remove it
+**Case 2a:** Key in internal node, left child has extra → Replace with predecessor
+**Case 2b:** Key in internal node, right child has extra → Replace with successor
+**Case 2c:** Both children minimum → Merge and recurse
+**Case 3:** Key not in node → Descend, filling child if needed
+
+## Hands-On Exercise
+
+### Challenge: Trace B-Tree Operations
+
+**Goal:** Manually trace through B-tree insertions and understand the structure
+
+**Requirements:**
+
+1. Create a B-tree with ORDER=2 (min 1 key, max 3 keys per node)
+2. Insert keys in this order: 10, 20, 5, 6, 12, 30, 7, 17, 3, 4
+3. After each insertion, draw the tree structure
+4. Identify when splits occur
+
+**Expected Output Format:**
+
+```
+After inserting 10:
+[10] (leaf)
+
+After inserting 20:
+[10 20] (leaf)
+
+After inserting 5:
+[5 10 20] (leaf) - FULL!
+
+After inserting 6 (split occurs):
+    [10]
+   /    \
+[5 6]  [20]
+```
+
+**Starter Code:**
+
+```c
+#include <stdio.h>
+#include "btree.h"  // Your implementation
+
+int main() {
+    btree_t *tree = btree_create();
+
+    int keys[] = {10, 20, 5, 6, 12, 30, 7, 17, 3, 4};
+    int n = sizeof(keys) / sizeof(keys[0]);
+
+    for (int i = 0; i < n; i++) {
+        printf("\n=== Inserting %d ===\n", keys[i]);
+        btree_insert(tree, keys[i]);
+        btree_print(tree);
+    }
+
+    btree_destroy(tree);
+    return 0;
+}
+```
+
+**Questions to Answer:**
+
+1. How many splits occurred during these 10 insertions?
+2. What is the final height of the tree?
+3. Which insertion caused the first split?
+4. How many nodes are in the final tree?
+
+## Testing Your Code
+
+```bash
+# Compile
+gcc -o btree btree.c -Wall -Wextra -O2
+
+# Run tests
+./btree
+
+# For tracing exercise
+./trace_btree
+```
+
+## Solution
+
+<details>
+<summary>Click to see trace solution</summary>
+
+```
+After inserting 10:
+[10] (leaf)
+
+After inserting 20:
+[10 20] (leaf)
+
+After inserting 5:
+[5 10 20] (leaf) - Now full (3 keys max for ORDER=2)
+
+After inserting 6 (SPLIT!):
+    [10]
+   /    \
+[5 6]  [20]
+
+After inserting 12:
+    [10]
+   /    \
+[5 6]  [12 20]
+
+After inserting 30:
+    [10]
+   /    \
+[5 6]  [12 20 30] - Right child now full
+
+After inserting 7:
+    [10]
+   /    \
+[5 6 7]  [12 20 30] - Left child now full
+
+After inserting 17 (SPLIT!):
+        [10 20]
+       /   |   \
+   [5 6] [12 17] [30]
+
+After inserting 3:
+        [10 20]
+       /   |   \
+   [3 5 6] [12 17] [30]
+
+After inserting 4 (SPLIT!):
+          [5 10 20]
+         /  /   \  \
+      [3] [4 6] [12 17] [30]
+```
+
+**Answers:**
+
+1. **3 splits** occurred (after inserting 6, 17, and 4)
+2. **Final height:** 2 (root + 2 levels)
+3. **First split:** After inserting 6
+4. **Final nodes:** 7 nodes total
+
+</details>
+
+## Next Steps
+
+In the next step, we'll compare all the data structures we've learned and create a decision framework for choosing the right one. You'll:
+
+- Compare hash tables, B-trees, B+ trees, and LSM trees
+- Analyze real-world database use cases
+- Build a decision flowchart
+- Justify your choices for different scenarios
+
+## Key Takeaways
+
+1. **B-Trees** maintain balance automatically through splits and merges
+2. **High order** (many keys per node) minimizes disk accesses
+3. **All leaves at same depth** guarantees O(log n) operations
+4. **Sorted keys** enable range queries and ordered iteration
+5. **Complex implementation** pays off for disk-based storage

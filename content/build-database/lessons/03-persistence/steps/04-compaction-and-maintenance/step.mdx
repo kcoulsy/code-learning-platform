@@ -1,0 +1,314 @@
+---
+id: compaction-and-maintenance
+title: 'Compaction and Maintenance'
+order: 4
+---
+
+# Compaction and Maintenance
+
+## Prerequisites
+
+- Completion of Lesson 3 Steps 1-3
+- Understanding of log-structured storage
+- Knowledge of file operations
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement WAL compaction to remove obsolete entries
+- Create background compaction processes
+- Handle compaction during active writes
+- Build maintenance utilities
+- Optimize storage efficiency
+
+## Overview
+
+Over time, the WAL accumulates obsolete entries (overwritten keys, deleted keys). Compaction removes these to:
+
+1. **Reduce disk usage:** Remove dead entries
+2. **Improve recovery speed:** Smaller WAL to replay
+3. **Maintain performance:** Prevent unbounded growth
+
+## Implementation
+
+### Compaction Header (src/compaction.h)
+
+```c
+#ifndef COMPACTION_H
+#define COMPACTION_H
+
+#include "utils.h"
+#include "kv_store.h"
+#include "wal.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Compaction statistics
+typedef struct {
+    uint64_t entries_read;
+    uint64_t entries_written;
+    uint64_t entries_removed;  // Obsolete entries
+    uint64_t bytes_before;
+    uint64_t bytes_after;
+    uint64_t duration_ms;
+} compaction_stats_t;
+
+// Compact WAL file
+// Reads input WAL, writes compacted version to output
+// Keeps only the latest value for each key
+db_error_t compact_wal(const char *input_file, const char *output_file,
+                       compaction_stats_t *stats);
+
+// Compact WAL in-place
+// Creates compacted version, then atomically replaces original
+db_error_t compact_wal_inplace(const char *wal_file);
+
+// Check if compaction is needed
+// Returns true if WAL size exceeds threshold
+bool compaction_needed(const char *wal_file, uint64_t max_size);
+
+// Get compaction statistics
+void get_compaction_stats(compaction_stats_t *stats);
+
+// Print compaction report
+void print_compaction_report(const compaction_stats_t *stats);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // COMPACTION_H
+```
+
+### Compaction Implementation (src/compaction.c)
+
+```c
+#include "compaction.h"
+#include "hash_table.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+
+typedef struct {
+    char *key;
+    value_t value;
+    uint64_t timestamp;
+    uint32_t sequence;
+} compacted_entry_t;
+
+db_error_t compact_wal(const char *input_file, const char *output_file,
+                       compaction_stats_t *stats) {
+    if (!input_file || !output_file) {
+        return DB_ERROR_INVALID;
+    }
+
+    memset(stats, 0, sizeof(compaction_stats_t));
+    uint64_t start_time = db_get_time_ms();
+
+    // Get input file size
+    struct stat st;
+    if (stat(input_file, &st) == 0) {
+        stats->bytes_before = st.st_size;
+    }
+
+    db_info("Starting WAL compaction:");
+    db_info("  Input: %s", input_file);
+    db_info("  Output: %s", output_file);
+
+    // Open output WAL
+    wal_t *output_wal = wal_open(output_file);
+    if (!output_wal) {
+        return DB_ERROR_IO;
+    }
+
+    // Use hash table to track latest values
+    hash_table_t *latest_values = ht_create(1024);
+    if (!latest_values) {
+        wal_close(output_wal);
+        return DB_ERROR_NOMEM;
+    }
+
+    // First pass: read all entries, keep latest
+    // (Simplified - in production, use two-pass or sort-merge)
+
+    // Recovery callback to collect entries
+    typedef struct {
+        hash_table_t *ht;
+        compaction_stats_t *stats;
+    } compact_ctx_t;
+
+    compact_ctx_t ctx = {latest_values, stats};
+
+    int count = wal_recover(input_file,
+        lambda(void, (wal_op_type_t op, const char *key, const value_t *value,
+                      uint64_t timestamp, uint32_t sequence, void *user_ctx) {
+            (void)timestamp;
+            (void)sequence;
+            compact_ctx_t *cctx = (compact_ctx_t *)user_ctx;
+            cctx->stats->entries_read++;
+
+            if (op == WAL_OP_SET && key && value) {
+                // Store latest value
+                value_t copy;
+                value_copy(value, &copy);
+                ht_set(cctx->ht, key, &copy);
+                value_free(&copy);
+            } else if (op == WAL_OP_DELETE && key) {
+                // Remove from hash table
+                ht_delete(cctx->ht, key);
+            }
+        }), &ctx);
+
+    if (count < 0) {
+        ht_destroy(latest_values);
+        wal_close(output_wal);
+        return DB_ERROR_IO;
+    }
+
+    // Second pass: write compacted entries
+    ht_iterator_t *iter = ht_iter_create(latest_values);
+    while (ht_iter_next(iter)) {
+        const char *key = ht_iter_key(iter);
+        const value_t *value = ht_iter_value(iter);
+
+        wal_log_set(output_wal, key, value);
+        stats->entries_written++;
+    }
+    ht_iter_destroy(iter);
+
+    stats->entries_removed = stats->entries_read - stats->entries_written;
+
+    // Sync and close
+    wal_sync(output_wal);
+    wal_close(output_wal);
+    ht_destroy(latest_values);
+
+    // Get output size
+    if (stat(output_file, &st) == 0) {
+        stats->bytes_after = st.st_size;
+    }
+
+    stats->duration_ms = db_get_time_ms() - start_time;
+
+    db_info("Compaction complete:");
+    db_info("  Entries read: %llu", (unsigned long long)stats->entries_read);
+    db_info("  Entries written: %llu", (unsigned long long)stats->entries_written);
+    db_info("  Entries removed: %llu", (unsigned long long)stats->entries_removed);
+    db_info("  Size reduction: %.1f%%",
+            100.0 * (1.0 - (double)stats->bytes_after / stats->bytes_before));
+
+    return DB_OK;
+}
+
+db_error_t compact_wal_inplace(const char *wal_file) {
+    char temp_file[512];
+    snprintf(temp_file, sizeof(temp_file), "%s.compact", wal_file);
+
+    compaction_stats_t stats;
+    db_error_t err = compact_wal(wal_file, temp_file, &stats);
+    if (err != DB_OK) {
+        unlink(temp_file);
+        return err;
+    }
+
+    // Atomically replace
+    if (rename(temp_file, wal_file) != 0) {
+        db_error("Failed to replace WAL file: %s", strerror(errno));
+        unlink(temp_file);
+        return DB_ERROR_IO;
+    }
+
+    return DB_OK;
+}
+
+bool compaction_needed(const char *wal_file, uint64_t max_size) {
+    struct stat st;
+    if (stat(wal_file, &st) != 0) {
+        return false;
+    }
+    return (uint64_t)st.st_size > max_size;
+}
+
+void print_compaction_report(const compaction_stats_t *stats) {
+    printf("\n");
+    printf("╔════════════════════════════════════════╗\n");
+    printf("║      COMPACTION REPORT                 ║\n");
+    printf("╠════════════════════════════════════════╣\n");
+    printf("║ Entries read:    %21llu ║\n", (unsigned long long)stats->entries_read);
+    printf("║ Entries written: %21llu ║\n", (unsigned long long)stats->entries_written);
+    printf("║ Entries removed: %21llu ║\n", (unsigned long long)stats->entries_removed);
+    printf("║ Size before:     %21llu ║\n", (unsigned long long)stats->bytes_before);
+    printf("║ Size after:      %21llu ║\n", (unsigned long long)stats->bytes_after);
+    printf("║ Reduction:       %20.1f%% ║\n",
+           100.0 * (1.0 - (double)stats->bytes_after / stats->bytes_before));
+    printf("║ Duration:        %18.2f ms ║\n", (double)stats->duration_ms);
+    printf("╚════════════════════════════════════════╝\n");
+}
+```
+
+## Code Walkthrough
+
+### Two-Pass Compaction
+
+1. **First Pass:** Read all entries, keep only latest value per key
+2. **Second Pass:** Write compacted entries to new file
+3. **Atomic Replace:** Swap files atomically
+
+### Benefits
+
+- **Space savings:** Remove obsolete entries
+- **Recovery speed:** Smaller WAL to replay
+- **Write amplification:** Minimal (only rewritten once)
+
+## Hands-On Exercise
+
+### Challenge: Compaction Testing
+
+**Goal:** Test compaction effectiveness
+
+**Requirements:**
+
+1. Insert 10000 keys
+2. Update each key 10 times
+3. Delete 50% of keys
+4. Run compaction
+5. Verify size reduction and data integrity
+
+**Expected Output:**
+
+```
+Compaction Test
+===============
+Inserted: 10000 keys
+Updates: 100000 operations
+Deletes: 5000 keys
+
+Before compaction: 2.5 MB
+After compaction: 0.15 MB
+Reduction: 94%
+
+Data verification: PASSED
+```
+
+## Next Steps
+
+Congratulations! You've completed Lesson 3 and implemented a durable database with:
+
+- Write-Ahead Log for durability
+- Recovery procedures
+- Snapshot persistence
+- Compaction and maintenance
+
+In **Lesson 4: B-Tree Indexes**, you'll learn to:
+
+- Implement B-tree data structure
+- Add secondary indexes
+- Support range queries
+- Optimize lookups
+
+Your database is about to get much faster!

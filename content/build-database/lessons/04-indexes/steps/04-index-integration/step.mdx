@@ -1,0 +1,262 @@
+---
+id: index-integration
+title: 'Index Integration'
+order: 4
+---
+
+# Index Integration
+
+## Prerequisites
+
+- Completion of Lesson 4 Steps 1-3
+- Understanding of index selection
+- Knowledge of query optimization
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Integrate B-tree indexes with KV store
+- Implement automatic index selection
+- Support sorted iteration
+- Build query planner basics
+
+## Overview
+
+This step integrates everything:
+
+- Use B-tree for ordered storage
+- Hash table for exact lookups
+- Automatic selection based on query type
+- Unified interface
+
+## Implementation
+
+### Unified Store (src/unified_store.h)
+
+```c
+#ifndef UNIFIED_STORE_H
+#define UNIFIED_STORE_H
+
+#include "kv_store.h"
+#include "btree.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Storage mode
+typedef enum {
+    STORE_MODE_HASH,      // Fast exact lookups
+    STORE_MODE_BTREE      // Ordered, range queries
+} store_mode_t;
+
+// Unified store
+typedef struct {
+    store_mode_t mode;
+    kv_store_t *hash_store;
+    btree_t *btree_store;
+} unified_store_t;
+
+// Create unified store
+unified_store_t *unified_store_create(store_mode_t mode);
+
+// Destroy unified store
+void unified_store_destroy(unified_store_t *store);
+
+// Set operation
+db_error_t unified_store_set(unified_store_t *store, const char *key,
+                              const value_t *value);
+
+// Get operation
+const value_t *unified_store_get(unified_store_t *store, const char *key);
+
+// Range query (only for BTREE mode)
+void unified_store_range(unified_store_t *store, const char *start_key,
+                         const char *end_key,
+                         void (*callback)(const char *, const value_t *, void *),
+                         void *ctx);
+
+// Get statistics
+void unified_store_stats(unified_store_t *store);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // UNIFIED_STORE_H
+```
+
+### Implementation (src/unified_store.c)
+
+```c
+#include "unified_store.h"
+#include "btree_iterator.h"
+
+#include <string.h>
+
+// String comparison for B-tree
+static int compare_strings(const void *a, const void *b) {
+    return strcmp((const char *)a, (const char *)b);
+}
+
+unified_store_t *unified_store_create(store_mode_t mode) {
+    unified_store_t *store = DB_MALLOC(sizeof(unified_store_t));
+    if (!store) return NULL;
+
+    store->mode = mode;
+    store->hash_store = NULL;
+    store->btree_store = NULL;
+
+    switch (mode) {
+        case STORE_MODE_HASH:
+            store->hash_store = kv_store_create();
+            if (!store->hash_store) {
+                DB_FREE(store);
+                return NULL;
+            }
+            break;
+
+        case STORE_MODE_BTREE:
+            store->btree_store = btree_create(compare_strings);
+            if (!store->btree_store) {
+                DB_FREE(store);
+                return NULL;
+            }
+            break;
+    }
+
+    return store;
+}
+
+void unified_store_destroy(unified_store_t *store) {
+    if (!store) return;
+
+    if (store->hash_store) {
+        kv_store_destroy(store->hash_store);
+    }
+    if (store->btree_store) {
+        btree_destroy(store->btree_store);
+    }
+
+    DB_FREE(store);
+}
+
+db_error_t unified_store_set(unified_store_t *store, const char *key,
+                              const value_t *value) {
+    if (!store || !key || !value) return DB_ERROR_INVALID;
+
+    switch (store->mode) {
+        case STORE_MODE_HASH:
+            return kv_store_set(store->hash_store, key, value);
+
+        case STORE_MODE_BTREE: {
+            // Need to copy key and value for B-tree
+            char *key_copy = DB_STRDUP(key);
+            value_t *value_copy = DB_MALLOC(sizeof(value_t));
+            value_copy(value, value_copy);
+
+            db_error_t err = btree_insert(store->btree_store, key_copy, value_copy);
+            if (err != DB_OK) {
+                DB_FREE(key_copy);
+                DB_FREE(value_copy);
+            }
+            return err;
+        }
+    }
+
+    return DB_ERROR_INVALID;
+}
+
+const value_t *unified_store_get(unified_store_t *store, const char *key) {
+    if (!store || !key) return NULL;
+
+    switch (store->mode) {
+        case STORE_MODE_HASH:
+            return kv_store_get(store->hash_store, key);
+
+        case STORE_MODE_BTREE:
+            return (const value_t *)btree_search(store->btree_store, key);
+    }
+
+    return NULL;
+}
+
+void unified_store_range(unified_store_t *store, const char *start_key,
+                         const char *end_key,
+                         void (*callback)(const char *, const value_t *, void *),
+                         void *ctx) {
+    if (!store || !callback) return;
+
+    if (store->mode != STORE_MODE_BTREE) {
+        db_error("Range queries only supported in BTREE mode");
+        return;
+    }
+
+    btree_range(store->btree_store, start_key, end_key,
+                (btree_range_cb)callback, ctx);
+}
+
+void unified_store_stats(unified_store_t *store) {
+    if (!store) return;
+
+    printf("Unified Store Statistics:\n");
+    printf("  Mode: %s\n",
+           store->mode == STORE_MODE_HASH ? "HASH" : "BTREE");
+
+    if (store->hash_store) {
+        printf("  Hash entries: %zu\n", kv_store_count(store->hash_store));
+    }
+    if (store->btree_store) {
+        printf("  B-tree entries: %zu\n", btree_size(store->btree_store));
+        printf("  B-tree height: %d\n", btree_height(store->btree_store));
+    }
+}
+```
+
+## Hands-On Exercise
+
+### Challenge: Performance Comparison
+
+**Goal:** Compare hash vs B-tree performance
+
+**Requirements:**
+
+1. Create both stores with 10000 entries
+2. Measure lookup time (hash should be faster)
+3. Measure range query time (B-tree should be faster)
+4. Measure insertion time
+5. Document trade-offs
+
+**Expected Output:**
+
+```
+Performance Comparison
+======================
+Operations: 10000
+
+Hash Table:
+  Insert: 12 ms
+  Lookup: 8 ms
+  Range: 450 ms (full scan)
+
+B-Tree:
+  Insert: 18 ms
+  Lookup: 15 ms
+  Range: 2 ms
+
+Conclusion: Use hash for exact lookups, B-tree for ranges
+```
+
+## Next Steps
+
+Congratulations! You've completed Lesson 4 and built a powerful indexing system.
+
+In **Lesson 5: SQL Subset**, you'll implement:
+
+- SQL tokenizer
+- SQL parser
+- Query execution engine
+- Basic SQL commands
+
+Your database is about to speak SQL!

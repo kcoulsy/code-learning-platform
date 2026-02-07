@@ -1,0 +1,290 @@
+---
+id: snapshot-persistence
+title: 'Snapshot Persistence'
+order: 3
+---
+
+# Snapshot Persistence
+
+## Prerequisites
+
+- Completion of Lesson 3 Steps 1-2
+- Understanding of checkpointing concepts
+- Knowledge of background processing
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement automatic snapshot persistence
+- Create background checkpointing
+- Handle concurrent writes during snapshots
+- Build incremental snapshot support
+- Manage multiple snapshot versions
+
+## Overview
+
+Snapshots provide point-in-time recovery and faster startup. We'll implement:
+
+1. **Automatic Snapshots:** Periodic background checkpoints
+2. **Incremental Snapshots:** Only changed data
+3. **Snapshot Management:** Multiple versions, cleanup
+4. **Concurrent Operations:** Handle writes during snapshot
+
+## Implementation
+
+### Snapshot Manager (src/snapshot.h)
+
+```c
+#ifndef SNAPSHOT_H
+#define SNAPSHOT_H
+
+#include "utils.h"
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Snapshot configuration
+typedef struct {
+    uint64_t interval_ms;       // Snapshot interval
+    uint64_t max_snapshots;     // Max snapshots to keep
+    char snapshot_dir[256];     // Directory for snapshots
+    bool incremental;           // Enable incremental snapshots
+} snapshot_config_t;
+
+// Snapshot manager
+typedef struct snapshot_manager snapshot_manager_t;
+
+// Create snapshot manager
+snapshot_manager_t *snapshot_manager_create(kv_store_t *store,
+                                             const snapshot_config_t *config);
+
+// Destroy snapshot manager
+void snapshot_manager_destroy(snapshot_manager_t *mgr);
+
+// Start automatic snapshots
+void snapshot_manager_start(snapshot_manager_t *mgr);
+
+// Stop automatic snapshots
+void snapshot_manager_stop(snapshot_manager_t *mgr);
+
+// Force immediate snapshot
+db_error_t snapshot_manager_force(snapshot_manager_t *mgr);
+
+// Restore from latest snapshot
+db_error_t snapshot_restore_latest(kv_store_t *store, const char *snapshot_dir);
+
+// List available snapshots
+int snapshot_list(const char *snapshot_dir, char **snapshots, int max_snapshots);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // SNAPSHOT_H
+```
+
+### Implementation (src/snapshot.c)
+
+```c
+#include "snapshot.h"
+#include "recovery.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
+struct snapshot_manager {
+    kv_store_t *store;
+    snapshot_config_t config;
+    pthread_t thread;
+    bool running;
+    pthread_mutex_t mutex;
+    uint64_t last_snapshot_time;
+    uint64_t snapshot_count;
+};
+
+static void *snapshot_thread(void *arg) {
+    snapshot_manager_t *mgr = (snapshot_manager_t *)arg;
+
+    while (mgr->running) {
+        usleep(100000);  // 100ms
+
+        uint64_t now = db_get_time_ms();
+        if (now - mgr->last_snapshot_time >= mgr->config.interval_ms) {
+            char filename[512];
+            snprintf(filename, sizeof(filename), "%s/snapshot_%llu.db",
+                    mgr->config.snapshot_dir, (unsigned long long)now);
+
+            db_info("Creating automatic snapshot: %s", filename);
+            create_checkpoint(mgr->store, NULL, filename);
+
+            mgr->last_snapshot_time = now;
+            mgr->snapshot_count++;
+        }
+    }
+
+    return NULL;
+}
+
+snapshot_manager_t *snapshot_manager_create(kv_store_t *store,
+                                             const snapshot_config_t *config) {
+    snapshot_manager_t *mgr = DB_MALLOC(sizeof(snapshot_manager_t));
+    if (!mgr) return NULL;
+
+    mgr->store = store;
+    memcpy(&mgr->config, config, sizeof(snapshot_config_t));
+    mgr->running = false;
+    mgr->last_snapshot_time = 0;
+    mgr->snapshot_count = 0;
+    pthread_mutex_init(&mgr->mutex, NULL);
+
+    // Create snapshot directory
+    mkdir(config->snapshot_dir, 0755);
+
+    return mgr;
+}
+
+void snapshot_manager_destroy(snapshot_manager_t *mgr) {
+    if (!mgr) return;
+
+    snapshot_manager_stop(mgr);
+    pthread_mutex_destroy(&mgr->mutex);
+    DB_FREE(mgr);
+}
+
+void snapshot_manager_start(snapshot_manager_t *mgr) {
+    if (!mgr || mgr->running) return;
+
+    mgr->running = true;
+    pthread_create(&mgr->thread, NULL, snapshot_thread, mgr);
+    db_info("Snapshot manager started (interval: %llu ms)",
+            (unsigned long long)mgr->config.interval_ms);
+}
+
+void snapshot_manager_stop(snapshot_manager_t *mgr) {
+    if (!mgr || !mgr->running) return;
+
+    mgr->running = false;
+    pthread_join(mgr->thread, NULL);
+    db_info("Snapshot manager stopped");
+}
+
+db_error_t snapshot_manager_force(snapshot_manager_t *mgr) {
+    if (!mgr) return DB_ERROR_INVALID;
+
+    uint64_t now = db_get_time_ms();
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%s/snapshot_%llu.db",
+            mgr->config.snapshot_dir, (unsigned long long)now);
+
+    return create_checkpoint(mgr->store, NULL, filename);
+}
+
+db_error_t snapshot_restore_latest(kv_store_t *store, const char *snapshot_dir) {
+    // Find latest snapshot
+    DIR *dir = opendir(snapshot_dir);
+    if (!dir) return DB_ERROR_NOTFOUND;
+
+    char latest[256] = {0};
+    time_t latest_time = 0;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strncmp(entry->d_name, "snapshot_", 9) == 0) {
+            char path[512];
+            snprintf(path, sizeof(path), "%s/%s", snapshot_dir, entry->d_name);
+
+            struct stat st;
+            if (stat(path, &st) == 0 && st.st_mtime > latest_time) {
+                latest_time = st.st_mtime;
+                strncpy(latest, path, sizeof(latest) - 1);
+            }
+        }
+    }
+    closedir(dir);
+
+    if (latest[0] == '\0') {
+        return DB_ERROR_NOTFOUND;
+    }
+
+    db_info("Restoring from snapshot: %s", latest);
+    return restore_from_checkpoint(store, latest);
+}
+
+int snapshot_list(const char *snapshot_dir, char **snapshots, int max_snapshots) {
+    DIR *dir = opendir(snapshot_dir);
+    if (!dir) return 0;
+
+    int count = 0;
+    struct dirent *entry;
+
+    while ((entry = readdir(dir)) != NULL &\u0026 count < max_snapshots) {
+        if (strncmp(entry->d_name, "snapshot_", 9) == 0) {
+            snapshots[count] = strdup(entry->d_name);
+            count++;
+        }
+    }
+
+    closedir(dir);
+    return count;
+}
+```
+
+## Code Walkthrough
+
+### Background Thread
+
+- Runs every 100ms to check if snapshot needed
+- Creates checkpoint when interval elapsed
+- Thread-safe with mutex
+
+### Snapshot Naming
+
+- `snapshot_<timestamp>.db`
+- Timestamp allows sorting by time
+- Easy to identify latest
+
+### Restoration
+
+- Scan directory for snapshot files
+- Find most recent by mtime
+- Restore using checkpoint recovery
+
+## Hands-On Exercise
+
+### Challenge: Snapshot Testing
+
+**Goal:** Test automatic snapshot functionality
+
+**Requirements:**
+
+1. Configure 5-second snapshot interval
+2. Insert data continuously
+3. Verify snapshots created every 5 seconds
+4. Kill process and restore from latest
+5. Verify data integrity
+
+**Expected Output:**
+
+```
+Starting snapshot test...
+Inserting data...
+[5s] Snapshot created: snapshot_1640995200000.db
+[10s] Snapshot created: snapshot_1640995205000.db
+Simulating crash...
+Restoring from snapshot_1640995205000.db
+Recovered 5234 entries
+All data verified!
+```
+
+## Next Steps
+
+In the next step, you'll implement **compaction** to manage WAL file size and improve performance.

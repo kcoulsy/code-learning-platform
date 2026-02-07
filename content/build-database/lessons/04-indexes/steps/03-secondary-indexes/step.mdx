@@ -1,0 +1,254 @@
+---
+id: secondary-indexes
+title: 'Secondary Indexes'
+order: 3
+---
+
+# Secondary Indexes
+
+## Prerequisites
+
+- Completion of Lesson 4 Steps 1-2
+- Understanding of index concepts
+- Knowledge of multiple access patterns
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement secondary indexes on data
+- Support multiple query patterns
+- Create composite indexes
+- Manage index consistency
+
+## Overview
+
+Secondary indexes allow querying data by different keys:
+
+- Primary index: main data storage (hash table or B-tree)
+- Secondary indexes: additional B-trees for alternate keys
+- Example: Users indexed by ID (primary), email (secondary), name (secondary)
+
+## Implementation
+
+### Index Manager (src/index.h)
+
+```c
+#ifndef INDEX_H
+#define INDEX_H
+
+#include "btree.h"
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Index type
+typedef enum {
+    INDEX_TYPE_PRIMARY,     // Main data storage
+    INDEX_TYPE_SECONDARY    // Alternate lookup
+} index_type_t;
+
+// Index structure
+typedef struct index {
+    char name[64];
+    index_type_t type;
+    btree_t *tree;
+    struct index *next;
+} index_t;
+
+// Indexed database
+typedef struct {
+    kv_store_t *primary;    // Primary storage
+    index_t *indexes;       // List of indexes
+    int num_indexes;
+} indexed_db_t;
+
+// Create indexed database
+indexed_db_t *indexed_db_create(void);
+
+// Destroy indexed database
+void indexed_db_destroy(indexed_db_t *db);
+
+// Create secondary index
+db_error_t index_create(indexed_db_t *db, const char *name,
+                        btree_compare_fn compare);
+
+// Insert data with all indexes
+db_error_t indexed_db_insert(indexed_db_t *db, const char *primary_key,
+                              void *data, size_t data_size);
+
+// Query by secondary index
+void *indexed_db_find_by_index(indexed_db_t *db, const char *index_name,
+                                const void *key);
+
+// Range query on secondary index
+void indexed_db_range_query(indexed_db_t *db, const char *index_name,
+                            const void *start_key, const void *end_key,
+                            btree_range_cb callback, void *ctx);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // INDEX_H
+```
+
+### Index Implementation (src/index.c)
+
+```c
+#include "index.h"
+
+#include <string.h>
+
+// Compare strings for secondary index
+static int string_compare(const void *a, const void *b) {
+    return strcmp((const char *)a, (const char *)b);
+}
+
+indexed_db_t *indexed_db_create(void) {
+    indexed_db_t *db = DB_MALLOC(sizeof(indexed_db_t));
+    if (!db) return NULL;
+
+    db->primary = kv_store_create();
+    db->indexes = NULL;
+    db->num_indexes = 0;
+
+    return db;
+}
+
+void indexed_db_destroy(indexed_db_t *db) {
+    if (!db) return;
+
+    // Destroy all indexes
+    index_t *idx = db->indexes;
+    while (idx) {
+        index_t *next = idx->next;
+        btree_destroy(idx->tree);
+        DB_FREE(idx);
+        idx = next;
+    }
+
+    kv_store_destroy(db->primary);
+    DB_FREE(db);
+}
+
+db_error_t index_create(indexed_db_t *db, const char *name,
+                        btree_compare_fn compare) {
+    if (!db || !name) return DB_ERROR_INVALID;
+
+    // Check if index already exists
+    index_t *idx = db->indexes;
+    while (idx) {
+        if (strcmp(idx->name, name) == 0) {
+            return DB_ERROR_EXISTS;
+        }
+        idx = idx->next;
+    }
+
+    // Create new index
+    index_t *new_idx = DB_MALLOC(sizeof(index_t));
+    if (!new_idx) return DB_ERROR_NOMEM;
+
+    strncpy(new_idx->name, name, sizeof(new_idx->name) - 1);
+    new_idx->type = INDEX_TYPE_SECONDARY;
+    new_idx->tree = btree_create(compare ? compare : string_compare);
+
+    if (!new_idx->tree) {
+        DB_FREE(new_idx);
+        return DB_ERROR_NOMEM;
+    }
+
+    // Add to list
+    new_idx->next = db->indexes;
+    db->indexes = new_idx;
+    db->num_indexes++;
+
+    db_info("Created index '%s'", name);
+    return DB_OK;
+}
+
+static index_t *find_index(indexed_db_t *db, const char *name) {
+    index_t *idx = db->indexes;
+    while (idx) {
+        if (strcmp(idx->name, name) == 0) {
+            return idx;
+        }
+        idx = idx->next;
+    }
+    return NULL;
+}
+
+db_error_t indexed_db_insert(indexed_db_t *db, const char *primary_key,
+                              void *data, size_t data_size) {
+    if (!db || !primary_key || !data) return DB_ERROR_INVALID;
+
+    // Store in primary (simplified - would serialize data)
+    value_t val = value_from_blob(data, data_size);
+    db_error_t err = kv_store_set(db->primary, primary_key, &val);
+    value_free(&val);
+
+    if (err != DB_OK) return err;
+
+    // Update all secondary indexes
+    // (In real implementation, extract index keys from data)
+
+    return DB_OK;
+}
+
+void *indexed_db_find_by_index(indexed_db_t *db, const char *index_name,
+                                const void *key) {
+    if (!db || !index_name || !key) return NULL;
+
+    index_t *idx = find_index(db, index_name);
+    if (!idx) return NULL;
+
+    // Returns pointer to primary key
+    return btree_search(idx->tree, key);
+}
+
+void indexed_db_range_query(indexed_db_t *db, const char *index_name,
+                            const void *start_key, const void *end_key,
+                            btree_range_cb callback, void *ctx) {
+    if (!db || !index_name || !callback) return;
+
+    index_t *idx = find_index(db, index_name);
+    if (!idx) return;
+
+    btree_range(idx->tree, start_key, end_key, callback, ctx);
+}
+```
+
+## Hands-On Exercise
+
+### Challenge: User Database with Indexes
+
+**Goal:** Create a user database with multiple indexes
+
+**Requirements:**
+
+1. Create table: users(id, email, name, age)
+2. Create indexes: primary on id, secondary on email, secondary on name
+3. Insert 1000 users
+4. Query by email (should use index)
+5. Query by name range (should use index)
+
+**Expected Output:**
+
+```
+User Database Test
+==================
+Created 3 indexes
+Inserted: 1000 users
+
+Query by email 'alice@example.com':
+  Found: Alice, 25
+
+Query names 'A' to 'C':
+  Found: 234 users
+```
+
+## Next Steps
+
+In the next step, you'll integrate B-tree indexes with the key-value store for optimized range queries.

@@ -1,0 +1,376 @@
+---
+id: query-execution
+title: 'Query Execution Engine'
+order: 3
+---
+
+# Query Execution Engine
+
+## Prerequisites
+
+- Completion of Lesson 5 Steps 1-2
+- Understanding of query execution
+- Knowledge of expression evaluation
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Execute parsed SQL statements
+- Evaluate WHERE clauses
+- Handle INSERT and SELECT operations
+- Return results in tabular format
+
+## Overview
+
+The execution engine:
+
+- Interprets AST nodes
+- Reads/writes data from storage
+- Evaluates expressions
+- Returns results
+
+## Implementation
+
+### Executor Header (src/executor.h)
+
+```c
+#ifndef EXECUTOR_H
+#define EXECUTOR_H
+
+#include "parser.h"
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Result set
+typedef struct {
+    char **columns;
+    int num_columns;
+    char ***rows;
+    int num_rows;
+    int capacity;
+} result_set_t;
+
+// Execution context
+typedef struct {
+    kv_store_t *store;
+    char error[256];
+} exec_context_t;
+
+// Execute statement
+// Returns result set for SELECT, NULL for others
+result_set_t *execute(exec_context_t *ctx, const statement_t *stmt);
+
+// Free result set
+void result_set_free(result_set_t *rs);
+
+// Print result set
+void result_set_print(const result_set_t *rs);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // EXECUTOR_H
+```
+
+### Executor Implementation (src/executor.c)
+
+```c
+#include "executor.h"
+#include "iterator.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Evaluate expression against row
+static bool eval_expression(const expr_t *expr, const char *key,
+                            const value_t *value) {
+    if (!expr) return true;
+
+    switch (expr->type) {
+        case EXPR_LITERAL:
+            // Compare literal with value
+            if (value->type == VALUE_TYPE_INT) {
+                int64_t lit_val = strtoll(expr->literal.value, NULL, 10);
+                return value->data.int_val == lit_val;
+            } else if (value->type == VALUE_TYPE_STRING) {
+                return strcmp(value->data.string_val, expr->literal.value) == 0;
+            }
+            return false;
+
+        case EXPR_BINARY_OP: {
+            // Simplified: assume left is column name, right is literal
+            if (expr->binary.right->type != EXPR_LITERAL) {
+                return false;
+            }
+
+            const char *lit_val = expr->binary.right->literal.value;
+
+            // Get column value (simplified - using key as column)
+            const char *col_val = NULL;
+            if (value->type == VALUE_TYPE_STRING) {
+                col_val = value->data.string_val;
+            } else if (value->type == VALUE_TYPE_INT) {
+                static char buf[32];
+                snprintf(buf, sizeof(buf), "%lld",
+                        (long long)value->data.int_val);
+                col_val = buf;
+            }
+
+            if (!col_val) return false;
+
+            int cmp = strcmp(col_val, lit_val);
+
+            switch (expr->binary.op) {
+                case TOK_EQ: return cmp == 0;
+                case TOK_LT: return cmp < 0;
+                case TOK_GT: return cmp > 0;
+                case TOK_LE: return cmp <= 0;
+                case TOK_GE: return cmp >= 0;
+                case TOK_NE: return cmp != 0;
+                default: return false;
+            }
+        }
+
+        default:
+            return false;
+    }
+}
+
+static result_set_t *create_result_set(int num_columns) {
+    result_set_t *rs = DB_MALLOC(sizeof(result_set_t));
+    if (!rs) return NULL;
+
+    rs->columns = NULL;
+    rs->num_columns = num_columns;
+    rs->rows = NULL;
+    rs->num_rows = 0;
+    rs->capacity = 0;
+
+    return rs;
+}
+
+static void add_row(result_set_t *rs, char **row) {
+    if (rs->num_rows >= rs->capacity) {
+        int new_capacity = rs->capacity == 0 ? 16 : rs->capacity * 2;
+        rs->rows = DB_REALLOC(rs->rows, sizeof(char **) * new_capacity);
+        rs->capacity = new_capacity;
+    }
+    rs->rows[rs->num_rows++] = row;
+}
+
+static result_set_t *execute_select(exec_context_t *ctx,
+                                    const select_stmt_t *select) {
+    result_set_t *rs = create_result_set(select->num_columns);
+    if (!rs) return NULL;
+
+    // Set column names
+    if (select->num_columns == 0) {
+        // SELECT *
+        rs->columns = DB_MALLOC(sizeof(char *));
+        rs->columns[0] = DB_STRDUP("value");
+        rs->num_columns = 1;
+    } else {
+        rs->columns = DB_MALLOC(sizeof(char *) * select->num_columns);
+        for (int i = 0; i < select->num_columns; i++) {
+            rs->columns[i] = DB_STRDUP(select->columns[i]);
+        }
+    }
+
+    // Iterate all keys (simplified - no table concept yet)
+    kv_iterator_t *iter = kv_iterator_create(ctx->store);
+
+    while (kv_iterator_next(iter)) {
+        const char *key = kv_iterator_key(iter);
+        const value_t *value = kv_iterator_value(iter);
+
+        // Check WHERE clause
+        if (!eval_expression(select->where, key, value)) {
+            continue;
+        }
+
+        // Add to result
+        char **row = DB_MALLOC(sizeof(char *) * rs->num_columns);
+
+        if (select->num_columns == 0 ||
+            (select->num_columns == 1 &\u002;
+             strcmp(select->columns[0], "*") == 0)) {
+            // SELECT *
+            char buf[1024];
+            value_to_string(value, buf, sizeof(buf));
+            row[0] = DB_STRDUP(buf);
+        } else {
+            // Specific columns
+            for (int i = 0; i < select->num_columns; i++) {
+                if (strcmp(select->columns[i], key) == 0) {
+                    char buf[1024];
+                    value_to_string(value, buf, sizeof(buf));
+                    row[i] = DB_STRDUP(buf);
+                } else {
+                    row[i] = DB_STRDUP("NULL");
+                }
+            }
+        }
+
+        add_row(rs, row);
+    }
+
+    kv_iterator_destroy(iter);
+    return rs;
+}
+
+static result_set_t *execute_insert(exec_context_t *ctx,
+                                    const insert_stmt_t *insert) {
+    // Build key from table and primary key (simplified)
+    char key[256];
+    if (insert->num_values > 0) {
+        snprintf(key, sizeof(key), "%s:%s",
+                insert->table, insert->values[0]);
+    } else {
+        strcpy(key, insert->table);
+    }
+
+    // Build value from remaining columns
+    char value_str[1024] = {0};
+    for (int i = 1; i < insert->num_values; i++) {
+        if (i > 1) strcat(value_str, ",");
+        strcat(value_str, insert->values[i]);
+    }
+
+    value_t val = value_from_string(value_str);
+    db_error_t err = kv_store_set(ctx->store, key, &val);
+    value_free(&val);
+
+    if (err != DB_OK) {
+        strcpy(ctx->error, db_strerror(err));
+        return NULL;
+    }
+
+    // Return rows affected
+    result_set_t *rs = create_result_set(1);
+    rs->columns = DB_MALLOC(sizeof(char *));
+    rs->columns[0] = DB_STRDUP("rows_affected");
+
+    char **row = DB_MALLOC(sizeof(char *));
+    row[0] = DB_STRDUP("1");
+    add_row(rs, row);
+
+    return rs;
+}
+
+result_set_t *execute(exec_context_t *ctx, const statement_t *stmt) {
+    if (!ctx || !stmt) return NULL;
+
+    switch (stmt->type) {
+        case STMT_SELECT:
+            return execute_select(ctx, &stmt->select);
+
+        case STMT_INSERT:
+            return execute_insert(ctx, &stmt->insert);
+
+        case STMT_CREATE_TABLE:
+            // For now, just acknowledge
+            db_info("CREATE TABLE would create: %s", stmt->create_table.table);
+            return NULL;
+
+        default:
+            strcpy(ctx->error, "Unsupported statement type");
+            return NULL;
+    }
+}
+
+void result_set_free(result_set_t *rs) {
+    if (!rs) return;
+
+    if (rs->columns) {
+        for (int i = 0; i < rs->num_columns; i++) {
+            DB_FREE(rs->columns[i]);
+        }
+        DB_FREE(rs->columns);
+    }
+
+    if (rs->rows) {
+        for (int i = 0; i < rs->num_rows; i++) {
+            for (int j = 0; j < rs->num_columns; j++) {
+                DB_FREE(rs->rows[i][j]);
+            }
+            DB_FREE(rs->rows[i]);
+        }
+        DB_FREE(rs->rows);
+    }
+
+    DB_FREE(rs);
+}
+
+void result_set_print(const result_set_t *rs) {
+    if (!rs) {
+        printf("No results\n");
+        return;
+    }
+
+    // Print header
+    for (int i = 0; i < rs->num_columns; i++) {
+        if (i > 0) printf(" | ");
+        printf("%-15s", rs->columns[i]);
+    }
+    printf("\n");
+
+    // Print separator
+    for (int i = 0; i < rs->num_columns; i++) {
+        if (i > 0) printf("-+-");
+        printf("---------------");
+    }
+    printf("\n");
+
+    // Print rows
+    for (int i = 0; i < rs->num_rows; i++) {
+        for (int j = 0; j < rs->num_columns; j++) {
+            if (j > 0) printf(" | ");
+            printf("%-15s", rs->rows[i][j]);
+        }
+        printf("\n");
+    }
+
+    printf("(%d row%s)\n", rs->num_rows, rs->num_rows == 1 ? "" : "s");
+}
+```
+
+## Hands-On Exercise
+
+### Challenge: Execute SQL Queries
+
+**Goal:** Test full SQL execution
+
+**Requirements:**
+
+1. Execute: `INSERT INTO users VALUES (1, 'Alice')`
+2. Execute: `SELECT * FROM users`
+3. Execute: `SELECT * FROM users WHERE id = 1`
+4. Verify results
+
+**Expected Output:**
+
+```
+Executing: INSERT INTO users VALUES (1, 'Alice')
+-----------------------------------------------
+rows_affected
+---------------
+1
+(1 row)
+
+Executing: SELECT * FROM users
+------------------------------
+value
+---------------
+'Alice'
+(1 row)
+```
+
+## Next Steps
+
+In the next step, you'll integrate SQL into the REPL for a complete database experience.

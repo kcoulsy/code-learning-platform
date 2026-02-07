@@ -1,0 +1,486 @@
+---
+id: sql-tokenizer
+title: 'SQL Tokenizer'
+order: 1
+---
+
+# SQL Tokenizer
+
+## Prerequisites
+
+- Completion of Lesson 4: B-Tree Indexes
+- Understanding of lexical analysis
+- Knowledge of string processing
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement a SQL tokenizer (lexer)
+- Recognize SQL keywords and tokens
+- Handle string literals and numbers
+- Build a token stream for parsing
+
+## Overview
+
+The tokenizer converts SQL text into a stream of tokens:
+
+- Keywords: SELECT, INSERT, UPDATE, DELETE, etc.
+- Identifiers: table names, column names
+- Literals: strings, numbers
+- Operators: =, <, >, <=, >=, <>
+- Punctuation: (, ), ,, ;
+
+## Implementation
+
+### Tokenizer Header (src/tokenizer.h)
+
+```c
+#ifndef TOKENIZER_H
+#define TOKENIZER_H
+
+#include "utils.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Token types
+typedef enum {
+    // End of input
+    TOK_EOF = 0,
+
+    // Keywords
+    TOK_SELECT,
+    TOK_INSERT,
+    TOK_UPDATE,
+    TOK_DELETE,
+    TOK_CREATE,
+    TOK_DROP,
+    TOK_TABLE,
+    TOK_FROM,
+    TOK_WHERE,
+    TOK_SET,
+    TOK_VALUES,
+    TOK_INTO,
+    TOK_AND,
+    TOK_OR,
+    TOK_NOT,
+    TOK_NULL,
+    TOK_TRUE,
+    TOK_FALSE,
+    TOK_INTEGER,
+    TOK_TEXT,
+    TOK_PRIMARY,
+    TOK_KEY,
+
+    // Identifiers and literals
+    TOK_IDENTIFIER,
+    TOK_STRING,
+    TOK_NUMBER,
+
+    // Operators
+    TOK_EQ,      // =
+    TOK_LT,      // <
+    TOK_GT,      // >
+    TOK_LE,      // <=
+    TOK_GE,      // >=
+    TOK_NE,      // <> or !=
+    TOK_PLUS,    // +
+    TOK_MINUS,   // -
+    TOK_STAR,    // *
+    TOK_SLASH,   // /
+
+    // Punctuation
+    TOK_LPAREN,  // (
+    TOK_RPAREN,  // )
+    TOK_COMMA,   // ,
+    TOK_SEMI,    // ;
+    TOK_DOT,     // .
+
+    // Special
+    TOK_ERROR
+} token_type_t;
+
+// Token structure
+typedef struct {
+    token_type_t type;
+    char text[256];      // Raw text
+    int line;            // Line number
+    int column;          // Column number
+
+    // For literals
+    union {
+        int64_t int_val;
+        double float_val;
+    } value;
+} token_t;
+
+// Tokenizer state
+typedef struct tokenizer tokenizer_t;
+
+// Create tokenizer for SQL string
+tokenizer_t *tokenizer_create(const char *sql);
+
+// Destroy tokenizer
+void tokenizer_destroy(tokenizer_t *tokenizer);
+
+// Get next token
+// Returns true if token available, false at EOF
+token_t tokenizer_next(tokenizer_t *tokenizer);
+
+// Peek at next token without consuming
+token_t tokenizer_peek(tokenizer_t *tokenizer);
+
+// Get token type name
+const char *token_type_name(token_type_t type);
+
+// Check if token is a keyword
+bool token_is_keyword(token_type_t type);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // TOKENIZER_H
+```
+
+### Tokenizer Implementation (src/tokenizer.c)
+
+```c
+#include "tokenizer.h"
+
+#include <ctype.h>
+#include <string.h>
+#include <stdlib.h>
+
+struct tokenizer {
+    const char *sql;
+    size_t pos;
+    int line;
+    int column;
+    token_t current;
+    bool has_current;
+};
+
+// Keyword table
+static struct {
+    const char *word;
+    token_type_t type;
+} keywords[] = {
+    {"SELECT", TOK_SELECT},
+    {"INSERT", TOK_INSERT},
+    {"UPDATE", TOK_UPDATE},
+    {"DELETE", TOK_DELETE},
+    {"CREATE", TOK_CREATE},
+    {"DROP", TOK_DROP},
+    {"TABLE", TOK_TABLE},
+    {"FROM", TOK_FROM},
+    {"WHERE", TOK_WHERE},
+    {"SET", TOK_SET},
+    {"VALUES", TOK_VALUES},
+    {"INTO", TOK_INTO},
+    {"AND", TOK_AND},
+    {"OR", TOK_OR},
+    {"NOT", TOK_NOT},
+    {"NULL", TOK_NULL},
+    {"TRUE", TOK_TRUE},
+    {"FALSE", TOK_FALSE},
+    {"INTEGER", TOK_INTEGER},
+    {"TEXT", TOK_TEXT},
+    {"PRIMARY", TOK_PRIMARY},
+    {"KEY", TOK_KEY},
+    {NULL, TOK_EOF}
+};
+
+static token_type_t lookup_keyword(const char *word) {
+    for (int i = 0; keywords[i].word; i++) {
+        if (strcasecmp(word, keywords[i].word) == 0) {
+            return keywords[i].type;
+        }
+    }
+    return TOK_IDENTIFIER;
+}
+
+tokenizer_t *tokenizer_create(const char *sql) {
+    if (!sql) return NULL;
+
+    tokenizer_t *t = DB_MALLOC(sizeof(tokenizer_t));
+    if (!t) return NULL;
+
+    t->sql = sql;
+    t->pos = 0;
+    t->line = 1;
+    t->column = 1;
+    t->has_current = false;
+
+    return t;
+}
+
+void tokenizer_destroy(tokenizer_t *t) {
+    DB_FREE(t);
+}
+
+static char peek_char(tokenizer_t *t) {
+    return t->sql[t->pos];
+}
+
+static char next_char(tokenizer_t *t) {
+    char c = t->sql[t->pos];
+    if (c) {
+        t->pos++;
+        if (c == '\n') {
+            t->line++;
+            t->column = 1;
+        } else {
+            t->column++;
+        }
+    }
+    return c;
+}
+
+static void skip_whitespace(tokenizer_t *t) {
+    while (isspace((unsigned char)peek_char(t))) {
+        next_char(t);
+    }
+}
+
+static token_t read_string(tokenizer_t *t) {
+    token_t tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.line = t->line;
+    tok.column = t->column;
+
+    char quote = next_char(t);  // Consume opening quote
+    size_t i = 0;
+
+    while (peek_char(t) &\u0026 peek_char(t) != quote) {
+        if (i < sizeof(tok.text) - 1) {
+            tok.text[i++] = next_char(t);
+        } else {
+            next_char(t);  // Skip overflow
+        }
+    }
+    tok.text[i] = '\0';
+
+    if (peek_char(t) == quote) {
+        next_char(t);  // Consume closing quote
+        tok.type = TOK_STRING;
+    } else {
+        tok.type = TOK_ERROR;
+        strcpy(tok.text, "Unterminated string");
+    }
+
+    return tok;
+}
+
+static token_t read_number(tokenizer_t *t) {
+    token_t tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.line = t->line;
+    tok.column = t->column;
+
+    size_t i = 0;
+    bool is_float = false;
+
+    while (isdigit((unsigned char)peek_char(t)) || peek_char(t) == '.') {
+        if (peek_char(t) == '.') {
+            if (is_float) break;  // Second decimal point
+            is_float = true;
+        }
+        if (i < sizeof(tok.text) - 1) {
+            tok.text[i++] = next_char(t);
+        }
+    }
+    tok.text[i] = '\0';
+
+    if (is_float) {
+        tok.type = TOK_NUMBER;
+        tok.value.float_val = strtod(tok.text, NULL);
+    } else {
+        tok.type = TOK_NUMBER;
+        tok.value.int_val = strtoll(tok.text, NULL, 10);
+    }
+
+    return tok;
+}
+
+static token_t read_identifier(tokenizer_t *t) {
+    token_t tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.line = t->line;
+    tok.column = t->column;
+
+    size_t i = 0;
+    while (isalnum((unsigned char)peek_char(t)) || peek_char(t) == '_') {
+        if (i < sizeof(tok.text) - 1) {
+            tok.text[i++] = next_char(t);
+        }
+    }
+    tok.text[i] = '\0';
+
+    tok.type = lookup_keyword(tok.text);
+    return tok;
+}
+
+token_t tokenizer_next(tokenizer_t *t) {
+    if (t->has_current) {
+        t->has_current = false;
+        return t->current;
+    }
+
+    skip_whitespace(t);
+
+    token_t tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.line = t->line;
+    tok.column = t->column;
+
+    char c = peek_char(t);
+
+    if (c == '\0') {
+        tok.type = TOK_EOF;
+        strcpy(tok.text, "EOF");
+        return tok;
+    }
+
+    // String literal
+    if (c == '\'' || c == '"') {
+        return read_string(t);
+    }
+
+    // Number
+    if (isdigit((unsigned char)c)) {
+        return read_number(t);
+    }
+
+    // Identifier or keyword
+    if (isalpha((unsigned char)c) || c == '_') {
+        return read_identifier(t);
+    }
+
+    // Single-character tokens
+    next_char(t);
+    tok.text[0] = c;
+    tok.text[1] = '\0';
+
+    switch (c) {
+        case '=': tok.type = TOK_EQ; break;
+        case '<':
+            if (peek_char(t) == '=') {
+                next_char(t);
+                strcpy(tok.text, "<=");
+                tok.type = TOK_LE;
+            } else if (peek_char(t) == '>') {
+                next_char(t);
+                strcpy(tok.text, "<>");
+                tok.type = TOK_NE;
+            } else {
+                tok.type = TOK_LT;
+            }
+            break;
+        case '>':
+            if (peek_char(t) == '=') {
+                next_char(t);
+                strcpy(tok.text, ">=");
+                tok.type = TOK_GE;
+            } else {
+                tok.type = TOK_GT;
+            }
+            break;
+        case '!':
+            if (peek_char(t) == '=') {
+                next_char(t);
+                strcpy(tok.text, "!=");
+                tok.type = TOK_NE;
+            } else {
+                tok.type = TOK_ERROR;
+                strcpy(tok.text, "Unexpected character: !");
+            }
+            break;
+        case '+': tok.type = TOK_PLUS; break;
+        case '-': tok.type = TOK_MINUS; break;
+        case '*': tok.type = TOK_STAR; break;
+        case '/': tok.type = TOK_SLASH; break;
+        case '(': tok.type = TOK_LPAREN; break;
+        case ')': tok.type = TOK_RPAREN; break;
+        case ',': tok.type = TOK_COMMA; break;
+        case ';': tok.type = TOK_SEMI; break;
+        case '.': tok.type = TOK_DOT; break;
+        default:
+            tok.type = TOK_ERROR;
+            snprintf(tok.text, sizeof(tok.text), "Unexpected character: %c", c);
+    }
+
+    return tok;
+}
+
+token_t tokenizer_peek(tokenizer_t *t) {
+    if (!t->has_current) {
+        t->current = tokenizer_next(t);
+        t->has_current = true;
+    }
+    return t->current;
+}
+
+const char *token_type_name(token_type_t type) {
+    switch (type) {
+        case TOK_EOF: return "EOF";
+        case TOK_SELECT: return "SELECT";
+        case TOK_INSERT: return "INSERT";
+        case TOK_UPDATE: return "UPDATE";
+        case TOK_DELETE: return "DELETE";
+        case TOK_CREATE: return "CREATE";
+        case TOK_TABLE: return "TABLE";
+        case TOK_IDENTIFIER: return "IDENTIFIER";
+        case TOK_STRING: return "STRING";
+        case TOK_NUMBER: return "NUMBER";
+        case TOK_EQ: return "=";
+        case TOK_LT: return "<";
+        case TOK_GT: return ">";
+        case TOK_LPAREN: return "(";
+        case TOK_RPAREN: return ")";
+        case TOK_COMMA: return ",";
+        case TOK_SEMI: return ";";
+        case TOK_STAR: return "*";
+        default: return "UNKNOWN";
+    }
+}
+
+bool token_is_keyword(token_type_t type) {
+    return type >= TOK_SELECT &\u0026 type <= TOK_KEY;
+}
+```
+
+## Hands-On Exercise
+
+### Challenge: Tokenize SQL Queries
+
+**Goal:** Test tokenizer on various SQL statements
+
+**Requirements:**
+
+1. Tokenize: `SELECT * FROM users WHERE id = 42`
+2. Tokenize: `INSERT INTO users VALUES (1, 'Alice', 25)`
+3. Tokenize: `CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)`
+4. Verify all tokens correct
+
+**Expected Output:**
+
+```
+Tokenizing: SELECT * FROM users WHERE id = 42
+--------------------------------------------
+SELECT (keyword)
+* (operator)
+FROM (keyword)
+users (identifier)
+WHERE (keyword)
+id (identifier)
+= (operator)
+42 (number)
+; (punctuation)
+```
+
+## Next Steps
+
+In the next step, you'll implement the **SQL parser** to build ASTs from tokens.

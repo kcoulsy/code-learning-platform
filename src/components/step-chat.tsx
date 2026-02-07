@@ -130,6 +130,7 @@ The student has a question about this specific content. Answer clearly and conci
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-id': session.user.id,
         },
         body: JSON.stringify({
           courseId,

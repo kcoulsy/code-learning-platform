@@ -1,0 +1,222 @@
+---
+id: architecture-review
+title: 'Architecture Review and Integration'
+order: 1
+---
+
+# Architecture Review and Integration
+
+## Prerequisites
+
+- Completion of Lessons 1-5
+- Understanding of all database components
+- Knowledge of system integration
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Review the complete database architecture
+- Integrate all components into a unified system
+- Resolve component dependencies
+- Create a cohesive codebase
+
+## Overview
+
+This step brings together everything:
+
+- Storage layer (hash table, B-tree)
+- Persistence layer (WAL, snapshots)
+- Query layer (SQL parser, executor)
+- Interface layer (REPL)
+
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────┐
+│           SQL Interface             │
+│    (REPL, Commands, Meta-commands)  │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│         SQL Parser                  │
+│    (Tokenizer → Parser → AST)       │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│       Query Execution Engine        │
+│    (Planner → Executor → Results)   │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│      Storage Engine                 │
+│  ┌──────────────┐  ┌──────────────┐ │
+│  │  Hash Table  │  │   B-Tree     │ │
+│  │  (Primary)   │  │  (Indexes)   │ │
+│  └──────────────┘  └──────────────┘ │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│     Persistence Layer               │
+│  ┌──────────────┐  ┌──────────────┐ │
+│  │     WAL      │  │  Snapshots   │ │
+│  │  (Durability)│  │  (Recovery)  │ │
+│  └──────────────┘  └──────────────┘ │
+└─────────────────────────────────────┘
+```
+
+## Integration Points
+
+### 1. Unified Database Handle
+
+```c
+typedef struct database {
+    // Storage
+    kv_store_t *kv_store;
+    btree_t *index_store;
+
+    // Persistence
+    wal_t *wal;
+    snapshot_manager_t *snapshot_mgr;
+
+    // SQL
+    exec_context_t exec_ctx;
+
+    // Configuration
+    char data_dir[256];
+    bool auto_snapshot;
+    uint64_t snapshot_interval_ms;
+} database_t;
+```
+
+### 2. Initialization Sequence
+
+```c
+database_t *db_open(const char *data_dir) {
+    database_t *db = calloc(1, sizeof(database_t));
+
+    // 1. Create directories
+    mkdir(data_dir, 0755);
+    mkdir("snapshots", 0755);
+
+    // 2. Open or create WAL
+    char wal_path[512];
+    snprintf(wal_path, sizeof(wal_path), "%s/wal.log", data_dir);
+    db->wal = wal_open(wal_path);
+
+    // 3. Create storage with WAL
+    db->kv_store = kv_store_create_with_wal(wal_path);
+
+    // 4. Recover from WAL
+    recover_from_wal(db->kv_store, wal_path);
+
+    // 5. Setup execution context
+    db->exec_ctx.store = db->kv_store;
+
+    // 6. Start snapshot manager
+    snapshot_config_t config = {
+        .interval_ms = 300000,  // 5 minutes
+        .max_snapshots = 10
+    };
+    db->snapshot_mgr = snapshot_manager_create(db->kv_store, &config);
+    snapshot_manager_start(db->snapshot_mgr);
+
+    db_info("Database opened: %s", data_dir);
+    return db;
+}
+```
+
+### 3. Query Processing Pipeline
+
+```c
+result_set_t *db_query(database_t *db, const char *sql) {
+    // 1. Parse SQL
+    parse_result_t parse_result = parse(sql);
+    if (!parse_result.success) {
+        printf("Parse error: %s\n", parse_result.error);
+        return NULL;
+    }
+
+    // 2. Execute
+    result_set_t *rs = execute(&db->exec_ctx, &parse_result.statement);
+
+    // 3. Cleanup
+    statement_free(&parse_result.statement);
+
+    return rs;
+}
+```
+
+## Component Interaction
+
+### SQL INSERT Flow
+
+```
+SQL: INSERT INTO users VALUES (1, 'Alice')
+
+1. Tokenizer: [INSERT, INTO, users, VALUES, (, 1, ',', 'Alice', )]
+2. Parser: AST → insert_stmt_t
+3. Executor:
+   - Build key: "users:1"
+   - Build value: "Alice"
+   - kv_store_set() → writes to WAL first
+   - WAL writes to disk
+   - Hash table updated
+4. Return: rows_affected = 1
+```
+
+### SQL SELECT Flow
+
+```
+SQL: SELECT * FROM users WHERE id = 1
+
+1. Tokenizer: [SELECT, *, FROM, users, WHERE, id, =, 1]
+2. Parser: AST → select_stmt_t with WHERE clause
+3. Executor:
+   - Iterate all keys with "users:" prefix
+   - Evaluate WHERE clause for each
+   - Build result set
+4. Return: Result set with matching rows
+```
+
+## Hands-On Exercise
+
+### Challenge: Component Integration Test
+
+**Goal:** Verify all components work together
+
+**Requirements:**
+
+1. Initialize database with all components
+2. Execute mixed workload:
+   - 1000 INSERTs
+   - 500 SELECTs with WHERE
+   - 200 UPDATEs
+   - 50 DELETEs
+3. Verify data integrity
+4. Test crash recovery
+5. Measure performance
+
+**Expected Output:**
+
+```
+Integration Test
+================
+Database initialized
+WAL recovered: 0 entries
+
+Workload:
+  INSERT: 1000 ops, 45ms
+  SELECT: 500 ops, 23ms
+  UPDATE: 200 ops, 12ms
+  DELETE: 50 ops, 5ms
+
+Data verification: PASSED
+Crash recovery: PASSED
+
+All components integrated successfully!
+```
+
+## Next Steps
+
+In the next step, you'll add **advanced features** like transactions and prepared statements.

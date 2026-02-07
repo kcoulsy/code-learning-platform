@@ -3,12 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import {
-  getStepChat,
-  saveStepChat,
-  clearStepChat,
-  type ChatMessage,
-} from '@/lib/chat-storage'
+import { useStepChat, type ChatMessage } from '@/lib/chat-storage'
 import {
   MessageCircle,
   X,
@@ -55,18 +50,28 @@ export function StepChat({
   const { data: session } = useSession()
   const isLoggedIn = !!session?.user
 
-  // Load saved messages on mount
-  useEffect(() => {
-    const saved = getStepChat(courseId, itemId, stepId)
-    if (saved.length > 0) {
-      setMessages(saved)
-    }
-  }, [courseId, itemId, stepId])
+  // Use the useStepChat hook for database persistence
+  const {
+    messages: savedMessages,
+    saveMessages,
+    clearMessages,
+  } = useStepChat(courseId, itemId, stepId)
 
-  // Save messages whenever they change
+  // Load saved messages from database when they change
+  useEffect(() => {
+    if (
+      savedMessages &&
+      Array.isArray(savedMessages) &&
+      savedMessages.length > 0
+    ) {
+      setMessages(savedMessages)
+    }
+  }, [savedMessages])
+
+  // Save messages to database whenever they change
   useEffect(() => {
     if (messages.length > 0) {
-      saveStepChat(courseId, itemId, stepId, messages)
+      saveMessages(messages)
     }
   }, [messages, courseId, itemId, stepId])
 
@@ -194,7 +199,7 @@ The student has a question about this specific content. Answer clearly and conci
   }
 
   const handleClear = () => {
-    clearStepChat(courseId, itemId, stepId)
+    clearMessages()
     setMessages([])
   }
 

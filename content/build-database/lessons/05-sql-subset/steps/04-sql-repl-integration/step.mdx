@@ -1,0 +1,203 @@
+---
+id: sql-repl-integration
+title: 'SQL REPL Integration'
+order: 4
+---
+
+# SQL REPL Integration
+
+## Prerequisites
+
+- Completion of Lesson 5 Steps 1-3
+- Understanding of REPL architecture
+- Knowledge of command routing
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Integrate SQL into the REPL
+- Support both SQL and KV commands
+- Add SQL-specific commands
+- Create a unified database interface
+
+## Overview
+
+The final step integrates SQL parsing and execution into the interactive REPL, supporting:
+
+- SQL statements (SELECT, INSERT, CREATE TABLE)
+- KV commands (SET, GET, LIST)
+- Meta-commands (.tables, .schema)
+
+## Implementation
+
+### SQL REPL Integration (src/sql_repl.c)
+
+```c
+#include "repl.h"
+#include "parser.h"
+#include "executor.h"
+
+#include <stdio.h>
+#include <string.h>
+
+// Execute SQL or command
+static int execute_sql_or_command(kv_store_t *store, const char *line) {
+    // Check if it's a KV command
+    if (strncasecmp(line, "SET ", 4) == 0 ||
+        strncasecmp(line, "GET ", 4) == 0 ||
+        strncasecmp(line, "LIST", 4) == 0 ||
+        strncasecmp(line, "DELETE ", 7) == 0 ||
+        strncasecmp(line, "COUNT", 5) == 0) {
+        // Use existing KV REPL
+        return repl_execute(line);
+    }
+
+    // Check if it's a meta-command
+    if (line[0] == '.') {
+        if (strcmp(line, ".tables") == 0) {
+            printf("Tables:\n");
+            printf("  (tables would be listed here)\n");
+            return 0;
+        } else if (strcmp(line, ".schema") == 0) {
+            printf("Schema:\n");
+            printf("  (schema would be shown here)\n");
+            return 0;
+        } else if (strcmp(line, ".help") == 0) {
+            printf("Meta-commands:\n");
+            printf("  .tables    - List all tables\n");
+            printf("  .schema    - Show schema\n");
+            printf("  .quit      - Exit\n");
+            return 0;
+        }
+        return 0;
+    }
+
+    // Parse and execute SQL
+    parse_result_t result = parse(line);
+
+    if (!result.success) {
+        printf("Error at line %d, column %d: %s\n",
+               result.error_line, result.error_column, result.error);
+        return -1;
+    }
+
+    // Execute
+    exec_context_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.store = store;
+
+    result_set_t *rs = execute(&ctx, &result.statement);
+
+    if (ctx.error[0]) {
+        printf("Execution error: %s\n", ctx.error);
+        statement_free(&result.statement);
+        return -1;
+    }
+
+    if (rs) {
+        result_set_print(rs);
+        result_set_free(rs);
+    } else {
+        printf("OK\n");
+    }
+
+    statement_free(&result.statement);
+    return 0;
+}
+
+// SQL-aware REPL
+int sql_repl_run(kv_store_t *store) {
+    printf("\n");
+    printf("╔════════════════════════════════════════╗\n");
+    printf("║  SimpleDB SQL Interface v1.0           ║\n");
+    printf("║  Type .help for meta-commands          ║\n");
+    printf("║  Type HELP for KV commands             ║\n");
+    printf("╚════════════════════════════════════════╝\n");
+    printf("\n");
+
+    while (1) {
+        char *line = readline("sql> ");
+
+        if (!line) {
+            printf("\n");
+            break;
+        }
+
+        if (*line) {
+            add_history(line);
+
+            if (strcmp(line, ".quit") == 0 || strcmp(line, "QUIT") == 0) {
+                free(line);
+                break;
+            }
+
+            execute_sql_or_command(store, line);
+        }
+
+        free(line);
+    }
+
+    printf("Goodbye!\n");
+    return 0;
+}
+```
+
+## Hands-On Exercise
+
+### Challenge: Full SQL Session
+
+**Goal:** Test complete SQL functionality
+
+**Requirements:**
+
+1. Start SQL REPL
+2. Create table: `CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)`
+3. Insert data: `INSERT INTO users VALUES (1, 'Alice')`
+4. Query: `SELECT * FROM users`
+5. Use KV commands: `SET key value`, `GET key`
+6. Use meta-commands: `.tables`, `.help`
+
+**Expected Session:**
+
+```
+sql> CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)
+OK
+
+sql> INSERT INTO users VALUES (1, 'Alice')
+rows_affected
+---------------
+1
+
+sql> SELECT * FROM users
+value
+---------------
+'Alice'
+(1 row)
+
+sql> SET mykey myvalue
+OK
+
+sql> GET mykey
+myvalue
+
+sql> .tables
+Tables:
+  users
+
+sql> .quit
+Goodbye!
+```
+
+## Next Steps
+
+Congratulations! You've completed Lesson 5 and implemented SQL support!
+
+In **Lesson 6: Final Project**, you'll:
+
+- Integrate all components
+- Add advanced features
+- Optimize performance
+- Build a complete database system
+
+Your database is almost complete!

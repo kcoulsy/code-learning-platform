@@ -1,0 +1,205 @@
+---
+id: performance-optimization
+title: 'Performance Optimization'
+order: 3
+---
+
+# Performance Optimization
+
+## Prerequisites
+
+- Completion of Lesson 6 Steps 1-2
+- Understanding of performance profiling
+- Knowledge of optimization techniques
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Profile database performance
+- Implement query optimization
+- Add memory pooling
+- Optimize hot paths
+
+## Overview
+
+Performance optimizations:
+
+- **Profiling:** Find bottlenecks
+- **Memory Pools:** Reduce allocation overhead
+- **Query Optimization:** Use indexes effectively
+- **Caching:** Avoid redundant work
+
+## Implementation
+
+### Memory Pool (src/mempool.h)
+
+```c
+#ifndef MEMPOOL_H
+#define MEMPOOL_H
+
+#include "utils.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Memory pool
+typedef struct mempool mempool_t;
+
+// Create pool with block size and initial count
+mempool_t *mempool_create(size_t block_size, size_t initial_count);
+
+// Allocate from pool
+void *mempool_alloc(mempool_t *pool);
+
+// Free back to pool
+void mempool_free(mempool_t *pool, void *ptr);
+
+// Destroy pool
+void mempool_destroy(mempool_t *pool);
+
+// Get pool stats
+void mempool_stats(mempool_t *pool, size_t *used, size_t *available);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // MEMPOOL_H
+```
+
+### Query Cache (src/query_cache.h)
+
+```c
+#ifndef QUERY_CACHE_H
+#define QUERY_CACHE_H
+
+#include "executor.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Query cache entry
+typedef struct cache_entry {
+    char sql[1024];
+    result_set_t *result;
+    uint64_t timestamp;
+    uint64_t hit_count;
+} cache_entry_t;
+
+// Query cache
+typedef struct query_cache query_cache_t;
+
+// Create cache with max entries
+query_cache_t *cache_create(size_t max_entries);
+
+// Lookup query in cache
+// Returns cached result or NULL
+result_set_t *cache_lookup(query_cache_t *cache, const char *sql);
+
+// Store result in cache
+void cache_store(query_cache_t *cache, const char *sql, result_set_t *result);
+
+// Invalidate cache entry
+void cache_invalidate(query_cache_t *cache, const char *sql);
+
+// Clear entire cache
+void cache_clear(query_cache_t *cache);
+
+// Get cache stats
+void cache_stats(query_cache_t *cache, size_t *hits, size_t *misses);
+
+// Destroy cache
+void cache_destroy(query_cache_t *cache);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // QUERY_CACHE_H
+```
+
+### Performance Profiler (src/profiler.h)
+
+```c
+#ifndef PROFILER_H
+#define PROFILER_H
+
+#include "utils.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Profile timer
+typedef struct {
+    const char *name;
+    uint64_t start_time;
+    uint64_t total_time;
+    uint64_t call_count;
+} profile_timer_t;
+
+// Start profiling
+void profile_start(profile_timer_t *timer);
+
+// End profiling
+void profile_end(profile_timer_t *timer);
+
+// Print profile results
+void profile_print(const profile_timer_t *timer);
+
+// Reset timer
+void profile_reset(profile_timer_t *timer);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // PROFILER_H
+```
+
+## Hands-On Exercise
+
+### Challenge: Performance Benchmark
+
+**Goal:** Measure and optimize performance
+
+**Requirements:**
+
+1. Benchmark before optimization:
+   - 10000 INSERTs
+   - 5000 SELECTs
+   - Measure total time
+
+2. Implement optimizations:
+   - Add memory pool
+   - Enable query cache
+   - Optimize hash function
+
+3. Benchmark after optimization
+4. Calculate speedup
+
+**Expected Output:**
+
+```
+Performance Benchmark
+=====================
+
+Before Optimization:
+  INSERT: 10000 ops in 1250ms (8 ops/ms)
+  SELECT: 5000 ops in 890ms (5.6 ops/ms)
+
+After Optimization:
+  INSERT: 10000 ops in 680ms (14.7 ops/ms)
+  SELECT: 5000 ops in 320ms (15.6 ops/ms)
+
+Speedup:
+  INSERT: 1.84x faster
+  SELECT: 2.78x faster
+```
+
+## Next Steps
+
+In the final step, you'll complete the project and add documentation.

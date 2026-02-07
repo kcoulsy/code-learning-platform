@@ -1,0 +1,212 @@
+---
+id: advanced-features
+title: 'Advanced Features'
+order: 2
+---
+
+# Advanced Features
+
+## Prerequisites
+
+- Completion of Lesson 6 Step 1
+- Understanding of transaction concepts
+- Knowledge of prepared statements
+
+## Learning Objectives
+
+By the end of this step, you will:
+
+- Implement basic transaction support
+- Add prepared statements
+- Create batch operations
+- Build query caching
+
+## Overview
+
+Advanced features make the database production-ready:
+
+- **Transactions:** ACID properties
+- **Prepared Statements:** Reuse parsed queries
+- **Batch Operations:** Efficient bulk inserts
+- **Query Cache:** Speed up repeated queries
+
+## Implementation
+
+### Transaction Support (src/transaction.h)
+
+```c
+#ifndef TRANSACTION_H
+#define TRANSACTION_H
+
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Transaction state
+typedef enum {
+    TXN_IDLE,
+    TXN_ACTIVE,
+    TXN_COMMITTED,
+    TXN_ABORTED
+} txn_state_t;
+
+// Transaction
+typedef struct transaction {
+    txn_state_t state;
+    kv_store_t *snapshot;  // Pre-transaction state
+    struct transaction *parent;  // For nested transactions
+} transaction_t;
+
+// Begin transaction
+transaction_t *txn_begin(kv_store_t *store);
+
+// Commit transaction
+db_error_t txn_commit(transaction_t *txn);
+
+// Rollback transaction
+db_error_t txn_rollback(transaction_t *txn);
+
+// Get current transaction state
+txn_state_t txn_get_state(transaction_t *txn);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // TRANSACTION_H
+```
+
+### Prepared Statements (src/prepared.h)
+
+```c
+#ifndef PREPARED_H
+#define PREPARED_H
+
+#include "parser.h"
+#include "executor.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Prepared statement
+typedef struct prepared_stmt {
+    char name[64];
+    statement_t stmt;
+    bool parsed;
+    // Parameter placeholders
+    int num_params;
+    char param_types[16];  // 's' = string, 'i' = int, etc.
+} prepared_stmt_t;
+
+// Prepare a statement
+prepared_stmt_t *stmt_prepare(const char *sql);
+
+// Execute prepared statement with parameters
+result_set_t *stmt_execute(prepared_stmt_t *stmt,
+                           const char **params, int num_params,
+                           exec_context_t *ctx);
+
+// Free prepared statement
+void stmt_free(prepared_stmt_t *stmt);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // PREPARED_H
+```
+
+### Batch Operations (src/batch.h)
+
+```c
+#ifndef BATCH_H
+#define BATCH_H
+
+#include "kv_store.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Batch operation type
+typedef enum {
+    BATCH_SET,
+    BATCH_DELETE
+} batch_op_type_t;
+
+// Batch operation
+typedef struct batch_op {
+    batch_op_type_t type;
+    char *key;
+    value_t *value;  // NULL for DELETE
+} batch_op_t;
+
+// Batch
+typedef struct {
+    batch_op_t *ops;
+    int count;
+    int capacity;
+} batch_t;
+
+// Create batch
+batch_t *batch_create(void);
+
+// Add SET to batch
+void batch_set(batch_t *batch, const char *key, const value_t *value);
+
+// Add DELETE to batch
+void batch_delete(batch_t *batch, const char *key);
+
+// Execute batch atomically
+db_error_t batch_execute(kv_store_t *store, batch_t *batch);
+
+// Free batch
+void batch_free(batch_t *batch);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // BATCH_H
+```
+
+## Hands-On Exercise
+
+### Challenge: Transaction Test
+
+**Goal:** Test transaction functionality
+
+**Requirements:**
+
+1. Begin transaction
+2. Insert 100 records
+3. Verify they're visible within transaction
+4. Rollback
+5. Verify records are gone
+6. Repeat with commit
+
+**Expected Output:**
+
+```
+Transaction Test
+================
+BEGIN TRANSACTION
+Inserted: 100 records
+Count within txn: 100
+ROLLBACK
+Count after rollback: 0
+
+BEGIN TRANSACTION
+Inserted: 100 records
+COMMIT
+Count after commit: 100
+
+Transaction test PASSED
+```
+
+## Next Steps
+
+In the next step, you'll implement **performance optimizations**.

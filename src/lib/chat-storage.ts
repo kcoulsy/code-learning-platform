@@ -1,6 +1,10 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSession } from './auth-client'
+import { getStepChats, saveStepChats, deleteStepChats } from './progress-api'
+
 export interface ChatMessage {
   id: string
-  role: "user" | "assistant"
+  role: 'user' | 'assistant'
   content: string
   timestamp: number
 }
@@ -10,60 +14,93 @@ export interface StepChat {
   messages: ChatMessage[]
 }
 
-const STORAGE_KEY = "learncode-chats"
+const CHATS_KEY = 'stepChats'
 
+/**
+ * Hook to manage chat messages for a step
+ */
+export function useStepChat(courseId: string, itemId: string, stepId: string) {
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+  const queryClient = useQueryClient()
+
+  const { data: messages = [], isLoading } = useQuery({
+    queryKey: [CHATS_KEY, userId, courseId, itemId, stepId],
+    queryFn: async () => {
+      if (!userId) return []
+      return await getStepChats({ data: { userId, courseId, itemId, stepId } })
+    },
+    enabled: !!userId,
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async (newMessages: ChatMessage[]) => {
+      if (!userId) throw new Error('Not authenticated')
+      await saveStepChats({
+        data: { userId, courseId, itemId, stepId, messages: newMessages },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [CHATS_KEY, userId, courseId, itemId, stepId],
+      })
+    },
+  })
+
+  const clearMutation = useMutation({
+    mutationFn: async () => {
+      if (!userId) throw new Error('Not authenticated')
+      await deleteStepChats({ data: { userId, courseId, itemId, stepId } })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [CHATS_KEY, userId, courseId, itemId, stepId],
+      })
+    },
+  })
+
+  return {
+    messages,
+    saveMessages: saveMutation.mutate,
+    clearMessages: clearMutation.mutate,
+    isLoading,
+  }
+}
+
+// Legacy functions for backward compatibility during migration
 export function getChatKey(
   courseId: string,
   itemId: string,
-  stepId: string
+  stepId: string,
 ): string {
   return `${courseId}:${itemId}:${stepId}`
 }
 
 export function getAllChats(): Record<string, StepChat> {
-  if (typeof window === "undefined") return {}
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : {}
-  } catch {
-    return {}
-  }
+  return {}
 }
 
 export function getStepChat(
   courseId: string,
   itemId: string,
-  stepId: string
+  stepId: string,
 ): ChatMessage[] {
-  const chats = getAllChats()
-  const key = getChatKey(courseId, itemId, stepId)
-  return chats[key]?.messages || []
+  return []
 }
 
 export function saveStepChat(
   courseId: string,
   itemId: string,
   stepId: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
 ): void {
-  if (typeof window === "undefined") return
-  const chats = getAllChats()
-  const key = getChatKey(courseId, itemId, stepId)
-  chats[key] = {
-    stepId,
-    messages,
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(chats))
+  // No-op - migrated to server
 }
 
 export function clearStepChat(
   courseId: string,
   itemId: string,
-  stepId: string
+  stepId: string,
 ): void {
-  if (typeof window === "undefined") return
-  const chats = getAllChats()
-  const key = getChatKey(courseId, itemId, stepId)
-  delete chats[key]
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(chats))
+  // No-op - migrated to server
 }

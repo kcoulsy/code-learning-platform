@@ -220,7 +220,7 @@ export const loadAllCourses = createServerFn().handler(async () => {
     'tcp-server',
     'http-server',
     'build-database',
-  ] // Can be dynamically discovered later
+  ] // Ordered by recommended completion sequence
 
   const courses = await Promise.all(
     courseIds.map(async (courseId) => {

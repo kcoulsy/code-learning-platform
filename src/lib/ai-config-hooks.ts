@@ -1,35 +1,82 @@
 import { useCallback } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type AIConfig } from './db'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSession } from './auth-client'
+import {
+  getUserSettings,
+  updateUserSettings,
+  deleteUserSettings,
+} from './progress-api'
 
-const CONFIG_ID = 'default'
+const CONFIG_KEY = 'userSettings'
+
+export interface AIConfig {
+  provider: 'openai' | 'anthropic' | 'ollama'
+  model: string
+  apiKey: string
+}
 
 /**
  * Get AI configuration and management functions
  */
 export function useAIConfig() {
-  const config = useLiveQuery(() => db.aiConfig.get(CONFIG_ID))
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+  const queryClient = useQueryClient()
 
-  const updateConfig = useCallback(
-    (updates: Partial<Omit<AIConfig, 'id' | 'createdAt' | 'updatedAt'>>) => {
-      const now = new Date()
-      const existingConfig = config
+  const { data: settings, isLoading } = useQuery({
+    queryKey: [CONFIG_KEY, userId],
+    queryFn: async () => {
+      if (!userId) return null
+      return await getUserSettings({ data: { userId } })
+    },
+    enabled: !!userId,
+  })
 
-      db.aiConfig.put({
-        id: CONFIG_ID,
-        provider: updates.provider ?? existingConfig?.provider ?? 'openai',
-        model: updates.model ?? existingConfig?.model ?? '',
-        apiKey: updates.apiKey ?? existingConfig?.apiKey ?? '',
-        createdAt: existingConfig?.createdAt ?? now,
-        updatedAt: now,
+  const config: AIConfig | null = settings
+    ? {
+        provider: settings.aiProvider as 'openai' | 'anthropic' | 'ollama',
+        model: settings.aiModel || '',
+        apiKey: settings.apiKey || '',
+      }
+    : null
+
+  const updateMutation = useMutation({
+    mutationFn: async (updates: Partial<AIConfig>) => {
+      if (!userId) throw new Error('Not authenticated')
+      await updateUserSettings({
+        data: {
+          userId,
+          aiProvider: updates.provider,
+          aiModel: updates.model,
+          apiKey: updates.apiKey,
+        },
       })
     },
-    [config]
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CONFIG_KEY, userId] })
+    },
+  })
+
+  const updateConfig = useCallback(
+    (updates: Partial<AIConfig>) => {
+      updateMutation.mutate(updates)
+    },
+    [updateMutation],
   )
 
+  const clearMutation = useMutation({
+    mutationFn: async () => {
+      if (!userId) throw new Error('Not authenticated')
+      await deleteUserSettings({ data: { userId } })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CONFIG_KEY, userId] })
+    },
+  })
+
   const clearConfig = useCallback(() => {
-    db.aiConfig.delete(CONFIG_ID)
-  }, [])
+    clearMutation.mutate()
+  }, [clearMutation])
 
   const hasValidConfig = useCallback(() => {
     if (!config) return false
@@ -48,7 +95,10 @@ export function useAIConfig() {
       return false
     }
 
-    if (config.provider === 'anthropic' && !config.apiKey.startsWith('sk-ant-')) {
+    if (
+      config.provider === 'anthropic' &&
+      !config.apiKey.startsWith('sk-ant-')
+    ) {
       return false
     }
 
@@ -56,9 +106,10 @@ export function useAIConfig() {
   }, [config])
 
   return {
-    config: config ?? null,
+    config,
     updateConfig,
     clearConfig,
     hasValidConfig: hasValidConfig(),
+    isLoading,
   }
 }

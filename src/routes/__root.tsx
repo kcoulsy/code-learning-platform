@@ -1,4 +1,9 @@
-import { HeadContent, Scripts, createRootRoute, Outlet } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRoute,
+  Outlet,
+} from '@tanstack/react-router'
 // import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 // import { TanStackDevtools } from '@tanstack/react-devtools'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -29,7 +34,8 @@ export const Route = createRootRoute({
       },
       {
         name: 'description',
-        content: 'A focused learning platform for programming with AI-powered Q&A',
+        content:
+          'A focused learning platform for programming with AI-powered Q&A',
       },
     ],
     links: [

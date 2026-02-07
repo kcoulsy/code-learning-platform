@@ -1,19 +1,20 @@
-import { BookOpen } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
-import { loadAllCourses } from "@/lib/course-data";
-import { CourseCard } from "@/components/course-card";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { BookOpen } from 'lucide-react'
+import { createFileRoute } from '@tanstack/react-router'
+import { loadAllCourses } from '@/lib/course-data'
+import { CourseCard } from '@/components/course-card'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { UserMenu } from '@/components/auth/user-menu'
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute('/')({
   component: HomePage,
   loader: async () => {
-    const courses = await loadAllCourses({ data: undefined });
-    return { courses };
+    const courses = await loadAllCourses({ data: undefined })
+    return { courses }
   },
-});
+})
 
 function HomePage() {
-  const { courses } = Route.useLoaderData();
+  const { courses } = Route.useLoaderData()
 
   return (
     <div className="min-h-screen bg-background">
@@ -25,13 +26,18 @@ function HomePage() {
                 <BookOpen className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">LearnCode</h1>
+                <h1 className="text-2xl font-bold text-foreground">
+                  LearnCode
+                </h1>
                 <p className="text-sm text-muted-foreground">
                   Master programming with focused, step-by-step courses
                 </p>
               </div>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <UserMenu />
+            </div>
           </div>
         </div>
       </header>
@@ -60,5 +66,5 @@ function HomePage() {
         )}
       </main>
     </div>
-  );
+  )
 }

@@ -1,14 +1,14 @@
-import React from "react"
-import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
+import React from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import {
   getStepChat,
   saveStepChat,
   clearStepChat,
   type ChatMessage,
-} from "@/lib/chat-storage"
+} from '@/lib/chat-storage'
 import {
   MessageCircle,
   X,
@@ -19,11 +19,12 @@ import {
   AlertCircle,
   Copy,
   Check,
-} from "lucide-react"
-import { ChatMessageContent } from "@/components/chat-message-content"
-import { useAIConfig } from "@/lib/ai-config-hooks"
-import { streamClientChat } from "@/lib/client-chat"
-import { AISettingsDialog } from "@/components/ai-settings-dialog"
+  Settings,
+} from 'lucide-react'
+import { ChatMessageContent } from '@/components/chat-message-content'
+import { useAIConfig } from '@/lib/ai-config-hooks'
+import { useSession } from '@/lib/auth-client'
+import { Link } from '@tanstack/react-router'
 
 interface StepChatProps {
   courseId: string
@@ -41,7 +42,7 @@ export function StepChat({
   stepContent,
 }: StepChatProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [input, setInput] = useState("")
+  const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +50,9 @@ export function StepChat({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const { config, hasValidConfig } = useAIConfig()
+  const { hasValidConfig } = useAIConfig()
+  const { data: session } = useSession()
+  const isLoggedIn = !!session?.user
 
   // Load saved messages on mount
   useEffect(() => {
@@ -69,7 +72,7 @@ export function StepChat({
   // Scroll to bottom when messages change
   useEffect(() => {
     requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     })
   }, [messages])
 
@@ -82,11 +85,11 @@ export function StepChat({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading || !hasValidConfig || !config) return
+    if (!input.trim() || isLoading || !hasValidConfig || !isLoggedIn) return
 
     setError(null)
     const userQuestion = input.trim()
-    setInput("")
+    setInput('')
 
     // Build context for the AI
     const systemPrompt = `You are a helpful programming tutor. The student is learning from a course step titled "${stepTitle}".
@@ -101,7 +104,7 @@ The student has a question about this specific content. Answer clearly and conci
     // Add user message immediately
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      role: "user",
+      role: 'user',
       content: userQuestion,
       timestamp: Date.now(),
     }
@@ -118,48 +121,73 @@ The student has a question about this specific content. Answer clearly and conci
 
       // Add the new user message
       modelMessages.push({
-        role: "user",
+        role: 'user',
         content: userQuestion,
       })
 
-      // Stream the response
-      const stream = await streamClientChat(config, modelMessages, systemPrompt)
+      // Call server-side streaming endpoint
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          courseId,
+          itemId,
+          stepId,
+          messages: modelMessages,
+          systemPrompt,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `HTTP ${response.status}`)
+      }
 
       // Create assistant message placeholder
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "",
+        role: 'assistant',
+        content: '',
         timestamp: Date.now(),
       }
 
       setMessages((prev) => [...prev, assistantMessage])
 
-      // Stream the text with chunk-based handling
-      let fullText = ""
-      for await (const chunk of stream) {
-        if (chunk.type === 'content') {
-          fullText += chunk.delta
-          setMessages((prev) => {
-            const newMessages = [...prev]
-            const lastMessage = newMessages[newMessages.length - 1]
-            if (lastMessage && lastMessage.role === "assistant") {
-              lastMessage.content = fullText
-            }
-            return newMessages
-          })
-        } else if (chunk.type === 'done') {
-          break
-        } else if (chunk.type === 'error') {
-          throw new Error(chunk.error.message)
-        }
+      // Stream the response
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('No response body')
+      }
+
+      const decoder = new TextDecoder()
+      let fullText = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        fullText += chunk
+
+        setMessages((prev) => {
+          const newMessages = [...prev]
+          const lastMessage = newMessages[newMessages.length - 1]
+          if (lastMessage && lastMessage.role === 'assistant') {
+            lastMessage.content = fullText
+          }
+          return newMessages
+        })
       }
     } catch (err) {
-      console.error("Chat error:", err)
+      console.error('Chat error:', err)
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to get response. Check your API key and try again."
+          : 'Failed to get response. Check your API key and try again.',
       )
       // Remove the user message on error
       setMessages((prev) => prev.slice(0, -1))
@@ -179,7 +207,7 @@ The student has a question about this specific content. Answer clearly and conci
       setCopiedMessageId(messageId)
       setTimeout(() => setCopiedMessageId(null), 2000)
     } catch (err) {
-      console.error("Failed to copy:", err)
+      console.error('Failed to copy:', err)
     }
   }
 
@@ -189,10 +217,10 @@ The student has a question about this specific content. Answer clearly and conci
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-20 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all",
+          'fixed bottom-20 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all',
           isOpen
-            ? "bg-secondary text-secondary-foreground"
-            : "bg-primary text-primary-foreground hover:scale-105"
+            ? 'bg-secondary text-secondary-foreground'
+            : 'bg-primary text-primary-foreground hover:scale-105',
         )}
       >
         {isOpen ? (
@@ -216,12 +244,12 @@ The student has a question about this specific content. Answer clearly and conci
       {/* Chat panel */}
       <div
         className={cn(
-          "fixed bottom-40 right-6 z-50 w-[600px] max-w-[calc(100vw-3rem)] bg-card border border-border rounded-xl shadow-2xl transition-all duration-300 flex flex-col",
+          'fixed bottom-40 right-6 z-50 w-[600px] max-w-[calc(100vw-3rem)] bg-card border border-border rounded-xl shadow-2xl transition-all duration-300 flex flex-col',
           isOpen
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-4 pointer-events-none"
+            ? 'opacity-100 translate-y-0 pointer-events-auto'
+            : 'opacity-0 translate-y-4 pointer-events-none',
         )}
-        style={{ height: "700px", maxHeight: "calc(100vh - 12rem)" }}
+        style={{ height: '700px', maxHeight: 'calc(100vh - 12rem)' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/50 rounded-t-xl">
@@ -230,7 +258,13 @@ The student has a question about this specific content. Answer clearly and conci
             <span className="font-medium text-sm">Q&A for this Step</span>
           </div>
           <div className="flex items-center gap-1">
-            <AISettingsDialog />
+            <Link
+              to="/settings"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent hover:text-accent-foreground h-8 w-8"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="sr-only">Settings</span>
+            </Link>
             {messages.length > 0 && (
               <Button
                 variant="ghost"
@@ -258,24 +292,35 @@ The student has a question about this specific content. Answer clearly and conci
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
-              {!hasValidConfig ? (
+              {!isLoggedIn ? (
+                <>
+                  <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p className="text-sm font-medium mb-2">
+                    Please log in to use AI chat
+                  </p>
+                  <div className="text-xs space-y-1 mb-4 max-w-sm mx-auto">
+                    <p>You need to be logged in to ask questions</p>
+                    <p>You must provide your own AI API key in settings</p>
+                    <p className="font-medium">Use at your own risk</p>
+                  </div>
+                  <Button asChild className="mx-auto">
+                    <Link to="/login">Log In</Link>
+                  </Button>
+                </>
+              ) : !hasValidConfig ? (
                 <>
                   <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-20" />
                   <p className="text-sm font-medium mb-2">
                     AI chat requires configuration
                   </p>
                   <div className="text-xs space-y-1 mb-4 max-w-sm mx-auto">
-                    <p>Your API key is stored locally in your browser only</p>
-                    <p>
-                      No data is shared with our servers - all calls go directly
-                      to AI providers
-                    </p>
-                    <p>Verify our code on GitHub</p>
+                    <p>You must provide your own AI API key</p>
+                    <p>Your API key is encrypted and stored securely</p>
                     <p className="font-medium">Use at your own risk</p>
                   </div>
-                  <AISettingsDialog
-                    triggerClassName="mx-auto"
-                  />
+                  <Button asChild className="mx-auto">
+                    <Link to="/settings">Configure AI Settings</Link>
+                  </Button>
                 </>
               ) : (
                 <>
@@ -289,23 +334,23 @@ The student has a question about this specific content. Answer clearly and conci
             </div>
           ) : (
             messages.map((message, index) => {
-              const isUser = message.role === "user"
+              const isUser = message.role === 'user'
               const isCopied = copiedMessageId === message.id
               return (
                 <div
                   key={message.id || index}
                   className={cn(
-                    "flex group",
-                    isUser ? "justify-end" : "justify-start"
+                    'flex group',
+                    isUser ? 'justify-end' : 'justify-start',
                   )}
                 >
                   <div className="flex items-start gap-2 max-w-[85%]">
                     <div
                       className={cn(
-                        "flex-1 rounded-xl px-3 py-2 text-sm",
+                        'flex-1 rounded-xl px-3 py-2 text-sm',
                         isUser
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary text-secondary-foreground"
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground',
                       )}
                     >
                       {isUser ? (
@@ -317,10 +362,12 @@ The student has a question about this specific content. Answer clearly and conci
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleCopyMessage(message.id, message.content)}
+                      onClick={() =>
+                        handleCopyMessage(message.id, message.content)
+                      }
                       className={cn(
-                        "h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity",
-                        isUser ? "order-first" : ""
+                        'h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity',
+                        isUser ? 'order-first' : '',
                       )}
                       title="Copy message"
                     >
@@ -365,24 +412,28 @@ The student has a question about this specific content. Answer clearly and conci
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
                   handleSubmit(e)
                 }
               }}
               placeholder={
-                hasValidConfig
-                  ? "Ask about this step... (Enter to send, Shift+Enter for new line)"
-                  : "Configure AI settings first..."
+                !isLoggedIn
+                  ? 'Please log in to use AI chat...'
+                  : !hasValidConfig
+                    ? 'Configure AI settings first...'
+                    : 'Ask about this step... (Enter to send, Shift+Enter for new line)'
               }
-              disabled={isLoading || !hasValidConfig}
+              disabled={isLoading || !isLoggedIn || !hasValidConfig}
               className="flex-1 bg-background min-h-[40px] max-h-[120px] resize-none"
               rows={1}
             />
             <Button
               type="submit"
               size="sm"
-              disabled={isLoading || !input.trim() || !hasValidConfig}
+              disabled={
+                isLoading || !input.trim() || !isLoggedIn || !hasValidConfig
+              }
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

@@ -9,10 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CourseCourseIdIndexRouteImport } from './routes/course.$courseId.index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as CourseCourseIdItemIdStepIdRouteImport } from './routes/course.$courseId.$itemId.$stepId'
 
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -21,6 +40,11 @@ const IndexRoute = IndexRouteImport.update({
 const CourseCourseIdIndexRoute = CourseCourseIdIndexRouteImport.update({
   id: '/course/$courseId/',
   path: '/course/$courseId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CourseCourseIdItemIdStepIdRoute =
@@ -32,40 +56,95 @@ const CourseCourseIdItemIdStepIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/course/$courseId/': typeof CourseCourseIdIndexRoute
   '/course/$courseId/$itemId/$stepId': typeof CourseCourseIdItemIdStepIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/course/$courseId': typeof CourseCourseIdIndexRoute
   '/course/$courseId/$itemId/$stepId': typeof CourseCourseIdItemIdStepIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/course/$courseId/': typeof CourseCourseIdIndexRoute
   '/course/$courseId/$itemId/$stepId': typeof CourseCourseIdItemIdStepIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/course/$courseId/' | '/course/$courseId/$itemId/$stepId'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/settings'
+    | '/signup'
+    | '/api/auth/$'
+    | '/course/$courseId/'
+    | '/course/$courseId/$itemId/$stepId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/course/$courseId' | '/course/$courseId/$itemId/$stepId'
+  to:
+    | '/'
+    | '/login'
+    | '/settings'
+    | '/signup'
+    | '/api/auth/$'
+    | '/course/$courseId'
+    | '/course/$courseId/$itemId/$stepId'
   id:
     | '__root__'
     | '/'
+    | '/login'
+    | '/settings'
+    | '/signup'
+    | '/api/auth/$'
     | '/course/$courseId/'
     | '/course/$courseId/$itemId/$stepId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LoginRoute: typeof LoginRoute
+  SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   CourseCourseIdIndexRoute: typeof CourseCourseIdIndexRoute
   CourseCourseIdItemIdStepIdRoute: typeof CourseCourseIdItemIdStepIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -80,6 +159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CourseCourseIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/course/$courseId/$itemId/$stepId': {
       id: '/course/$courseId/$itemId/$stepId'
       path: '/course/$courseId/$itemId/$stepId'
@@ -92,6 +178,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LoginRoute: LoginRoute,
+  SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
   CourseCourseIdIndexRoute: CourseCourseIdIndexRoute,
   CourseCourseIdItemIdStepIdRoute: CourseCourseIdItemIdStepIdRoute,
 }

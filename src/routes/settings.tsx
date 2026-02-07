@@ -38,7 +38,8 @@ export const Route = createFileRoute('/settings')({
 })
 
 function SettingsPage() {
-  const { config, updateConfig, hasValidConfig } = useAIConfig()
+  const { config, updateConfig, hasValidConfig, isUpdateSuccess } =
+    useAIConfig()
   const [showApiKey, setShowApiKey] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
@@ -94,10 +95,16 @@ function SettingsPage() {
       model,
       apiKey,
     })
-
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)
   }
+
+  // Show success message when mutation succeeds
+  useEffect(() => {
+    if (isUpdateSuccess) {
+      setSaveSuccess(true)
+      const timer = setTimeout(() => setSaveSuccess(false), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [isUpdateSuccess])
 
   const getProviderName = (p: string) => {
     switch (p) {
@@ -194,11 +201,11 @@ function SettingsPage() {
                     AI provider
                   </li>
                   <li>
-                    • Your API key is encrypted and stored in our secure
-                    database
+                    • Your API key is encrypted and stored in our database
                   </li>
                   <li>
-                    • We do not have access to your API key or chat content
+                    • We have access to your API key (it is stored on our
+                    servers)
                   </li>
                   <li className="font-medium">• Use at your own risk</li>
                 </ul>

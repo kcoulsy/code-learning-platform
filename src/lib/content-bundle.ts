@@ -84,14 +84,28 @@ export function getStepContent(
   )
 }
 
-// Get all available course IDs
+// Get all available course IDs sorted by order metadata
 export function getCourseIds(): string[] {
   const coursePaths = Object.keys(contentFiles).filter((p) =>
     p.endsWith('/course.mdx'),
   )
-  return coursePaths.map((p) => {
-    // Extract course ID from ../../content/{courseId}/course.mdx
-    const match = p.match(/content\/([^/]+)\/course\.mdx$/)
-    return match ? match[1] : ''
-  }).filter(Boolean)
+
+  const courses = coursePaths
+    .map((p) => {
+      // Extract course ID from ../../content/{courseId}/course.mdx
+      const match = p.match(/content\/([^/]+)\/course\.mdx$/)
+      const courseId = match ? match[1] : ''
+
+      // Get the course metadata to read the order
+      const courseMeta = courseId ? getContent(p) : null
+      const order = courseMeta?.metadata?.order || 0
+
+      return { courseId, order }
+    })
+    .filter((c): c is { courseId: string; order: number } => c.courseId !== '')
+
+  // Sort by order
+  courses.sort((a, b) => a.order - b.order)
+
+  return courses.map((c) => c.courseId)
 }

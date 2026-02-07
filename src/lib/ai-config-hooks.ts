@@ -111,5 +111,8 @@ export function useAIConfig() {
     clearConfig,
     hasValidConfig: hasValidConfig(),
     isLoading,
+    isUpdating: updateMutation.isPending,
+    isUpdateSuccess: updateMutation.isSuccess,
+    updateError: updateMutation.error,
   }
 }

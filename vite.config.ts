@@ -6,6 +6,7 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 import netlify from '@netlify/vite-plugin-tanstack-start'
+import path from 'path'
 
 const config = defineConfig({
   plugins: [
@@ -20,6 +21,32 @@ const config = defineConfig({
     netlify(),
     viteReact(),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  ssr: {
+    external: [
+      '@tanstack/react-query',
+      '@radix-ui/react-accordion',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-collection',
+      '@radix-ui/react-collapsible',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dismissable-layer',
+      '@radix-ui/react-focus-guards',
+      '@radix-ui/react-focus-scope',
+      '@radix-ui/react-label',
+      '@radix-ui/react-popper',
+      '@radix-ui/react-portal',
+      '@radix-ui/react-presence',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tooltip',
+      'react-resizable-panels',
+    ],
+  },
 })
 
 export default config

@@ -28,6 +28,7 @@ interface StepChatProps {
   stepId: string
   stepTitle: string
   stepContent: string
+  onClose?: () => void
 }
 
 export function StepChat({
@@ -36,6 +37,7 @@ export function StepChat({
   stepId,
   stepTitle,
   stepContent,
+  onClose,
 }: StepChatProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -88,6 +90,14 @@ export function StepChat({
       inputRef.current?.focus()
     }
   }, [isOpen])
+
+  // Close chat when step changes
+  useEffect(() => {
+    setIsOpen(false)
+    if (onClose) {
+      onClose()
+    }
+  }, [stepId, onClose])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

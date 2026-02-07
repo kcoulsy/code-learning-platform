@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { z } from 'zod/v4'
 import { db } from '@/db'
 import {
@@ -16,6 +17,7 @@ import {
   encryptUserKey,
   decryptUserKey,
 } from './auth'
+import { auth } from './auth'
 
 // Step Progress
 export const getStepProgress = createServerFn()
@@ -460,11 +462,9 @@ export const deleteStepChats = createServerFn()
 // Chat streaming with AI
 export const streamChat = createServerFn({
   method: 'POST',
-  response: 'raw',
 })
   .inputValidator(
     z.object({
-      userId: z.string(),
       courseId: z.string(),
       itemId: z.string(),
       stepId: z.string(),
@@ -477,10 +477,23 @@ export const streamChat = createServerFn({
       systemPrompt: z.string(),
     }),
   )
-  .handler(async ({ data, request }) => {
+  .handler(async ({ data }) => {
+    // Get user session from request headers
+    const headers = getRequestHeaders()
+    const session = await auth.api.getSession({ headers })
+
+    if (!session?.user?.id) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    const userId = session.user.id
+
     // Get user's AI configuration
     const settings = await db.query.userSettings.findFirst({
-      where: eq(userSettings.userId, data.userId),
+      where: eq(userSettings.userId, userId),
     })
 
     if (!settings?.encryptedApiKey || !settings?.keyEncryptionKey) {
@@ -526,11 +539,11 @@ export const streamChat = createServerFn({
 
     // Stream the response
     const result = streamText({
-      model,
+      model: model as any,
       messages: data.messages,
       system: data.systemPrompt,
     })
 
     // Return the stream directly
-    return result.toDataStreamResponse()
+    return result.toTextStreamResponse()
   })

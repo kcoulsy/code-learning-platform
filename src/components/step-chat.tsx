@@ -25,6 +25,7 @@ import { ChatMessageContent } from '@/components/chat-message-content'
 import { useAIConfig } from '@/lib/ai-config-hooks'
 import { useSession } from '@/lib/auth-client'
 import { Link } from '@tanstack/react-router'
+import { streamChat } from '@/lib/progress-api'
 
 interface StepChatProps {
   courseId: string
@@ -125,20 +126,15 @@ The student has a question about this specific content. Answer clearly and conci
         content: userQuestion,
       })
 
-      // Call server-side streaming endpoint
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': session.user.id,
-        },
-        body: JSON.stringify({
+      // Call server-side streaming function
+      const response = await streamChat({
+        data: {
           courseId,
           itemId,
           stepId,
           messages: modelMessages,
           systemPrompt,
-        }),
+        },
       })
 
       if (!response.ok) {

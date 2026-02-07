@@ -38,8 +38,14 @@ export const Route = createFileRoute('/settings')({
 })
 
 function SettingsPage() {
-  const { config, updateConfig, hasValidConfig, isUpdateSuccess } =
-    useAIConfig()
+  const {
+    config,
+    updateConfig,
+    hasValidConfig,
+    isUpdateSuccess,
+    isUpdating,
+    updateError,
+  } = useAIConfig()
   const [showApiKey, setShowApiKey] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
@@ -336,13 +342,22 @@ function SettingsPage() {
                 </Alert>
               )}
 
+              {/* Error Message */}
+              {updateError && (
+                <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
+                  <AlertDescription className="text-red-800 dark:text-red-200">
+                    Failed to save settings: {updateError.message}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Save Button */}
               <Button
                 onClick={handleSave}
-                disabled={!isValid}
+                disabled={!isValid || isUpdating}
                 className="w-full"
               >
-                Save Configuration
+                {isUpdating ? 'Saving...' : 'Save Configuration'}
               </Button>
             </CardContent>
           </Card>

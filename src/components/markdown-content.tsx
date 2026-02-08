@@ -20,28 +20,76 @@ function splitContent(content: string) {
     | { type: 'exercise'; content: string; title: string }
   > = []
 
-  const regex = /```exercise(?:\s+title="([^"]*)")?\n([\s\S]*?)```/g
-
   let lastIndex = 0
-  let match
+  let i = 0
 
-  while ((match = regex.exec(content)) !== null) {
+  while (i < content.length) {
+    // Look for ```exercise
+    const exerciseStart = content.indexOf('```exercise', i)
+
+    if (exerciseStart === -1) {
+      // No more exercises
+      break
+    }
+
     // Add content before this exercise
-    if (match.index > lastIndex) {
+    if (exerciseStart > lastIndex) {
       parts.push({
         type: 'markdown',
-        content: content.slice(lastIndex, match.index),
+        content: content.slice(lastIndex, exerciseStart),
       })
+    }
+
+    // Parse the exercise header to get the title
+    const headerEnd = content.indexOf('\n', exerciseStart)
+    const header = content.slice(exerciseStart, headerEnd)
+    const titleMatch = header.match(/title="([^"]*)"/)
+    const title = titleMatch ? titleMatch[1] : 'Exercise'
+
+    // Find the matching closing ``` by tracking backtick sequences
+    let contentStart = headerEnd + 1
+    let j = contentStart
+    let exerciseEnd = -1
+
+    while (j < content.length) {
+      // Look for ``` at the start of a line
+      if (
+        content.slice(j, j + 3) === '```' &&
+        (j === 0 || content[j - 1] === '\n')
+      ) {
+        // Check if this is the closing of the exercise block
+        // by verifying we're not inside a nested code block within <solution>
+        const textBefore = content.slice(contentStart, j)
+        const solutionStart = textBefore.lastIndexOf('<solution>')
+        const solutionEnd = textBefore.lastIndexOf('</solution>')
+
+        if (solutionStart === -1 || solutionEnd > solutionStart) {
+          // Not inside a solution block, this is our closing ```
+          exerciseEnd = j
+          break
+        }
+      }
+      j++
+    }
+
+    if (exerciseEnd === -1) {
+      // Malformed exercise block, treat as markdown
+      parts.push({
+        type: 'markdown',
+        content: content.slice(exerciseStart),
+      })
+      break
     }
 
     // Add the exercise
     parts.push({
       type: 'exercise',
-      content: match[2].trim(),
-      title: match[1] || 'Exercise',
+      content: content.slice(contentStart, exerciseEnd).trim(),
+      title,
     })
 
-    lastIndex = match.index + match[0].length
+    lastIndex = exerciseEnd + 3
+    i = lastIndex
   }
 
   // Add remaining content after last exercise
@@ -82,7 +130,12 @@ export function MarkdownContent({
             : part.content
 
           return (
-            <ExerciseList key={index} content={exerciseBlock} stepId={stepId} />
+            <ExerciseList
+              key={index}
+              content={part.content}
+              title={part.title}
+              stepId={stepId}
+            />
           )
         }
 

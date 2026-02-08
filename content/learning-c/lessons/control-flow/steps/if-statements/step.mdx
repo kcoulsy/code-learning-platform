@@ -216,19 +216,157 @@ int main(void) {
 
 ## Exercises
 
-1. **Temperature Converter**: Write a program that asks for a temperature and a unit (C or F), then converts and displays the result. Use if-else to determine the conversion.
+````exercise title="Temperature Converter"
+Write a program that asks for a temperature and a unit (C or F), then converts and displays the result. Use if-else to determine the conversion.
 
-2. **Leap Year Checker**: Write a program that determines if a year is a leap year. A year is a leap year if:
-   - It's divisible by 4 AND not divisible by 100, OR
-   - It's divisible by 400
+<hint>
+Think about which conversion formula to use based on the unit (C to F or F to C). Use nested if-else or if-else if chains.
+</hint>
 
-3. **BMI Calculator**: Calculate BMI (weight / height²) and classify it:
-   - Under 18.5: Underweight
-   - 18.5-24.9: Normal
-   - 25-29.9: Overweight
-   - 30+: Obese
+<solution>
+```c
+#include <stdio.h>
 
-4. **Password Validator**: Check if a password meets criteria (length >= 8, has uppercase, has number). Use multiple conditions with logical operators.
+int main(void) {
+    float temp;
+    char unit;
+
+    printf("Enter temperature: ");
+    scanf("%f", &temp);
+    printf("Enter unit (C or F): ");
+    scanf(" %c", &unit);
+
+    if (unit == 'C' || unit == 'c') {
+        printf("%.2f°F\n", (temp * 9/5) + 32);
+    } else if (unit == 'F' || unit == 'f') {
+        printf("%.2f°C\n", (temp - 32) * 5/9);
+    } else {
+        printf("Invalid unit!\n");
+    }
+
+    return 0;
+}
+````
+
+</solution>
+```
+
+````exercise title="Leap Year Checker"
+Write a program that determines if a year is a leap year. A year is a leap year if:
+- It's divisible by 4 AND not divisible by 100, OR
+- It's divisible by 400
+
+<hint>
+Use the modulus operator (%) to check divisibility. Remember operator precedence and parentheses!
+</hint>
+
+<solution>
+```c
+#include <stdio.h>
+
+int main(void) {
+    int year;
+    printf("Enter a year: ");
+    scanf("%d", &year);
+
+    if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+        printf("%d is a leap year\n", year);
+    } else {
+        printf("%d is not a leap year\n", year);
+    }
+
+    return 0;
+}
+````
+
+</solution>
+```
+
+````exercise title="BMI Calculator"
+Calculate BMI (weight / height²) and classify it:
+- Under 18.5: Underweight
+- 18.5-24.9: Normal
+- 25-29.9: Overweight
+- 30+: Obese
+
+<hint>
+Use a chain of if-else if statements for the BMI classification. Make sure to square the height for BMI calculation.
+</hint>
+
+<solution>
+```c
+#include <stdio.h>
+
+int main(void) {
+    float weight, height, bmi;
+
+    printf("Enter weight (kg): ");
+    scanf("%f", &weight);
+    printf("Enter height (m): ");
+    scanf("%f", &height);
+
+    bmi = weight / (height * height);
+    printf("BMI: %.1f\n", bmi);
+
+    if (bmi < 18.5) {
+        printf("Classification: Underweight\n");
+    } else if (bmi < 25) {
+        printf("Classification: Normal\n");
+    } else if (bmi < 30) {
+        printf("Classification: Overweight\n");
+    } else {
+        printf("Classification: Obese\n");
+    }
+
+    return 0;
+}
+````
+
+</solution>
+```
+
+````exercise title="Password Validator"
+Check if a password meets criteria (length >= 8, has uppercase, has number). Use multiple conditions with logical operators.
+
+<hint>
+Use isupper() and isdigit() from ctype.h to check characters in a loop. Track flags for each requirement.
+</hint>
+
+<solution>
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+int main(void) {
+    char password[100];
+    int has_upper = 0, has_digit = 0;
+
+    printf("Enter password: ");
+    scanf("%s", password);
+
+    if (strlen(password) < 8) {
+        printf("Password must be at least 8 characters\n");
+        return 1;
+    }
+
+    for (int i = 0; password[i]; i++) {
+        if (isupper(password[i])) has_upper = 1;
+        if (isdigit(password[i])) has_digit = 1;
+    }
+
+    if (has_upper && has_digit) {
+        printf("Password is valid\n");
+    } else {
+        printf("Password must contain uppercase and number\n");
+    }
+
+    return 0;
+}
+````
+
+</solution>
+```
 
 ## Key Takeaways
 

@@ -127,7 +127,10 @@ function DesktopLayout({
           </div>
           <div ref={contentRef} className="flex-1 overflow-y-auto pb-10">
             <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
-              <MarkdownContent content={step.content} />
+              <MarkdownContent
+                content={step.content}
+                stepId={`${courseId}-${itemId}-${stepId}`}
+              />
             </div>
           </div>
           <div className="border-t border-border bg-background">
@@ -202,7 +205,10 @@ function StepPage() {
               </div>
               <div ref={contentRef} className="flex-1 overflow-y-auto pb-10">
                 <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
-                  <MarkdownContent content={step.content} />
+                  <MarkdownContent
+                    content={step.content}
+                    stepId={`${courseId}-${itemId}-${stepId}`}
+                  />
                 </div>
               </div>
               <div className="border-t border-border bg-background">

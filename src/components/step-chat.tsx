@@ -61,11 +61,7 @@ export function StepChat({
 
   // Load saved messages from database when they change
   useEffect(() => {
-    if (
-      savedMessages &&
-      Array.isArray(savedMessages) &&
-      savedMessages.length > 0
-    ) {
+    if (savedMessages && Array.isArray(savedMessages)) {
       setMessages(savedMessages)
     }
   }, [savedMessages])

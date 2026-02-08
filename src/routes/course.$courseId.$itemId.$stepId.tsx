@@ -1,39 +1,43 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
-import { BookOpen, FolderCog as FolderCode } from "lucide-react";
-import { loadCourse } from "@/lib/course-data";
-import { CourseSidebar } from "@/components/course-sidebar";
-import { MarkdownContent } from "@/components/markdown-content";
-import { StepNavigation } from "@/components/step-navigation";
-import { StepChat } from "@/components/step-chat";
-import { StepCompletionToggle } from "@/components/step-completion-toggle";
-import { CopyContentButton } from "@/components/copy-content-button";
-import { useTrackVisit } from "@/lib/progress-hooks";
-import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { createFileRoute, notFound } from '@tanstack/react-router'
+import { BookOpen, FolderCog as FolderCode } from 'lucide-react'
+import { loadCourse } from '@/lib/course-data'
+import { CourseSidebar } from '@/components/course-sidebar'
+import { MarkdownContent } from '@/components/markdown-content'
+import { StepNavigation } from '@/components/step-navigation'
+import { StepChat } from '@/components/step-chat'
+import { StepCompletionToggle } from '@/components/step-completion-toggle'
+import { CopyContentButton } from '@/components/copy-content-button'
+import { useTrackVisit } from '@/lib/progress-hooks'
+import {
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar'
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from "@/components/ui/resizable";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useSidebarLayout } from "@/hooks/use-sidebar-layout";
-import { useEffect, useRef } from "react";
-import { usePanelRef, type ImperativePanelHandle } from "react-resizable-panels";
+} from '@/components/ui/resizable'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { useSidebarLayout } from '@/hooks/use-sidebar-layout'
+import { useEffect, useRef } from 'react'
+import { usePanelRef, type ImperativePanelHandle } from 'react-resizable-panels'
 
-export const Route = createFileRoute("/course/$courseId/$itemId/$stepId")({
+export const Route = createFileRoute('/course/$courseId/$itemId/$stepId')({
   component: StepPage,
   loader: async ({ params }) => {
-    const course = await loadCourse({ data: { courseId: params.courseId } });
-    if (!course) throw notFound();
+    const course = await loadCourse({ data: { courseId: params.courseId } })
+    if (!course) throw notFound()
 
-    const item = course.items.find((i) => i.id === params.itemId);
-    if (!item) throw notFound();
+    const item = course.items.find((i) => i.id === params.itemId)
+    if (!item) throw notFound()
 
-    const step = item.steps.find((s) => s.id === params.stepId);
-    if (!step) throw notFound();
+    const step = item.steps.find((s) => s.id === params.stepId)
+    if (!step) throw notFound()
 
-    return { course, item, step };
+    return { course, item, step }
   },
-});
+})
 
 function DesktopLayout({
   course,
@@ -43,30 +47,32 @@ function DesktopLayout({
   itemId,
   stepId,
   Icon,
+  contentRef,
 }: {
-  course: any;
-  item: any;
-  step: any;
-  courseId: string;
-  itemId: string;
-  stepId: string;
-  Icon: any;
+  course: any
+  item: any
+  step: any
+  courseId: string
+  itemId: string
+  stepId: string
+  Icon: any
+  contentRef: React.RefObject<HTMLDivElement | null>
 }) {
-  const { layout, saveLayout } = useSidebarLayout();
-  const { open } = useSidebar();
-  const sidebarPanelRef = usePanelRef();
+  const { layout, saveLayout } = useSidebarLayout()
+  const { open } = useSidebar()
+  const sidebarPanelRef = usePanelRef()
 
   // Collapse/expand the sidebar panel when the open state changes
   useEffect(() => {
-    console.log('Sidebar open state changed:',sidebarPanelRef, open);
+    console.log('Sidebar open state changed:', sidebarPanelRef, open)
     if (sidebarPanelRef.current) {
       if (open) {
-        sidebarPanelRef.current.expand();
+        sidebarPanelRef.current.expand()
       } else {
-        sidebarPanelRef.current.collapse();
+        sidebarPanelRef.current.collapse()
       }
     }
-  }, [open]);
+  }, [open])
 
   return (
     <ResizablePanelGroup
@@ -104,7 +110,9 @@ function DesktopLayout({
                 <Icon className="h-4 w-4" />
                 <span>{item.title}</span>
                 <span>/</span>
-                <span className="text-foreground font-medium">{step.title}</span>
+                <span className="text-foreground font-medium">
+                  {step.title}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -117,7 +125,7 @@ function DesktopLayout({
               />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto pb-10">
+          <div ref={contentRef} className="flex-1 overflow-y-auto pb-10">
             <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
               <MarkdownContent content={step.content} />
             </div>
@@ -135,18 +143,26 @@ function DesktopLayout({
         </main>
       </ResizablePanel>
     </ResizablePanelGroup>
-  );
+  )
 }
 
 function StepPage() {
-  const { courseId, itemId, stepId } = Route.useParams();
-  const { course, item, step } = Route.useLoaderData();
-  const isMobile = useIsMobile();
+  const { courseId, itemId, stepId } = Route.useParams()
+  const { course, item, step } = Route.useLoaderData()
+  const isMobile = useIsMobile()
+  const contentRef = useRef<HTMLDivElement>(null)
 
   // Track visit for "Continue Learning" functionality
-  useTrackVisit(courseId, itemId, stepId);
+  useTrackVisit(courseId, itemId, stepId)
 
-  const Icon = item.type === "lesson" ? BookOpen : FolderCode;
+  // Scroll to top when step changes
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0
+    }
+  }, [stepId])
+
+  const Icon = item.type === 'lesson' ? BookOpen : FolderCode
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -169,7 +185,9 @@ function StepPage() {
                     <Icon className="h-4 w-4" />
                     <span>{item.title}</span>
                     <span>/</span>
-                    <span className="text-foreground font-medium">{step.title}</span>
+                    <span className="text-foreground font-medium">
+                      {step.title}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -182,7 +200,7 @@ function StepPage() {
                   />
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto pb-10">
+              <div ref={contentRef} className="flex-1 overflow-y-auto pb-10">
                 <div className="max-w-3xl mx-auto px-8 py-12 pb-0">
                   <MarkdownContent content={step.content} />
                 </div>
@@ -209,6 +227,7 @@ function StepPage() {
             itemId={itemId}
             stepId={stepId}
             Icon={Icon}
+            contentRef={contentRef}
           />
         )}
 
@@ -222,5 +241,5 @@ function StepPage() {
         />
       </div>
     </SidebarProvider>
-  );
+  )
 }

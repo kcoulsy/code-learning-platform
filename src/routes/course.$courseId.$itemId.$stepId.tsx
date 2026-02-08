@@ -233,6 +233,7 @@ function StepPage() {
 
         {/* AI Chat - remains floating outside panel group */}
         <StepChat
+          key={`chat-${courseId}-${itemId}-${stepId}`}
           courseId={courseId}
           itemId={itemId}
           stepId={stepId}

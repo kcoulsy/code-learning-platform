@@ -31,6 +31,8 @@ export function useStepChat(courseId: string, itemId: string, stepId: string) {
       return await getStepChats({ data: { userId, courseId, itemId, stepId } })
     },
     enabled: !!userId,
+    staleTime: 0,
+    gcTime: 0,
   })
 
   const saveMutation = useMutation({
